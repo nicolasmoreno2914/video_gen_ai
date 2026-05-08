@@ -1,0 +1,58 @@
+# Environment files — NEVER commit secrets
+.env
+.env.local
+.env.staging
+.env.production
+.env.*.local
+*.env
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+.next/
+
+# TypeScript compilation
+*.tsbuildinfo
+
+# Video files — generated output
+*.mp4
+*.mp3
+*.wav
+*.webm
+*.avi
+*.mov
+
+# Temporary / runtime storage
+tmp/
+/tmp/video-engine/
+**/logs/
+
+# Render / ffmpeg temp files
+*.concat
+*.list
+scene_*.mp4
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+
+# Secrets & keys
+*.pem
+*.key
+*.p12
+serviceAccountKey.json
+credentials.json
+
+# Coverage
+coverage/

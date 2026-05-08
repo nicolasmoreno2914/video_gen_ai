@@ -1,0 +1,93 @@
+################################################################################
+# render.yaml — Video Engine IA staging services
+# https://render.com/docs/blueprint-spec
+#
+# IMPORTANT: Do not hardcode secrets here. Set all sensitive env vars
+# directly in the Render dashboard under each service's Environment tab.
+################################################################################
+
+services:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Backend API (Web Service)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: video-engine-api-staging
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: node dist/main
+    healthCheckPath: /health
+    plan: standard          # change to starter for lower cost
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 10000        # Render injects $PORT automatically; this is a hint
+      - key: LOG_LEVEL
+        value: log
+      - key: STORAGE_DRIVER
+        value: r2
+      - key: STORAGE_BASE_PATH
+        value: /tmp/video-engine
+      # ── Set these in Render dashboard (not here) ──────────────────────────
+      # API_SECRET
+      # CORS_ORIGIN
+      # SUPABASE_URL
+      # SUPABASE_SERVICE_ROLE_KEY
+      # SUPABASE_JWT_SECRET
+      # SUPABASE_ANON_KEY
+      # DATABASE_URL
+      # REDIS_URL
+      # OPENAI_API_KEY
+      # OPENAI_MODEL
+      # ELEVENLABS_API_KEY
+      # ELEVENLABS_DEFAULT_VOICE_ID
+      # R2_ACCOUNT_ID
+      # R2_ACCESS_KEY_ID
+      # R2_SECRET_ACCESS_KEY
+      # R2_BUCKET
+      # R2_PUBLIC_BASE_URL
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. Video Worker (Background Worker)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: worker
+    name: video-engine-worker-staging
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: node dist/worker
+    plan: standard          # workers need memory for FFmpeg + Chromium
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: LOG_LEVEL
+        value: log
+      - key: STORAGE_DRIVER
+        value: r2
+      - key: STORAGE_BASE_PATH
+        value: /tmp/video-engine
+      - key: QUEUE_CONCURRENCY
+        value: 1            # keep at 1 on Render standard to avoid OOM
+      # ── Set these in Render dashboard (same as API) ───────────────────────
+      # API_SECRET
+      # SUPABASE_URL
+      # SUPABASE_SERVICE_ROLE_KEY
+      # DATABASE_URL
+      # REDIS_URL
+      # OPENAI_API_KEY
+      # OPENAI_MODEL
+      # OPENAI_IMAGE_MODEL
+      # OPENAI_IMAGE_SIZE
+      # OPENAI_IMAGE_QUALITY
+      # ELEVENLABS_API_KEY
+      # ELEVENLABS_DEFAULT_VOICE_ID
+      # ELEVENLABS_MODEL_ID
+      # R2_ACCOUNT_ID
+      # R2_ACCESS_KEY_ID
+      # R2_SECRET_ACCESS_KEY
+      # R2_BUCKET
+      # R2_PUBLIC_BASE_URL
+      # PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      # PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
