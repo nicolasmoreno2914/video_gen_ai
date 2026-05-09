@@ -33,7 +33,7 @@ jobs:
           BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
         run: |
           git remote add backend-repo \
-            "https://x-access-token:${BACKEND_REPO_TOKEN}@github.com/nicolasmoreno2914/video-gen-ai-backend.git"
+            "https://${BACKEND_REPO_TOKEN}@github.com/nicolasmoreno2914/video-gen-ai-backend.git"
           git push backend-repo backend-deploy:main --force
 
       - name: Cleanup temp branch
