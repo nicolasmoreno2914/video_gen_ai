@@ -9,14 +9,31 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 async function bootstrap(): Promise<void> {
-  const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
-  fs.mkdirSync(path.join(storagePath, 'logs'), { recursive: true });
-  fs.mkdirSync(path.join(storagePath, 'jobs'), { recursive: true });
+  console.log('[BOOT] Starting Video Engine API...');
+  console.log('[BOOT] NODE_ENV:', process.env.NODE_ENV);
+  console.log('[BOOT] PORT:', process.env.PORT ?? '(not set, will use 3500)');
+  console.log('[BOOT] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+  console.log('[BOOT] REDIS_URL exists:', !!process.env.REDIS_URL);
+  console.log('[BOOT] SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+  console.log('[BOOT] STORAGE_BASE_PATH:', process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine');
 
+  const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
+  try {
+    fs.mkdirSync(path.join(storagePath, 'logs'), { recursive: true });
+    fs.mkdirSync(path.join(storagePath, 'jobs'), { recursive: true });
+    console.log('[BOOT] Storage directories created OK');
+  } catch (err) {
+    console.error('[BOOT] WARNING: Could not create storage directories:', (err as Error).message);
+    // Non-fatal — continue bootstrap
+  }
+
+  console.log('[BOOT] Initializing NestJS app...');
   const app = await NestFactory.create(AppModule, {
     bufferLogs: false,
     logger: createWinstonLogger(),
   });
+
+  console.log('[BOOT] NestJS app created OK');
 
   app.setGlobalPrefix('api', { exclude: ['health', 'health/(.*)'] });
 
@@ -46,14 +63,15 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   const port = process.env.PORT ?? '3500';
+  console.log('[BOOT] About to listen on port', port);
   await app.listen(parseInt(port, 10), '0.0.0.0');
 
-  console.log(`[VideoEngineIA] Backend running on port ${port}`);
-  console.log(`[VideoEngineIA] Health check: http://0.0.0.0:${port}/health`);
+  console.log(`[BOOT] Server listening successfully on port ${port}`);
+  console.log(`[BOOT] Health check: http://0.0.0.0:${port}/health`);
 }
 
 bootstrap().catch((err: Error) => {
-  console.error('Bootstrap error:', err.message);
+  console.error('[BOOT] FATAL Bootstrap error:', err.message);
   console.error(err.stack);
   process.exit(1);
 });

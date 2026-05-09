@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import IORedis from 'ioredis';
@@ -6,7 +6,7 @@ import IORedis from 'ioredis';
 @Controller('health')
 export class HealthController {
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    @Optional() @InjectDataSource() private readonly dataSource: DataSource | null,
   ) {}
 
   @Get()
@@ -35,6 +35,7 @@ export class HealthController {
   }
 
   private async checkDatabase(): Promise<'ok' | 'error'> {
+    if (!this.dataSource) return 'error';
     try {
       await this.dataSource.query('SELECT 1');
       return 'ok';
