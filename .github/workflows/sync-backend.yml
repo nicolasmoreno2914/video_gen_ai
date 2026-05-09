@@ -24,16 +24,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
+      - name: Setup SSH deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BACKEND_DEPLOY_KEY }}
+
+      - name: Add github.com to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: Split backend/ subtree into temp branch
         run: |
           git subtree split --prefix=backend -b backend-deploy
 
-      - name: Push to video-gen-ai-backend repo
-        env:
-          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
+      - name: Push to video-gen-ai-backend repo (SSH)
         run: |
           git remote add backend-repo \
-            "https://${BACKEND_REPO_TOKEN}@github.com/nicolasmoreno2914/video-gen-ai-backend.git"
+            git@github.com:nicolasmoreno2914/video-gen-ai-backend.git
           git push backend-repo backend-deploy:main --force
 
       - name: Cleanup temp branch
