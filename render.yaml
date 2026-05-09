@@ -27,7 +27,7 @@ services:
       - key: LOG_LEVEL
         value: log
       - key: STORAGE_DRIVER
-        value: r2
+        value: local   # staging only — switch to r2 for production (add R2_* vars)
       - key: STORAGE_BASE_PATH
         value: /tmp/video-engine
       # ── Set these in Render dashboard (not here) ──────────────────────────
@@ -43,6 +43,7 @@ services:
       # OPENAI_MODEL
       # ELEVENLABS_API_KEY
       # ELEVENLABS_DEFAULT_VOICE_ID
+      # ── R2 vars (production only — leave unset for local driver) ──────────
       # R2_ACCOUNT_ID
       # R2_ACCESS_KEY_ID
       # R2_SECRET_ACCESS_KEY
@@ -65,7 +66,7 @@ services:
       - key: LOG_LEVEL
         value: log
       - key: STORAGE_DRIVER
-        value: r2
+        value: local   # staging only — switch to r2 for production
       - key: STORAGE_BASE_PATH
         value: /tmp/video-engine
       - key: QUEUE_CONCURRENCY

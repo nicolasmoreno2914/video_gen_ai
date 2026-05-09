@@ -31,6 +31,7 @@ import { AppConfig } from '../../config/configuration';
           ? new IORedis(redisUrl, {
               maxRetriesPerRequest: null,
               enableReadyCheck: false,
+              tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
             })
           : new IORedis({
               host: redisConfig.host,

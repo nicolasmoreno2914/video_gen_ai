@@ -14,7 +14,7 @@ async function bootstrap(): Promise<void> {
   fs.mkdirSync(path.join(storagePath, 'jobs'), { recursive: true });
 
   const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
+    bufferLogs: false,
     logger: createWinstonLogger(),
   });
 
@@ -54,5 +54,6 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((err: Error) => {
   console.error('Bootstrap error:', err.message);
+  console.error(err.stack);
   process.exit(1);
 });

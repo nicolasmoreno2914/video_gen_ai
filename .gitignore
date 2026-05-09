@@ -5,6 +5,8 @@
 .env.production
 .env.*.local
 *.env
+# Allow frontend .env.production (contains only public/anon keys)
+!frontend/.env.production
 
 # Dependencies
 node_modules/
