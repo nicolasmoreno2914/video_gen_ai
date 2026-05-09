@@ -1,0 +1,41 @@
+name: Sync backend → video-gen-ai-backend
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - 'backend/**'
+
+jobs:
+  sync:
+    name: Push backend subtree to Hostinger repo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout monorepo (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Split backend/ subtree into temp branch
+        run: |
+          git subtree split --prefix=backend -b backend-deploy
+
+      - name: Push to video-gen-ai-backend repo
+        env:
+          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
+        run: |
+          git remote add backend-repo \
+            "https://x-access-token:${BACKEND_REPO_TOKEN}@github.com/nicolasmoreno2914/video-gen-ai-backend.git"
+          git push backend-repo backend-deploy:main --force
+
+      - name: Cleanup temp branch
+        if: always()
+        run: git branch -D backend-deploy || true
