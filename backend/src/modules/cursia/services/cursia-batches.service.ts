@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -7,11 +7,7 @@ import { CursiaBatch } from '../entities/cursia-batch.entity';
 import { CursiaItem } from '../entities/cursia-item.entity';
 import { CreateBatchDto } from '../dto/create-batch.dto';
 import { CursiaCallbackService } from './cursia-callback.service';
-
-const TEST_FILE_URL = 'https://www.w3schools.com/html/mov_bbb.mp4';
-const TEST_FILE_SIZE = 788493;
-const TEST_DURATION = 10;
-const FILE_TTL_SECONDS = 10_800; // 3 hours
+import { TempStorageService } from '../../temp-storage/temp-storage.service';
 
 function scriptHash(script: string): string {
   return crypto.createHash('sha256').update(script).digest('hex').slice(0, 16);
@@ -28,6 +24,7 @@ export class CursiaBatchesService {
     @InjectRepository(CursiaItem)
     private readonly itemRepo: Repository<CursiaItem>,
     private readonly callbackService: CursiaCallbackService,
+    private readonly tempStorage: TempStorageService,
   ) {}
 
   async createBatch(dto: CreateBatchDto): Promise<{
@@ -41,7 +38,10 @@ export class CursiaBatchesService {
     // Idempotency check
     const existing = await this.batchRepo.findOne({ where: { request_id: dto.request_id } });
     if (existing) {
-      const items = await this.itemRepo.find({ where: { batch_id: existing.id }, order: { chapter_number: 'ASC' } });
+      const items = await this.itemRepo.find({
+        where: { batch_id: existing.id },
+        order: { chapter_number: 'ASC' },
+      });
       return {
         success: true,
         batch_id: existing.id,
@@ -82,7 +82,7 @@ export class CursiaBatchesService {
 
     // Process async (don't await)
     if (this.testMode) {
-      void this.processTestBatch(batch, items, dto);
+      void this.processTestBatch(batch, items);
     } else {
       void this.processProductionBatch(batch, items, dto);
     }
@@ -96,21 +96,25 @@ export class CursiaBatchesService {
     };
   }
 
-  private async processTestBatch(batch: CursiaBatch, items: CursiaItem[], dto: CreateBatchDto): Promise<void> {
+  // ─── Test mode ─────────────────────────────────────────────────────────────
+
+  private async processTestBatch(batch: CursiaBatch, items: CursiaItem[]): Promise<void> {
     this.logger.log(`[TEST MODE] Processing batch ${batch.id} with ${items.length} items`);
     await this.batchRepo.update(batch.id, { status: 'processing' });
 
     for (const item of items) {
       await new Promise(r => setTimeout(r, 500)); // small delay to simulate processing
 
-      const expiresAt = new Date(Date.now() + FILE_TTL_SECONDS * 1000);
+      // Register in TempStorage — generates a real signed download URL
+      const stored = await this.tempStorage.storeTestEntry();
+
       await this.itemRepo.update(item.id, {
         status: 'generated',
-        file_url: TEST_FILE_URL,
-        file_expires_at: expiresAt,
-        file_size_bytes: TEST_FILE_SIZE,
-        duration_seconds: TEST_DURATION,
-        checksum_sha256: 'test_checksum_not_real',
+        file_url: stored.download_url,
+        file_expires_at: new Date(stored.expires_at),
+        file_size_bytes: stored.size_bytes,
+        duration_seconds: stored.duration_seconds,
+        checksum_sha256: stored.checksum_sha256,
       });
 
       void this.callbackService.send(batch.callback_url, {
@@ -120,11 +124,11 @@ export class CursiaBatchesService {
         request_id: batch.request_id,
         chapter_number: item.chapter_number,
         status: 'generated',
-        file_url: TEST_FILE_URL,
-        expires_at: expiresAt.toISOString(),
-        size_bytes: TEST_FILE_SIZE,
-        duration_seconds: TEST_DURATION,
-        checksum_sha256: 'test_checksum_not_real',
+        file_url: stored.download_url,
+        expires_at: stored.expires_at,
+        size_bytes: stored.size_bytes,
+        duration_seconds: stored.duration_seconds,
+        checksum_sha256: stored.checksum_sha256,
       });
     }
 
@@ -144,34 +148,60 @@ export class CursiaBatchesService {
     });
   }
 
-  private async processProductionBatch(batch: CursiaBatch, items: CursiaItem[], dto: CreateBatchDto): Promise<void> {
-    this.logger.log(`[PRODUCTION] Queueing batch ${batch.id} — ${items.length} videos`);
-    // Import VideosService dynamically to avoid circular deps — use event emitter instead
-    // Each CursiaItem needs a VideoJob created via the existing VideosService
-    // For now, log that production mode requires VideosService integration
-    // TODO: inject VideosService and create a job per item, store video_job_id on item
-    this.logger.warn(`Production batch processing not yet wired to VideoProcessor. Batch ${batch.id} remains in queued state.`);
+  // ─── Production mode ────────────────────────────────────────────────────────
+
+  private async processProductionBatch(
+    batch: CursiaBatch,
+    items: CursiaItem[],
+    _dto: CreateBatchDto,
+  ): Promise<void> {
+    this.logger.log(`[PRODUCTION] Batch ${batch.id} queued — ${items.length} videos`);
+    // TODO: inject VideosService, create one VideoJob per CursiaItem,
+    // store video_job_id on each item. VideoProcessor emits 'cursia.job.completed'
+    // when each job finishes — handled below by @OnEvent listeners.
+    this.logger.warn(
+      `Production wiring pending. Batch ${batch.id} stays in 'queued' until VideoProcessor integration is complete.`,
+    );
   }
 
+  // ─── Event listeners (production) ──────────────────────────────────────────
+
   @OnEvent('cursia.job.completed')
-  async onJobCompleted(event: { jobId: string; localMp4Path?: string; downloadUrl?: string; durationSeconds?: number }): Promise<void> {
+  async onJobCompleted(event: {
+    jobId: string;
+    localMp4Path?: string;
+    durationSeconds?: number;
+  }): Promise<void> {
     const item = await this.itemRepo.findOne({ where: { video_job_id: event.jobId } });
     if (!item) return;
 
     const batch = await this.batchRepo.findOne({ where: { id: item.batch_id } });
     if (!batch) return;
 
-    const expiresAt = new Date(Date.now() + FILE_TTL_SECONDS * 1000);
-    const fileUrl = event.downloadUrl ?? null;
+    // Store the generated MP4 in TempStorage and get a signed download URL
+    let stored: Awaited<ReturnType<TempStorageService['storeTestEntry']>> | null = null;
+    if (event.localMp4Path) {
+      try {
+        stored = await this.tempStorage.storeFile(event.localMp4Path, event.jobId);
+        if (event.durationSeconds) {
+          // Patch duration (not computed in storeFile yet)
+          stored = { ...stored, duration_seconds: event.durationSeconds };
+        }
+      } catch (err) {
+        this.logger.error(`[CursiaBatches] Failed to store MP4 for job ${event.jobId}: ${(err as Error).message}`);
+      }
+    }
 
     await this.itemRepo.update(item.id, {
       status: 'generated',
-      file_url: fileUrl,
-      file_expires_at: expiresAt,
-      duration_seconds: event.durationSeconds ?? null,
+      file_url: stored?.download_url ?? null,
+      file_expires_at: stored ? new Date(stored.expires_at) : null,
+      file_size_bytes: stored?.size_bytes ?? null,
+      duration_seconds: stored?.duration_seconds ?? null,
+      checksum_sha256: stored?.checksum_sha256 ?? null,
     });
 
-    if (fileUrl) {
+    if (stored) {
       void this.callbackService.send(batch.callback_url, {
         event: 'video.generated',
         batch_id: batch.id,
@@ -179,11 +209,11 @@ export class CursiaBatchesService {
         request_id: batch.request_id,
         chapter_number: item.chapter_number,
         status: 'generated',
-        file_url: fileUrl,
-        expires_at: expiresAt.toISOString(),
-        size_bytes: null,
-        duration_seconds: event.durationSeconds ?? null,
-        checksum_sha256: null,
+        file_url: stored.download_url,
+        expires_at: stored.expires_at,
+        size_bytes: stored.size_bytes,
+        duration_seconds: stored.duration_seconds,
+        checksum_sha256: stored.checksum_sha256,
       });
     }
 
@@ -213,14 +243,15 @@ export class CursiaBatchesService {
     await this.checkBatchCompletion(batch.id);
   }
 
+  // ─── Batch completion ───────────────────────────────────────────────────────
+
   private async checkBatchCompletion(batchId: string): Promise<void> {
     const items = await this.itemRepo.find({ where: { batch_id: batchId } });
     const total = items.length;
     const completed = items.filter(i => i.status === 'generated').length;
     const failed = items.filter(i => i.status === 'failed').length;
-    const done = completed + failed;
 
-    if (done < total) {
+    if (completed + failed < total) {
       await this.batchRepo.update(batchId, { completed_items: completed, failed_items: failed, status: 'processing' });
       return;
     }
@@ -241,6 +272,8 @@ export class CursiaBatchesService {
       failed,
     });
   }
+
+  // ─── Queries ────────────────────────────────────────────────────────────────
 
   async getBatchById(batchId: string) {
     const batch = await this.batchRepo.findOne({ where: { id: batchId } });
@@ -268,7 +301,7 @@ export class CursiaBatchesService {
         chapter_number: i.chapter_number,
         item_id: i.id,
         status: i.status,
-        file_url: i.file_url,
+        download_url: i.file_url,
         expires_at: i.file_expires_at?.toISOString() ?? null,
         size_bytes: i.file_size_bytes,
         duration_seconds: i.duration_seconds,

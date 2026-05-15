@@ -350,20 +350,44 @@ Videogen sends `POST {callback_url}` for each event. Cursia must respond with `2
 
 ## 6. Storage & File URLs
 
-- MP4 files are stored in **Cloudflare R2** (or local filesystem in dev)
-- File URLs are **pre-signed** with a **3-hour TTL**
-- Cursia must download the MP4 **before `expires_at`**
+### v1 — Local temp storage (active)
+
+In v1, Videogen uses **local temporary storage** on the server. No external object storage is required.
+
+- MP4 files are saved in `TEMP_VIDEO_DIR` (default: `./storage/temp-videos/`)
+- Each file gets a UUID `file_id` and a **HMAC-signed download URL** with a **3-hour TTL**
+- Cursia downloads the MP4 via `GET /api/v1/temp-files/:file_id/download?exp=...&sig=...`
+- A scheduled cleanup job runs every hour and deletes expired files from disk and DB
 - Videogen does NOT store MP4 permanently
 - Videogen does NOT embed files in API responses (no base64)
 
-**Storage env vars (set in Hostinger):**
+**Download URL format:**
 ```
-STORAGE_DRIVER=r2
-R2_ACCOUNT_ID=...
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=videogen-outputs
-R2_PUBLIC_BASE_URL=https://...
+https://videosb.nomaddi.com/api/v1/temp-files/{file_id}/download?exp={unix_ts}&sig={hmac}
+```
+
+HMAC: `HMAC-SHA256(TEMP_DOWNLOAD_SECRET, "{file_id}.{exp}")`
+
+**Required env vars (Hostinger):**
+```
+TEMP_STORAGE_PROVIDER=local
+TEMP_VIDEO_DIR=./storage/temp-videos
+TEMP_FILE_TTL_SECONDS=10800
+TEMP_DOWNLOAD_SECRET=<random 32+ chars>
+PUBLIC_API_URL=https://videosb.nomaddi.com
+```
+
+### v2 — Cloudflare R2 (future)
+
+When traffic/volume justifies it, switch to R2 by setting `TEMP_STORAGE_PROVIDER=r2` and providing R2 credentials. The API contract for Cursia does not change — only the `download_url` format changes to a pre-signed R2 URL.
+
+```
+# Future — not required for v1
+# R2_ACCOUNT_ID=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
+# R2_BUCKET=videogen-outputs
+# R2_PUBLIC_BASE_URL=https://...
 ```
 
 ---

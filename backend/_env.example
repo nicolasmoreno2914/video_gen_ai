@@ -61,18 +61,31 @@ YOUTUBE_CLIENT_ID=
 YOUTUBE_CLIENT_SECRET=
 YOUTUBE_REFRESH_TOKEN=
 
-# ── Storage ──────────────────────────────────────────────────
-# local → files stay in STORAGE_BASE_PATH (local/docker)
-# r2    → uploaded to Cloudflare R2 after render (staging/prod)
+# ── Video render storage (internal, not for Cursia download) ─
+# local → files stay in STORAGE_BASE_PATH
+# r2    → uploaded to Cloudflare R2 after render (future)
 STORAGE_DRIVER=local
 STORAGE_BASE_PATH=/tmp/video-engine
 
-# Required when STORAGE_DRIVER=r2
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET=
-R2_PUBLIC_BASE_URL=
+# Required only when STORAGE_DRIVER=r2
+# R2_ACCOUNT_ID=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
+# R2_BUCKET=
+# R2_PUBLIC_BASE_URL=
+
+# ── Temp storage for Cursia downloads (v1 = local_temp) ──────
+# Provider: local (v1) | r2 (future)
+TEMP_STORAGE_PROVIDER=local
+TEMP_VIDEO_DIR=./storage/temp-videos
+TEMP_FILE_TTL_SECONDS=10800
+
+# Secret for signing/verifying temp file download URLs (HMAC-SHA256)
+TEMP_DOWNLOAD_SECRET=change_me_in_production
+
+# Public base URL of this Videogen server (used to build download_url)
+# Must match the deployed domain — no trailing slash
+PUBLIC_API_URL=https://videosb.nomaddi.com
 
 # ── Video defaults ───────────────────────────────────────────
 DEFAULT_FPS=30

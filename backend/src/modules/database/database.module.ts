@@ -12,11 +12,12 @@ import { WebhookEndpoint } from './entities/webhook-endpoint.entity';
 import { OAuthConnection } from './entities/oauth-connection.entity';
 import { CursiaBatch } from '../cursia/entities/cursia-batch.entity';
 import { CursiaItem } from '../cursia/entities/cursia-item.entity';
+import { TempFile } from '../temp-storage/entities/temp-file.entity';
 
 const entities = [
   Institution, VideoJob, VideoScene, ApiUsageLog,
   InstitutionUser, ApiKey, WebhookEndpoint, OAuthConnection,
-  CursiaBatch, CursiaItem,
+  CursiaBatch, CursiaItem, TempFile,
 ];
 
 @Module({

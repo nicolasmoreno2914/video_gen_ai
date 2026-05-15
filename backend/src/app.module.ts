@@ -21,6 +21,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ExternalModule } from './modules/external/external.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { CursiaModule } from './modules/cursia/cursia.module';
+import { TempStorageModule } from './modules/temp-storage/temp-storage.module';
 import { DevController } from './modules/videos/dev.controller';
 
 @Module({
@@ -49,6 +50,7 @@ import { DevController } from './modules/videos/dev.controller';
     AuthModule,
     ExternalModule,
     StorageModule,
+    TempStorageModule,
     CursiaModule,
   ],
   controllers: [DevController],
