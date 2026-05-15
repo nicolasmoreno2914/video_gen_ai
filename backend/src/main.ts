@@ -31,6 +31,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: false,
     logger: createWinstonLogger(),
+    rawBody: true,
   });
 
   console.log('[BOOT] NestJS app created OK');

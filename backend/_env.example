@@ -1,0 +1,103 @@
+# ============================================================
+# Video Engine IA — Backend Environment Variables
+# Copy to .env and fill in real values. NEVER commit .env.
+# ============================================================
+
+# ── Server ───────────────────────────────────────────────────
+PORT=3500
+NODE_ENV=development
+
+# Generic secret for DualAuthGuard static key (dev/internal use)
+# Set API_SECRET in Render. ORBIA_VIDEO_ENGINE_SECRET still works as alias.
+API_SECRET=change_me_in_production
+
+SKIP_AUTH=false
+
+# ── CORS ─────────────────────────────────────────────────────
+# Comma-separated origins, or * (dev only).
+# Staging: https://your-app.pages.dev,http://localhost:5173
+CORS_ORIGIN=*
+
+# ── Supabase ─────────────────────────────────────────────────
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_JWT_SECRET=
+SUPABASE_ANON_KEY=
+
+# ── Database ─────────────────────────────────────────────────
+# Option 1: connection string — takes priority (Render / Supabase)
+DATABASE_URL=
+
+# Option 2: individual vars — local docker-compose
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=video_engine
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# ── Redis ────────────────────────────────────────────────────
+# Option 1: URL — takes priority (Upstash rediss://..., Render redis://...)
+REDIS_URL=
+
+# Option 2: individual vars — local docker-compose
+REDIS_HOST=redis
+REDIS_PORT=6379
+QUEUE_CONCURRENCY=2
+
+# ── OpenAI ───────────────────────────────────────────────────
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o
+OPENAI_IMAGE_MODEL=dall-e-3
+OPENAI_IMAGE_SIZE=1792x1024
+OPENAI_IMAGE_QUALITY=standard
+
+# ── ElevenLabs ───────────────────────────────────────────────
+ELEVENLABS_API_KEY=
+ELEVENLABS_DEFAULT_VOICE_ID=
+ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+
+# ── YouTube (optional) ───────────────────────────────────────
+YOUTUBE_CLIENT_ID=
+YOUTUBE_CLIENT_SECRET=
+YOUTUBE_REFRESH_TOKEN=
+
+# ── Storage ──────────────────────────────────────────────────
+# local → files stay in STORAGE_BASE_PATH (local/docker)
+# r2    → uploaded to Cloudflare R2 after render (staging/prod)
+STORAGE_DRIVER=local
+STORAGE_BASE_PATH=/tmp/video-engine
+
+# Required when STORAGE_DRIVER=r2
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+R2_PUBLIC_BASE_URL=
+
+# ── Video defaults ───────────────────────────────────────────
+DEFAULT_FPS=30
+DEFAULT_RESOLUTION_WIDTH=1920
+DEFAULT_RESOLUTION_HEIGHT=1080
+DEFAULT_TARGET_DURATION_MINUTES=7
+DEFAULT_VISUAL_STYLE=notebooklm
+ENABLE_ZOOM_EFFECT=false
+
+DEFAULT_DAILY_VIDEO_LIMIT=10
+
+# ── Logging ──────────────────────────────────────────────────
+LOG_LEVEL=log
+LOG_RETENTION_DAYS=14
+
+# ── Puppeteer (set by Dockerfile) ────────────────────────────
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# ── Cursia Integration ────────────────────────────────────────
+# Shared secret used to verify incoming HMAC signatures from Cursia (X-Cursia-Signature)
+VIDEOGEN_SHARED_SECRET=change_me_in_production
+
+# Secret used to sign outgoing webhook callbacks to Cursia (X-Videogen-Signature)
+VIDEOGEN_WEBHOOK_SECRET=change_me_in_production
+
+# Set to 'true' to enable test mode: batches complete instantly with a sample video URL
+VIDEOGEN_TEST_MODE=false
