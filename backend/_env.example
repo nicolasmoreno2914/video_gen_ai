@@ -1,48 +1,65 @@
 # ============================================================
-# Video Engine IA — Backend Environment Variables
-# Copy to .env and fill in real values. NEVER commit .env.
+# Videogen — Backend Environment Variables
+# ============================================================
+# Copia este archivo a .env y completa los valores reales.
+# NUNCA hagas commit del .env con secretos.
+#
+# Generar secretos seguros:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 # ============================================================
 
-# ── Server ───────────────────────────────────────────────────
-PORT=3500
-NODE_ENV=development
+# ── Servidor ─────────────────────────────────────────────────
+# Producción Contabo: PORT=3001 (Nginx proxy → localhost:3001)
+# Local / staging:    PORT=3500
+PORT=3001
+NODE_ENV=production
 
-# Generic secret for DualAuthGuard static key (dev/internal use)
-# Set API_SECRET in Render. ORBIA_VIDEO_ENGINE_SECRET still works as alias.
+# Clave estática para DualAuthGuard (frontend interno / Eduvia)
 API_SECRET=change_me_in_production
 
 SKIP_AUTH=false
 
 # ── CORS ─────────────────────────────────────────────────────
-# Comma-separated origins, or * (dev only).
-# Staging: https://your-app.pages.dev,http://localhost:5173
-CORS_ORIGIN=*
+# Orígenes permitidos separados por coma.
+# Producción: dominios reales de Cursia y frontend Eduvia.
+# Local:      * (solo desarrollo, nunca producción)
+CORS_ORIGIN=https://api.cursia.nomaddi.com,https://cursia.nomaddi.com
 
 # ── Supabase ─────────────────────────────────────────────────
+# Base de datos principal de Videogen (PostgreSQL vía Supabase).
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_JWT_SECRET=
 SUPABASE_ANON_KEY=
 
-# ── Database ─────────────────────────────────────────────────
-# Option 1: connection string — takes priority (Render / Supabase)
-DATABASE_URL=
+# ── Base de datos ─────────────────────────────────────────────
+# Opción 1 (recomendada): connection string — tiene prioridad sobre las vars individuales
+DATABASE_URL=postgresql://postgres:<PASSWORD>@db.<PROJECT>.supabase.co:5432/postgres
 
-# Option 2: individual vars — local docker-compose
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=video_engine
-DB_USER=postgres
-DB_PASSWORD=postgres
+# Opción 2: vars individuales (docker-compose local)
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_NAME=videogen
+# DB_USER=postgres
+# DB_PASSWORD=
 
-# ── Redis ────────────────────────────────────────────────────
-# Option 1: URL — takes priority (Upstash rediss://..., Render redis://...)
-REDIS_URL=
+# ── Redis ─────────────────────────────────────────────────────
+# Producción Contabo: Redis local en el mismo VPS
+REDIS_URL=redis://127.0.0.1:6379
 
-# Option 2: individual vars — local docker-compose
-REDIS_HOST=redis
-REDIS_PORT=6379
-QUEUE_CONCURRENCY=2
+# Si Redis tiene contraseña:
+# REDIS_URL=redis://:TU_PASSWORD@127.0.0.1:6379
+#
+# ⚠️  Si la contraseña contiene '&', codifícalo como '%26'
+# ❌ MAL: redis://:pass&word@127.0.0.1:6379
+# ✅ BIEN: redis://:pass%26word@127.0.0.1:6379
+#
+# Vars individuales (alternativa sin URL):
+# REDIS_HOST=127.0.0.1
+# REDIS_PORT=6379
+# REDIS_PASSWORD=
+
+QUEUE_CONCURRENCY=1
 
 # ── OpenAI ───────────────────────────────────────────────────
 OPENAI_API_KEY=
@@ -56,61 +73,80 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_DEFAULT_VOICE_ID=
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 
-# ── YouTube (optional) ───────────────────────────────────────
-YOUTUBE_CLIENT_ID=
-YOUTUBE_CLIENT_SECRET=
-YOUTUBE_REFRESH_TOKEN=
+# ── YouTube (no usado por Videogen — lo maneja Cursia) ───────
+# Videogen NO sube videos a YouTube. Estas vars solo existen por
+# compatibilidad con el módulo YouTubeModule. Déjalas vacías.
+# YOUTUBE_CLIENT_ID=
+# YOUTUBE_CLIENT_SECRET=
+# YOUTUBE_REFRESH_TOKEN=
 
-# ── Video render storage (internal, not for Cursia download) ─
-# local → files stay in STORAGE_BASE_PATH
-# r2    → uploaded to Cloudflare R2 after render (future)
+# ── Storage interno de render ─────────────────────────────────
+# Carpeta donde el worker guarda los MP4 generados temporalmente
+# antes de moverlos a TempStorage (entregado a Cursia).
+# Producción Contabo: usar ruta absoluta en el VPS
 STORAGE_DRIVER=local
-STORAGE_BASE_PATH=/tmp/video-engine
+STORAGE_BASE_PATH=/var/www/videogen/storage
 
-# Required only when STORAGE_DRIVER=r2
+# Cloudflare R2 — futuro (no requerido en v1)
 # R2_ACCOUNT_ID=
 # R2_ACCESS_KEY_ID=
 # R2_SECRET_ACCESS_KEY=
 # R2_BUCKET=
 # R2_PUBLIC_BASE_URL=
 
-# ── Temp storage for Cursia downloads (v1 = local_temp) ──────
-# Provider: local (v1) | r2 (future)
+# ── Temp storage para downloads de Cursia (v1 = local) ────────
+# Carpeta donde se sirven los MP4 terminados con URL firmada.
+# Cursia descarga de aquí. TTL = 3 horas.
 TEMP_STORAGE_PROVIDER=local
-TEMP_VIDEO_DIR=./storage/temp-videos
+TEMP_VIDEO_DIR=/var/www/videogen/storage/temp-videos
 TEMP_FILE_TTL_SECONDS=10800
 
-# Secret for signing/verifying temp file download URLs (HMAC-SHA256)
+# Secret para firmar/verificar URLs de descarga temporales (HMAC-SHA256)
+# Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 TEMP_DOWNLOAD_SECRET=change_me_in_production
 
-# Public base URL of this Videogen server (used to build download_url)
-# Must match the deployed domain — no trailing slash
+# URL pública de este servidor Videogen (sin trailing slash)
+# Se usa para construir las download_url que se envían a Cursia
 PUBLIC_API_URL=https://videosb.nomaddi.com
 
-# ── Video defaults ───────────────────────────────────────────
+# ── Defaults de generación de video ──────────────────────────
 DEFAULT_FPS=30
 DEFAULT_RESOLUTION_WIDTH=1920
 DEFAULT_RESOLUTION_HEIGHT=1080
 DEFAULT_TARGET_DURATION_MINUTES=7
 DEFAULT_VISUAL_STYLE=notebooklm
 ENABLE_ZOOM_EFFECT=false
-
 DEFAULT_DAILY_VIDEO_LIMIT=10
 
-# ── Logging ──────────────────────────────────────────────────
+# ── Logging ───────────────────────────────────────────────────
 LOG_LEVEL=log
 LOG_RETENTION_DAYS=14
 
-# ── Puppeteer (set by Dockerfile) ────────────────────────────
-PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# ── Puppeteer / Chromium ──────────────────────────────────────
+# Producción: Chromium instalado en el sistema (no descargado por puppeteer)
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# ── Cursia Integration ────────────────────────────────────────
-# Shared secret used to verify incoming HMAC signatures from Cursia (X-Cursia-Signature)
+# ── Integración Cursia ↔ Videogen ─────────────────────────────
+#
+# VIDEOGEN_SHARED_SECRET
+#   Videogen usa este secret para verificar las firmas HMAC que envía Cursia
+#   en el header X-Cursia-Signature de cada request entrante.
+#   Cursia y Videogen deben tener el MISMO valor.
+#   Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 VIDEOGEN_SHARED_SECRET=change_me_in_production
 
-# Secret used to sign outgoing webhook callbacks to Cursia (X-Videogen-Signature)
+# VIDEOGEN_WEBHOOK_SECRET
+#   Videogen usa este secret para firmar los callbacks salientes hacia Cursia
+#   en el header X-Videogen-Signature.
+#   Cursia verifica esta firma en su endpoint de callback.
+#   Generar: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 VIDEOGEN_WEBHOOK_SECRET=change_me_in_production
 
-# Set to 'true' to enable test mode: batches complete instantly with a sample video URL
+# VIDEOGEN_TEST_MODE
+#   true  → los batches completan instantáneamente con una URL de video de prueba.
+#           No consume créditos de OpenAI/ElevenLabs. Callbacks reales a Cursia.
+#           Usar para validar el flujo Cursia ↔ Videogen ↔ callbacks.
+#   false → producción real. REQUIERE que processProductionBatch esté conectado
+#           al pipeline de generación (ver docs/DEPLOY_CONTABO_VIDEOGEN.md §Pendientes).
 VIDEOGEN_TEST_MODE=false

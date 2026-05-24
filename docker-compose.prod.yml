@@ -1,0 +1,104 @@
+###############################################################################
+# docker-compose.prod.yml — Video Engine IA / Eduvia
+# Producción en VPS Contabo
+#
+# Base de datos: Supabase (externa) → configurar DATABASE_URL en .env.production
+# Redis: contenedor local en el VPS
+# Storage: volumen local → /var/www/video-engine/storage
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs -f api
+#   docker compose -f docker-compose.prod.yml down
+###############################################################################
+
+services:
+
+  # ── API HTTP ─────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: videogen-api
+    command: node dist/main
+    restart: always
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - STORAGE_BASE_PATH=/app/storage
+    ports:
+      - "127.0.0.1:3500:3500"   # solo localhost — Nginx hace el proxy público
+    volumes:
+      - video_storage:/app/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3500/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Worker BullMQ ─────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: videogen-worker
+    command: node dist/worker
+    restart: always
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - STORAGE_BASE_PATH=/app/storage
+      - QUEUE_CONCURRENCY=1           # 1 video a la vez para conservar RAM
+    volumes:
+      - video_storage:/app/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ── Redis ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: videogen-redis
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  video_storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/www/video-engine/storage
+
+  redis_data:
+    driver: local

@@ -4,14 +4,28 @@ import {
   Get,
   Param,
   Post,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { VideosService } from './videos.service';
 import { VIDEO_QUEUE } from '../queue/queue.constants';
 
+/**
+ * DevController — endpoints de desarrollo y pruebas.
+ *
+ * PRODUCCIÓN: Este controlador está deshabilitado cuando NODE_ENV=production.
+ * Cualquier request a /dev/* devuelve 404 en producción.
+ */
 @Controller('dev')
 export class DevController {
+  private readonly isProduction = process.env.NODE_ENV === 'production';
+
+  private guardProd(): void {
+    if (this.isProduction) {
+      throw new NotFoundException('Not found');
+    }
+  }
   constructor(
     private readonly videosService: VideosService,
     @InjectQueue(VIDEO_QUEUE) private readonly videoQueue: Queue,
@@ -19,6 +33,7 @@ export class DevController {
 
   @Post('test-create')
   async testCreate(@Body() body: Record<string, unknown>): Promise<unknown> {
+    this.guardProd();
     const { job } = await this.videosService.create({
       course_id: (body['course_id'] as string) ?? 'test-course',
       chapter_id: (body['chapter_id'] as string) ?? 'test-chapter',
@@ -46,6 +61,7 @@ export class DevController {
 
   @Post('test-create-dry-run')
   async testCreateDryRun(@Body() body: Record<string, unknown>): Promise<unknown> {
+    this.guardProd();
     const { job } = await this.videosService.create({
       course_id: (body['course_id'] as string) ?? 'test-course',
       chapter_id: (body['chapter_id'] as string) ?? `chapter-${Date.now()}`,
@@ -79,12 +95,14 @@ export class DevController {
 
   @Get('jobs')
   async listJobs(): Promise<unknown> {
+    this.guardProd();
     const { jobs, total } = await this.videosService.findAll({ page: 1, limit: 50 });
     return { total, jobs };
   }
 
   @Get('jobs/:jobId/script')
   async getScript(@Param('jobId') jobId: string): Promise<unknown> {
+    this.guardProd();
     const job = await this.videosService.findById(jobId);
     return {
       job_id: job.id,
@@ -97,6 +115,7 @@ export class DevController {
 
   @Post('mock-orbia-webhook')
   mockWebhook(@Body() body: Record<string, unknown>): unknown {
+    this.guardProd();
     return {
       received: true,
       timestamp: new Date().toISOString(),
@@ -107,6 +126,7 @@ export class DevController {
 
   @Get('mock-orbia-webhook')
   mockWebhookGet(): unknown {
+    this.guardProd();
     return {
       status: 'ready',
       message: 'Mock Orbia webhook activo. Usa POST para enviar datos.',
