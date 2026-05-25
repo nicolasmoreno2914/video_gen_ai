@@ -1,13 +1,13 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, radiusValue, bulletFontSize } from './shared';
+import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, radiusValue, bulletFontSize, lerpColor } from './shared';
 
 function statNumberSize(statValue: string): number {
   const len = statValue.replace(/\s/g, '').length;
-  if (len <= 3) return 220;
-  if (len <= 5) return 180;
-  if (len <= 7) return 140;
-  return 110;
+  if (len <= 3)  return 240;
+  if (len <= 5)  return 200;
+  if (len <= 7)  return 160;
+  return 120;
 }
 
 export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme): string {
@@ -21,33 +21,113 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
   const statLabel = statMatch ? first.substring(statMatch[0].length).trim() : '';
   const restItems = texts.slice(1, 4);
   const numSize = statNumberSize(statValue);
-  const restFontSize = bulletFontSize(restItems, 30, 20);
+  const restFontSize = bulletFontSize(restItems, 28, 20);
+
+  const supportCards = restItems.length > 0
+    ? `<div style="display:flex;flex-direction:column;gap:14px;margin-top:24px">
+        ${restItems.map((b, i) => {
+          const t = i / Math.max(restItems.length - 1, 1);
+          const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
+          return `
+          <div style="
+            display:flex; align-items:center; gap:16px;
+            background:white;
+            border-left:5px solid ${color};
+            border-radius:0 ${radius} ${radius} 0;
+            box-shadow:0 2px 12px rgba(0,0,0,0.07);
+            padding:14px 24px 14px 20px;
+          ">
+            <div style="
+              width:28px; height:28px; min-width:28px; border-radius:50%;
+              background:${color}18; border:2px solid ${color}50;
+              display:flex; align-items:center; justify-content:center; flex-shrink:0;
+            ">
+              <div style="width:8px;height:8px;border-radius:50%;background:${color}"></div>
+            </div>
+            <span style="
+              font-family:'Inter',sans-serif;
+              font-size:${restFontSize}px;
+              font-weight:500; color:#333; line-height:1.4;
+            ">${escape(b)}</span>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
 
   const statBlock = `
-    <div style="background:${brand.secondaryColor};color:#fff;font-family:'Inter',sans-serif;font-size:18px;font-weight:700;padding:8px 24px;border-radius:30px;width:fit-content;letter-spacing:1.5px">DATO CLAVE</div>
-    <div style="font-size:${numSize}px;font-weight:900;line-height:0.9;color:${brand.primaryColor};font-family:'Nunito',sans-serif">${escape(statValue)}</div>
-    ${statLabel ? `<div style="font-family:'Inter',sans-serif;font-size:38px;color:#333;line-height:1.3;max-width:680px">${escape(statLabel)}</div>` : ''}
-    ${restItems.length > 0
-      ? `<div style="margin-top:20px;display:flex;flex-direction:column;gap:14px">
-          ${restItems.map(b =>
-            `<div style="display:flex;align-items:flex-start;gap:12px">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${brand.secondaryColor};flex-shrink:0;margin-top:${Math.round(restFontSize * 0.4)}px"></span>
-              <span style="font-family:'Inter',sans-serif;font-size:${restFontSize}px;color:#555;line-height:1.45">${escape(b)}</span>
-            </div>`
-          ).join('')}
-        </div>`
-      : ''}`;
+    <div style="
+      display:inline-block;
+      background:${brand.secondaryColor};
+      color:#fff;
+      font-family:'Inter',sans-serif;
+      font-size:18px; font-weight:700;
+      padding:9px 28px; border-radius:30px;
+      letter-spacing:1.5px;
+      box-shadow:0 3px 12px ${brand.secondaryColor}50;
+    ">DATO CLAVE</div>
+
+    <div style="
+      font-size:${numSize}px;
+      font-weight:900;
+      line-height:0.88;
+      color:${brand.primaryColor};
+      font-family:'Nunito',sans-serif;
+      text-shadow:0 4px 32px ${brand.primaryColor}30;
+      margin:12px 0 4px;
+    ">${escape(statValue)}</div>
+
+    ${statLabel
+      ? `<div style="
+          font-family:'Inter',sans-serif;
+          font-size:38px; color:#333;
+          line-height:1.3; max-width:720px;
+          font-weight:500;
+        ">${escape(statLabel)}</div>`
+      : ''}
+    ${supportCards}
+  `;
 
   const baseCSS = `
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#fff; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.55; z-index:0; }
-  .header { height:110px; display:flex; align-items:center; padding:0 70px; gap:20px; position:relative; z-index:1; }
-  .scene-title { font-weight:700; flex:1; }
-  .footer { height:100px; border-top:2px solid #f0f0f0; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; }
+  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
+  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
+  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
   .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
   .watermark img { max-height:36px; }
   .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }`;
+
+  // Decorative concentric rings element
+  const decoRings = `
+    <div style="position:relative; width:440px; height:440px; flex-shrink:0;">
+      <!-- Outer ring -->
+      <div style="
+        position:absolute; inset:0; border-radius:50%;
+        border:3px solid ${brand.primaryColor}18;
+      "></div>
+      <!-- Mid ring -->
+      <div style="
+        position:absolute; inset:60px; border-radius:50%;
+        border:3px solid ${brand.secondaryColor}28;
+      "></div>
+      <!-- Inner ring -->
+      <div style="
+        position:absolute; inset:130px; border-radius:50%;
+        background:linear-gradient(135deg,${brand.primaryColor}12,${brand.secondaryColor}18);
+        border:3px solid ${brand.secondaryColor}40;
+      "></div>
+      <!-- Center dot -->
+      <div style="
+        position:absolute; inset:190px; border-radius:50%;
+        background:${brand.secondaryColor}35;
+      "></div>
+      <!-- Corner accent -->
+      <div style="
+        position:absolute; top:20px; right:20px;
+        width:40px; height:40px; border-radius:50%;
+        background:${brand.primaryColor}25;
+      "></div>
+    </div>
+  `;
 
   if (!requiresAiImage) {
     return `<!DOCTYPE html>
@@ -58,9 +138,8 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
 <style>
   ${baseCSS}
   .body { flex:1; display:flex; position:relative; z-index:1; align-items:center; }
-  .stat-col { flex:1; display:flex; flex-direction:column; justify-content:center; padding:60px 60px 60px 100px; gap:24px; }
-  .deco-col { width:460px; display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0; }
-  .ring { position:absolute; border-radius:50%; border:3px solid; }
+  .stat-col { flex:1; display:flex; flex-direction:column; justify-content:center; padding:52px 60px 52px 100px; gap:20px; }
+  .deco-col { width:480px; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; }
 </style>
 </head>
 <body>
@@ -68,11 +147,7 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
 ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')}
 <div class="body">
   <div class="stat-col">${statBlock}</div>
-  <div class="deco-col">
-    <div class="ring" style="width:380px;height:380px;border-color:${brand.primaryColor}20"></div>
-    <div class="ring" style="width:260px;height:260px;border-color:${brand.secondaryColor}30"></div>
-    <div class="ring" style="width:140px;height:140px;background:${brand.secondaryColor}12;border-color:${brand.secondaryColor}45"></div>
-  </div>
+  <div class="deco-col">${decoRings}</div>
 </div>
 ${footerHtml(brand.logoUrl, brand.institutionName)}
 </body>
@@ -87,7 +162,7 @@ ${footerHtml(brand.logoUrl, brand.institutionName)}
 <style>
   ${baseCSS}
   .body { flex:1; display:flex; position:relative; z-index:1; }
-  .stat-col { width:54%; display:flex; flex-direction:column; justify-content:center; padding:60px 40px 60px 100px; gap:24px; }
+  .stat-col { width:54%; display:flex; flex-direction:column; justify-content:center; padding:52px 40px 52px 100px; gap:20px; }
   .img-col { width:46%; display:flex; align-items:center; justify-content:center; padding:44px; }
   .scene-image { max-width:100%; max-height:800px; object-fit:contain; border-radius:${radius}; }
 </style>
@@ -98,7 +173,9 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')
 <div class="body">
   <div class="stat-col">${statBlock}</div>
   <div class="img-col">
-    ${imageBase64 ? `<img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">` : ''}
+    ${imageBase64
+      ? `<img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">`
+      : decoRings}
   </div>
 </div>
 ${footerHtml(brand.logoUrl, brand.institutionName)}

@@ -1,40 +1,107 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, bulletFontSize } from './shared';
+import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, bulletFontSize, radiusValue, lerpColor } from './shared';
 
 export function buildExampleCardTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64, requiresAiImage } = data;
   const bullets = (scene.on_screen_text ?? []).slice(0, 3);
   const hasImage = requiresAiImage && !!imageBase64;
-  const fontSize = bulletFontSize(bullets, 34, 22);
-  const gap = bullets.length >= 3 ? 20 : 28;
+  const radius = radiusValue(theme);
+  const fontSize = bulletFontSize(bullets, 32, 20);
+  const count = bullets.length;
+  const cardGap = count >= 3 ? 18 : 26;
+  const cardPad = count >= 3 ? '18px 28px' : '24px 32px';
+  const iconSize = count >= 3 ? 38 : 46;
 
-  const bulletHtml = bullets.map(b =>
-    `<div style="display:flex;align-items:flex-start;gap:18px;margin-bottom:${gap}px">
-      <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${brand.secondaryColor};flex-shrink:0;margin-top:${Math.round(fontSize * 0.35)}px"></span>
-      <span style="font-family:'Inter',sans-serif;font-size:${fontSize}px;color:#1A1A1A;line-height:1.45">${escape(b)}</span>
-    </div>`
-  ).join('');
-
-  // Left panel: image (cover) or gradient decoration with lightbulb shape
-  const leftPanel = hasImage
-    ? `<div style="width:56%;position:relative;overflow:hidden;flex-shrink:0">
-        <img style="width:100%;height:100%;object-fit:cover" src="data:image/png;base64,${imageBase64}" alt="scene">
-        <div style="position:absolute;inset:0;background:linear-gradient(to right,transparent 60%,#fff 100%)"></div>
-      </div>`
-    : `<div style="width:56%;background:linear-gradient(135deg,${brand.primaryColor},${brand.secondaryColor});display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;flex-shrink:0">
-        <div style="position:relative;width:140px;height:140px">
-          <div style="width:140px;height:140px;border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;background:#fff;opacity:0.15"></div>
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
-            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
-              <circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
-              <line x1="4.22" y1="4.22" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
-              <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.78" y2="4.22"/>
-            </svg>
-          </div>
+  // Card-style bullet items
+  const bulletCards = bullets.map((b, i) => {
+    const t = count === 1 ? 0.4 : i / Math.max(count - 1, 1);
+    const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
+    return `
+      <div style="
+        background:rgba(255,255,255,0.92);
+        border-left:5px solid ${color};
+        border-radius:0 ${radius} ${radius} 0;
+        box-shadow:0 2px 16px rgba(0,0,0,0.09);
+        padding:${cardPad};
+        margin-bottom:${i < count - 1 ? cardGap : 0}px;
+        display:flex; align-items:center; gap:18px;
+        backdrop-filter:blur(2px);
+      ">
+        <!-- Number badge -->
+        <div style="
+          width:${iconSize}px; height:${iconSize}px; min-width:${iconSize}px;
+          border-radius:50%;
+          background:${color}22; border:2px solid ${color}55;
+          display:flex; align-items:center; justify-content:center; flex-shrink:0;
+        ">
+          <span style="
+            color:${color}; font-family:'Nunito',sans-serif;
+            font-size:${Math.round(iconSize * 0.42)}px; font-weight:900;
+          ">${i + 1}</span>
         </div>
-        <div style="font-family:'Nunito',sans-serif;font-size:28px;font-weight:700;color:#fff;letter-spacing:1px;opacity:0.85">CASO REAL</div>
+        <span style="
+          font-family:'Inter',sans-serif;
+          font-size:${fontSize}px; font-weight:500;
+          color:#1A1A1A; line-height:1.45;
+        ">${escape(b)}</span>
+      </div>
+    `;
+  }).join('');
+
+  // Left visual panel
+  const leftPanel = hasImage
+    ? `<div style="width:54%;position:relative;overflow:hidden;flex-shrink:0">
+        <img style="width:100%;height:100%;object-fit:cover" src="data:image/png;base64,${imageBase64}" alt="scene">
+        <!-- Gradient fade to white on right edge -->
+        <div style="position:absolute;inset:0;background:linear-gradient(to right,transparent 55%,white 100%)"></div>
+      </div>`
+    : `<div style="
+        width:50%; flex-shrink:0;
+        background:linear-gradient(145deg, ${brand.primaryColor}, ${brand.secondaryColor});
+        display:flex; flex-direction:column;
+        align-items:center; justify-content:center;
+        gap:32px; position:relative; overflow:hidden;
+      ">
+        <!-- Decorative circles -->
+        <div style="
+          position:absolute; width:500px; height:500px; border-radius:50%;
+          border:2px solid rgba(255,255,255,0.12);
+          top:-120px; right:-160px; pointer-events:none;
+        "></div>
+        <div style="
+          position:absolute; width:280px; height:280px; border-radius:50%;
+          border:2px solid rgba(255,255,255,0.09);
+          bottom:-80px; left:-60px; pointer-events:none;
+        "></div>
+        <!-- Central icon -->
+        <div style="
+          width:160px; height:160px; border-radius:50%;
+          background:rgba(255,255,255,0.18);
+          border:3px solid rgba(255,255,255,0.35);
+          display:flex; align-items:center; justify-content:center;
+          box-shadow:0 8px 32px rgba(0,0,0,0.15);
+          position:relative; z-index:1;
+        ">
+          <!-- Lightbulb / idea SVG -->
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none"
+               stroke="rgba(255,255,255,0.90)" stroke-width="1.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18h6M10 22h4"/>
+            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17H8v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+          </svg>
+        </div>
+        <div style="
+          font-family:'Nunito',sans-serif; font-size:26px; font-weight:800;
+          color:rgba(255,255,255,0.88); letter-spacing:2px;
+          text-transform:uppercase; position:relative; z-index:1;
+        ">CASO PRÁCTICO</div>
+        <!-- Gradient fade to white on right edge -->
+        <div style="
+          position:absolute; top:0; right:0; bottom:0; width:80px;
+          background:linear-gradient(to right,transparent,white);
+          pointer-events:none;
+        "></div>
       </div>`;
 
   return `<!DOCTYPE html>
@@ -44,14 +111,21 @@ export function buildExampleCardTemplate(data: SlideTemplateData, theme: VideoTh
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#fff; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.55; z-index:0; }
-  .header { height:110px; display:flex; align-items:center; padding:0 70px; gap:20px; position:relative; z-index:1; }
-  .scene-title { font-weight:700; flex:1; }
-  .body { flex:1; display:flex; position:relative; z-index:1; }
-  .text-panel { flex:1; display:flex; flex-direction:column; justify-content:center; padding:52px 70px 52px 48px; gap:28px; }
-  .case-badge { background:${brand.secondaryColor}; color:#fff; font-family:'Inter',sans-serif; font-size:18px; font-weight:700; padding:8px 22px; border-radius:30px; width:fit-content; letter-spacing:1px; }
-  .footer { height:100px; border-top:2px solid #f0f0f0; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; }
+  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
+  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.40; z-index:0; }
+  .body { flex:1; display:flex; position:relative; z-index:1; align-items:stretch; overflow:hidden; }
+  .text-panel {
+    flex:1; display:flex; flex-direction:column; justify-content:center;
+    padding:44px 72px 44px 52px; gap:24px;
+  }
+  .case-badge {
+    background:${brand.secondaryColor}; color:#fff;
+    font-family:'Inter',sans-serif; font-size:18px; font-weight:700;
+    padding:9px 26px; border-radius:30px; width:fit-content;
+    letter-spacing:1px;
+    box-shadow:0 3px 12px ${brand.secondaryColor}50;
+  }
+  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
   .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
   .watermark img { max-height:36px; }
   .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }
@@ -64,7 +138,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   ${leftPanel}
   <div class="text-panel">
     <div class="case-badge">CASO REAL</div>
-    ${bulletHtml}
+    ${bulletCards}
   </div>
 </div>
 ${footerHtml(brand.logoUrl, brand.institutionName)}
