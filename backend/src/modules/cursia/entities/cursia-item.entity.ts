@@ -21,13 +21,13 @@ export class CursiaItem {
   @Column({ length: 500 })
   title: string;
 
-  @Column({ nullable: true, length: 64 })
+  @Column({ type: 'varchar', nullable: true, length: 64 })
   script_hash: string | null;
 
   @Column({ type: 'enum', enum: ['queued', 'generating', 'generated', 'failed', 'expired'], default: 'queued' })
   status: ItemStatus;
 
-  @Column({ nullable: true, length: 1000 })
+  @Column({ type: 'varchar', nullable: true, length: 1000 })
   file_url: string | null;
 
   @Column({ nullable: true, type: 'timestamptz' })
@@ -39,7 +39,7 @@ export class CursiaItem {
   @Column({ nullable: true, type: 'float' })
   duration_seconds: number | null;
 
-  @Column({ nullable: true, length: 64 })
+  @Column({ type: 'varchar', nullable: true, length: 64 })
   checksum_sha256: string | null;
 
   @Column({ nullable: true, type: 'text' })

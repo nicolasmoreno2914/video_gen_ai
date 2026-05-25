@@ -43,6 +43,7 @@ const entities = [
             ...base,
             url: databaseUrl,
             ssl: isProduction ? { rejectUnauthorized: false } : false,
+            extra: { max: 5, connectionTimeoutMillis: 15000 },
           };
         }
 

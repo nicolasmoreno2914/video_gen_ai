@@ -19,7 +19,7 @@ export class TempFile {
   @Column({ type: 'float', nullable: true })
   duration_seconds: number | null;
 
-  @Column({ nullable: true, length: 64 })
+  @Column({ type: 'varchar', nullable: true, length: 64 })
   checksum_sha256: string | null;
 
   @Column({ type: 'timestamptz' })

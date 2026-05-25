@@ -10,7 +10,7 @@ export class CursiaBatch {
   @Column({ unique: true, length: 255 })
   request_id: string;
 
-  @Column({ nullable: true, length: 255 })
+  @Column({ type: 'varchar', nullable: true, length: 255 })
   cursia_course_id: string | null;
 
   @Column({ length: 500 })
