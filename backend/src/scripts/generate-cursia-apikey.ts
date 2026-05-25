@@ -21,8 +21,14 @@ import 'reflect-metadata';
 import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
-import { Institution } from '../modules/database/entities/institution.entity';
-import { ApiKey }      from '../modules/database/entities/api-key.entity';
+import { Institution }    from '../modules/database/entities/institution.entity';
+import { ApiKey }         from '../modules/database/entities/api-key.entity';
+import { VideoJob }       from '../modules/database/entities/video-job.entity';
+import { VideoScene }     from '../modules/database/entities/video-scene.entity';
+import { InstitutionUser } from '../modules/database/entities/institution-user.entity';
+import { WebhookEndpoint } from '../modules/database/entities/webhook-endpoint.entity';
+import { OAuthConnection } from '../modules/database/entities/oauth-connection.entity';
+import { ApiUsageLog }    from '../modules/database/entities/api-usage-log.entity';
 
 dotenv.config();
 
@@ -42,7 +48,7 @@ const connectionOptions = process.env.DATABASE_URL
 const ds = new DataSource({
   type: 'postgres',
   ...connectionOptions,
-  entities: [Institution, ApiKey],
+  entities: [Institution, ApiKey, VideoJob, VideoScene, InstitutionUser, WebhookEndpoint, OAuthConnection, ApiUsageLog],
   synchronize: false,
   logging: false,
 });
