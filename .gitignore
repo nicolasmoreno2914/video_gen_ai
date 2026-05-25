@@ -58,3 +58,15 @@ credentials.json
 
 # Coverage
 coverage/
+
+# Docs — generated artifacts and utility scripts
+# NOTE: backend/.env.production and backend/.env.staging are already covered above
+# by the .env.production / .env.staging patterns (git matches them tree-wide).
+# If they were ever accidentally committed, remove them with:
+#   git rm --cached backend/.env.production backend/.env.staging
+*.pdf
+docs/*.py
+
+# Rogue env copies (e.g. backend/_env — no dot prefix, no extension)
+backend/_env
+_env

@@ -36,6 +36,9 @@ module.exports = {
       watch: false,
       max_memory_restart: '1G',
       kill_timeout: 5000,
+      listen_timeout: 10000,  // wait 10s for NestJS to bind port before marking online
+      restart_delay: 2000,    // wait 2s between crash restarts — prevents EADDRINUSE spiral
+      max_restarts: 10,       // halt crash-loop after 10 attempts within min_uptime window
       env_production: {
         NODE_ENV: 'production',
         PORT: '3001',

@@ -55,7 +55,7 @@ export class CursiaBatchesService {
     // Create batch
     const batch = this.batchRepo.create({
       request_id: dto.request_id,
-      cursia_course_id: dto.course_id ?? null,
+      cursia_course_id: dto.course_id ?? undefined,
       callback_url: dto.callback_url,
       status: 'queued',
       total_items: dto.videos.length,

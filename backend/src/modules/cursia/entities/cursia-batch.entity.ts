@@ -11,7 +11,7 @@ export class CursiaBatch {
   request_id: string;
 
   @Column({ type: 'varchar', nullable: true, length: 255 })
-  cursia_course_id: string | null;
+  cursia_course_id?: string;
 
   @Column({ length: 500 })
   callback_url: string;
