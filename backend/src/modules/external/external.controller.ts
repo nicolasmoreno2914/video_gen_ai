@@ -363,6 +363,9 @@ export class ExternalController {
         current_step: job.current_step,
         step_label: STEP_LABELS[job.current_step ?? ''] ?? null,
         youtube_url: job.youtube_url,
+        download_url: job.local_mp4_available
+          ? `${process.env.PUBLIC_API_URL ?? 'https://videosb.nomaddi.com'}/api/videos/${job.id}/download`
+          : null,
         error: job.error_message,
         client_reference_id: job.client_reference_id,
         source_system: job.source_system,
@@ -413,7 +416,7 @@ export class ExternalController {
       step_label: STEP_LABELS[status.current_step ?? ''] ?? null,
       youtube_url: status.youtube_url,
       download_url: status.local_mp4_available
-        ? `${req.protocol}://${req.get('host')}/api/videos/${jobId}/download`
+        ? `${process.env.PUBLIC_API_URL ?? 'https://videosb.nomaddi.com'}/api/videos/${jobId}/download`
         : null,
       duration_seconds: status.duration_seconds,
       error: status.error,
