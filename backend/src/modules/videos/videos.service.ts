@@ -117,6 +117,17 @@ export class VideosService {
     });
   }
 
+  /** Batch-fetch scenes for multiple jobs — used by batch status endpoint */
+  async findScenesByJobIds(jobIds: string[]): Promise<(VideoScene & { video_job_id: string })[]> {
+    if (!jobIds.length) return [];
+    return this.videoSceneRepo
+      .createQueryBuilder('s')
+      .select(['s.video_job_id', 's.scene_order', 's.narration', 's.duration_seconds'])
+      .where('s.video_job_id IN (:...jobIds)', { jobIds })
+      .orderBy('s.scene_order', 'ASC')
+      .getMany() as unknown as (VideoScene & { video_job_id: string })[];
+  }
+
   async getStatus(id: string): Promise<VideoStatusResponse> {
     const job = await this.findById(id);
 

@@ -341,6 +341,35 @@ export class ExternalController {
       throw new NotFoundException(`Batch ${batchId} not found`);
     }
 
+    // Pre-fetch scenes for all jobs that have audio generated (single query)
+    const audioReadyIds = jobs
+      .filter((j) => {
+        const hasAudioStep = (j.completed_steps ?? []).includes('generating_audio');
+        const hasAudioStatus = ['completed', 'completed_local', 'uploading_youtube'].includes(j.status);
+        return hasAudioStep || hasAudioStatus;
+      })
+      .map((j) => j.id);
+
+    const transcriptsByJobId: Record<string, string | null> = {};
+    const scenesByJobId: Record<string, { scene_order: number; narration: string | null; duration_seconds: number | null }[]> = {};
+
+    if (audioReadyIds.length > 0) {
+      const allScenes = await this.videosService.findScenesByJobIds(audioReadyIds);
+      for (const scene of allScenes) {
+        if (!scenesByJobId[scene.video_job_id]) scenesByJobId[scene.video_job_id] = [];
+        scenesByJobId[scene.video_job_id].push({
+          scene_order: scene.scene_order,
+          narration: scene.narration,
+          duration_seconds: scene.duration_seconds,
+        });
+      }
+      for (const jobId of audioReadyIds) {
+        const scenes = scenesByJobId[jobId] ?? [];
+        const narrations = scenes.map((s) => s.narration?.trim()).filter(Boolean);
+        transcriptsByJobId[jobId] = narrations.length > 0 ? narrations.join(' ') : null;
+      }
+    }
+
     const summary = {
       queued: 0,
       processing: 0,
@@ -371,6 +400,8 @@ export class ExternalController {
         source_system: job.source_system,
         created_at: job.created_at,
         updated_at: job.updated_at,
+        transcript: transcriptsByJobId[job.id] ?? null,
+        scenes: scenesByJobId[job.id] ?? null,
       };
     });
 
@@ -423,6 +454,8 @@ export class ExternalController {
       source_system: job.source_system,
       client_reference_id: job.client_reference_id,
       batch_id: job.batch_id,
+      transcript: status.transcript ?? null,
+      scenes: status.scenes ?? null,
     };
   }
 }
