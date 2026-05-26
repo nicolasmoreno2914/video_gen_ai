@@ -35,7 +35,7 @@ export type VisualStyle = 'notebooklm' | 'whiteboard' | 'sketch';
 
 export type YoutubePrivacy = 'public' | 'unlisted' | 'private';
 
-export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'elevenlabs' | 'youtube' | 'internal';
+export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'openai_tts' | 'elevenlabs' | 'youtube' | 'internal';
 
 export interface GeneratedScene {
   scene_order: number;

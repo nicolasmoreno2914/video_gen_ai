@@ -8,6 +8,7 @@ import { AiService } from '../ai/ai.service';
 import { DalleService } from '../image-generator/dalle.service';
 import { SlidesService } from '../slides/slides.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
+import { OpenAiTtsService } from '../voice/openai-tts.service';
 import { RendererService } from '../renderer/renderer.service';
 import { YouTubeService } from '../youtube/youtube.service';
 import { WebhookService } from '../webhook/webhook.service';
@@ -35,6 +36,7 @@ export class VideoProcessor extends WorkerHost {
     private readonly dalleService: DalleService,
     private readonly slidesService: SlidesService,
     private readonly elevenLabsService: ElevenLabsService,
+    private readonly openAiTtsService: OpenAiTtsService,
     private readonly rendererService: RendererService,
     private readonly youTubeService: YouTubeService,
     private readonly webhookService: WebhookService,
@@ -182,15 +184,34 @@ export class VideoProcessor extends WorkerHost {
     });
   }
 
+  private resolveTtsProvider(job: VideoJob): string {
+    const meta = job.external_metadata as Record<string, string> | null;
+    return meta?.tts_provider ?? 'elevenlabs';
+  }
+
   private async generateAudio(job: VideoJob, institution: typeof job.institution): Promise<void> {
     const scenes = await this.videosService.getScenes(job.id);
-    await this.elevenLabsService.generateAllAudio(job, scenes, institution);
-    await this.ensureRealAudioDuration(job, institution);
+    const meta = job.external_metadata as Record<string, string> | null;
+    const ttsProvider = this.resolveTtsProvider(job);
+
+    this.logger.log(`[VideoProcessor] [${job.id}] TTS provider: ${ttsProvider}`);
+
+    if (ttsProvider === 'openai') {
+      await this.openAiTtsService.generateAllAudio(job, scenes, {
+        voice: meta?.tts_voice ?? 'marin',
+        model: meta?.tts_model ?? 'gpt-4o-mini-tts',
+      });
+    } else {
+      await this.elevenLabsService.generateAllAudio(job, scenes, institution);
+    }
+
+    await this.ensureRealAudioDuration(job, institution, ttsProvider);
   }
 
   private async ensureRealAudioDuration(
     job: VideoJob,
     institution: typeof job.institution,
+    ttsProvider: string = 'elevenlabs',
   ): Promise<void> {
     const TARGET_SECONDS = 420;
     const HARD_MIN_SECONDS = 390;
@@ -274,8 +295,16 @@ export class VideoProcessor extends WorkerHost {
         expandedScenes.push({ ...scene, narration: exp.narration });
       }
 
-      // Regenerate only the expanded scenes' audio
-      await this.elevenLabsService.regenerateScenesAudio(job, expandedScenes, institution);
+      // Regenerate only the expanded scenes' audio using the same provider
+      if (ttsProvider === 'openai') {
+        const meta = job.external_metadata as Record<string, string> | null;
+        await this.openAiTtsService.regenerateScenesAudio(job, expandedScenes, {
+          voice: meta?.tts_voice ?? 'marin',
+          model: meta?.tts_model ?? 'gpt-4o-mini-tts',
+        });
+      } else {
+        await this.elevenLabsService.regenerateScenesAudio(job, expandedScenes, institution);
+      }
     }
 
     // Final check after all cycles
