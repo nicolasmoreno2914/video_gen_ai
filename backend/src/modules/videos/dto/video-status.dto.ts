@@ -1,5 +1,11 @@
 import { VideoStatus } from '../../../common/types';
 
+export interface VideoSceneSummary {
+  scene_order: number;
+  narration: string | null;
+  duration_seconds: number | null;
+}
+
 export interface VideoStatusResponse {
   job_id: string;
   status: VideoStatus;
@@ -19,6 +25,10 @@ export interface VideoStatusResponse {
   created_at: Date;
   updated_at: Date;
   title?: string | null;
+  /** Narración completa del video — concatenación de scene.narration ordenada por scene_order */
+  transcript: string | null;
+  /** Escenas con timestamps y narración individual */
+  scenes: VideoSceneSummary[] | null;
 }
 
 export interface CreateVideoResponse {

@@ -29,7 +29,7 @@ import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { ApiUsageLog } from '../database/entities/api-usage-log.entity';
 import { CreateVideoDto } from './dto/create-video.dto';
-import { VideoStatusResponse } from './dto/video-status.dto';
+import { VideoStatusResponse, VideoSceneSummary } from './dto/video-status.dto';
 import { VideoStatus, STEP_LABELS, ApiProvider } from '../../common/types';
 
 @Injectable()
@@ -120,6 +120,37 @@ export class VideosService {
   async getStatus(id: string): Promise<VideoStatusResponse> {
     const job = await this.findById(id);
 
+    // Query scenes only for completed jobs (narration is ready at that point)
+    let transcript: string | null = null;
+    let sceneSummaries: VideoSceneSummary[] | null = null;
+
+    const hasAudio = job.completed_steps?.includes('generating_audio') ||
+      ['completed', 'completed_local', 'uploading_youtube'].includes(job.status);
+
+    if (hasAudio) {
+      const scenes = await this.videoSceneRepo.find({
+        where: { video_job_id: id },
+        order: { scene_order: 'ASC' },
+        select: ['scene_order', 'narration', 'duration_seconds'],
+      });
+
+      if (scenes.length > 0) {
+        sceneSummaries = scenes.map((s) => ({
+          scene_order: s.scene_order,
+          narration: s.narration,
+          duration_seconds: s.duration_seconds,
+        }));
+
+        const narrations = scenes
+          .map((s) => s.narration?.trim())
+          .filter(Boolean);
+
+        if (narrations.length > 0) {
+          transcript = narrations.join(' ');
+        }
+      }
+    }
+
     return {
       job_id: job.id,
       status: job.status,
@@ -138,6 +169,8 @@ export class VideosService {
       retry_count: job.retry_count,
       created_at: job.created_at,
       updated_at: job.updated_at,
+      transcript,
+      scenes: sceneSummaries,
     };
   }
 

@@ -252,6 +252,8 @@ export class VideosController {
       created_at: job.created_at,
       updated_at: job.updated_at,
       title: job.title,
+      transcript: null,
+      scenes: null,
     }));
 
     return {
