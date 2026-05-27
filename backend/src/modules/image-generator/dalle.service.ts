@@ -100,7 +100,6 @@ export class DalleService {
           n: 1,
           size: this.size as '1536x1024',
           quality: this.quality as 'auto' | 'low' | 'medium' | 'high',
-          response_format: 'b64_json',
         });
 
         const b64 = response.data?.[0]?.b64_json;
