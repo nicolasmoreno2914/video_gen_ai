@@ -46,16 +46,23 @@ El video DEBE seguir este orden de tipos de escena:
 
 BLOQUE 1 — APERTURA (1–2 escenas)
   → hook (escena 1, obligatoria)
-     • Pregunta provocadora o problema real
-     • Crea curiosidad genuina, conecta emocionalmente
-     • El título DEBE terminar en "?" si es pregunta guía
-  → hook (escena 2, opcional si el tema lo amerita)
+     • El hook DEBE ser variado según el contenido. NO usar siempre el mismo tipo.
+     • Elige el hook_type más adecuado al tema (ver sección HOOK_TYPE más abajo).
+     • Crea curiosidad genuina, conecta emocionalmente con el estudiante.
+     • NO usar hook_stat por defecto. Solo cuando el dato sea verdaderamente impactante.
+     • NO empezar siempre con pregunta ni siempre con portada. Varía entre capítulos.
+  → hook (escena 2, opcional si el tema lo amerita y refuerza el gancho inicial)
 
 BLOQUE 2 — CONTEXTO (1–2 escenas)
   → context
-     • Explica por qué el tema importa
-     • Conecta con situaciones reales o datos concretos
-     • Si incluyes cifras, porcentajes o estadísticas → ponlas en on_screen_text[0]
+     • Explica por qué el tema importa.
+     • El contexto NO siempre es un dato numérico. Elige según el contenido:
+       - context_stat: tienes una cifra realmente sorprendente que justifica el tema por sí sola.
+       - context_narrative: la relevancia se explica mejor con una situación breve o historia real.
+       - context_problem: el valor del tema viene de resolver un problema concreto y cotidiano.
+       - context_scenario: conviene situar al estudiante en un escenario antes de explicar.
+     • Solo si es context_stat → incluir la cifra en on_screen_text[0]: "87% de los adultos..."
+     • Si es context_narrative o context_problem → usar content_split normal sin forzar cifras.
 
 BLOQUE 3 — DESARROLLO (8–16 escenas, núcleo del video)
   Usar los tipos: explanation, process, comparison
@@ -84,8 +91,15 @@ CÓMO ESCRIBIR on_screen_text SEGÚN TIPO
 ════════════════════════════════════
 El on_screen_text determina el LAYOUT VISUAL. Escríbelo acorde:
 
-• hook → 0–2 frases cortas. Si es pregunta, on_screen_text puede estar vacío.
-• context → Si hay dato numérico, SIEMPRE poner en on_screen_text[0] la cifra completa: "87% de los estudiantes..."
+• hook → depende del hook_type:
+    hook_question/hook_cover: 0–1 frase corta o vacío.
+    hook_story/hook_problem: 2–3 bullets narrativos (situación → tensión → aprendizaje).
+    hook_stat: la cifra completa en [0] + 1–2 bullets de contexto.
+    hook_contrast/hook_myth: 4–6 bullets divididos en mitades iguales (columna A / columna B).
+    hook_scenario: 1–2 frases que describan el escenario imaginado.
+    hook_decision: 2 opciones claras enfrentadas (columna A / columna B).
+    hook_visual_metaphor: 0–1 frase, imagen IA es lo central.
+• context → SOLO si es context_stat: cifra en on_screen_text[0]. Para context_narrative, context_problem o context_scenario: 2–3 bullets explicativos normales sin cifra obligatoria.
 • explanation (concepto general) → 2–4 bullets explicativos, máx 8 palabras c/u
 • explanation (jerarquía/niveles) → 4–7 items CORTOS (1–4 palabras c/u): ["Átomo", "Molécula", "Célula", "Tejido", "Órgano"]
 • process → 3–5 pasos accionables, cada uno empezando con verbo: ["Identificar el problema", "Analizar causas", "Diseñar solución"]
@@ -103,6 +117,88 @@ Suena como: "un docente moderno explicando de manera visual y amigable"
 
 Usa: frases medianas, lenguaje accesible, transiciones suaves, preguntas al estudiante.
 NO usar: tono robótico, texto de libro de texto, exceso de formalidad.
+
+════════════════════════════════════
+HOOK_TYPE — VARIEDAD DE APERTURA (OBLIGATORIO)
+════════════════════════════════════
+Cada escena con scene_type: "hook" DEBE incluir el campo hook_type.
+Para todas las demás escenas, incluir hook_type: null.
+
+NO uses siempre el mismo hook_type. El inicio de cada capítulo debe sentirse diferente.
+
+TIPOS DISPONIBLES:
+
+• "hook_question"
+  → Pregunta central fuerte que genera reflexión o intriga.
+  → layout_type: guiding_question. Título DEBE terminar en "?".
+  → Ideal para: conceptos abstractos, filosóficos, éticos o que generan dilema.
+
+• "hook_cover"
+  → Portada visual con frase de impacto. Sin pregunta, sin dato. Pura presencia visual.
+  → layout_type: cover. requires_ai_image: true.
+  → Ideal para: temas identitarios, motivacionales, con imagen fuerte disponible.
+
+• "hook_story"
+  → Mini situación real o anécdota concreta que sitúa al estudiante.
+  → layout_type: real_example. requires_ai_image: true.
+  → on_screen_text: 2–3 bullets narrativos (situación → tensión → aprendizaje).
+  → Ideal para: emprendimiento, liderazgo, educación, salud, relaciones, historia.
+
+• "hook_problem"
+  → Problema cotidiano o profesional que el capítulo va a resolver.
+  → layout_type: content_split (requires_ai_image: true) o guiding_question.
+  → on_screen_text: 2–3 señales o consecuencias del problema.
+  → Ideal para: temas técnicos con aplicación práctica, resolución de problemas.
+
+• "hook_stat"
+  → Cifra o dato verdaderamente sorprendente. SOLO usar si el número impacta por sí solo.
+  → layout_type: big_stat.
+  → NO usar por defecto. Solo si el dato es el argumento más poderoso del capítulo.
+  → Evitar si el dato es genérico o predecible.
+
+• "hook_contrast"
+  → Dos situaciones, realidades o resultados opuestos enfrentados.
+  → layout_type: comparison. Título DEBE contener " vs " o " versus ".
+  → on_screen_text: array par, primera mitad columna A, segunda mitad columna B.
+  → Ideal para: antes/después, con/sin, error frecuente vs buena práctica.
+
+• "hook_myth"
+  → Mito, creencia errónea o idea equivocada muy común que el capítulo va a corregir.
+  → layout_type: comparison. Columna A = mito, columna B = realidad.
+  → Ideal para: ciencias, medicina, finanzas, psicología, educación.
+
+• "hook_decision"
+  → Dilema o decisión con dos caminos posibles. Invita al estudiante a elegir.
+  → layout_type: comparison o process_steps.
+  → Ideal para: estrategia, gestión, ética, toma de decisiones.
+
+• "hook_scenario"
+  → "Imagina que..." — sitúa al estudiante en una situación concreta e inmersiva.
+  → layout_type: content_split. requires_ai_image: true (imagen contextual).
+  → on_screen_text: 1–2 frases que describan el escenario.
+  → Ideal para: simulaciones, casos hipotéticos, aprendizaje situacional.
+
+• "hook_visual_metaphor"
+  → Abre con una metáfora visual poderosa que representa el concepto central.
+  → layout_type: cover o content_split. requires_ai_image: true (imagen es lo esencial).
+  → on_screen_text: 0–1 frase que refuerce la metáfora.
+  → Ideal para: conceptos abstractos, sistemas complejos, ideas difíciles de verbalizar.
+
+REGLAS DE SELECCIÓN DE HOOK_TYPE según el contenido:
+  - Temas humanos (emprendimiento, liderazgo, educación, salud, motivación) → hook_story o hook_problem
+  - Procesos técnicos o secuencias de pasos (programación, medicina, ingeniería) → hook_question o hook_scenario
+  - Dos enfoques, corrientes o teorías opuestas → hook_contrast
+  - Mito frecuente o error conceptual muy común en el área → hook_myth
+  - Dato estadístico realmente impactante disponible en el contenido → hook_stat
+  - Concepto abstracto, filosófico o difícil de visualizar → hook_visual_metaphor o hook_question
+  - Decisión estratégica o dilema con consecuencias reales → hook_decision
+  - Tema visual o identitario fuerte → hook_cover o hook_visual_metaphor
+  - Situación cotidiana que conecta con el estudiante → hook_scenario o hook_story
+
+IMPORTANTE:
+  - NO usar hook_stat como default.
+  - Si no tienes un dato realmente sorprendente, elige otro hook_type.
+  - El primer slide de cada capítulo debe variar en tipo y tono.
 
 ════════════════════════════════════
 REGLAS VISUALES
@@ -192,10 +288,9 @@ Valores posibles y cuándo usarlos:
   → on_screen_text: 1–3 frases reflexivas o pregunta de cierre.
 
 REGLA DE ASIGNACIÓN:
-- hook sin pregunta → "cover"
-- hook con pregunta o "¿" → "guiding_question"
-- context con cifra → "big_stat"
-- context sin cifra → "content_split"
+- hook → el layout_type lo determina el hook_type elegido (ver sección HOOK_TYPE).
+- context (context_stat, con cifra impactante) → "big_stat"
+- context (context_narrative / context_problem / context_scenario) → "content_split"
 - explanation con niveles/jerarquía/categorías → "hierarchy_diagram"
 - explanation general → "content_split"
 - process → "process_steps"
@@ -219,6 +314,7 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
     {
       "scene_order": 1,
       "scene_type": "hook|context|explanation|process|comparison|application|example|summary|conclusion",
+      "hook_type": "hook_question|hook_cover|hook_story|hook_problem|hook_stat|hook_contrast|hook_myth|hook_decision|hook_scenario|hook_visual_metaphor|null",
       "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection",
       "requires_ai_image": true,
       "learning_goal": "Qué aprende el estudiante en esta escena (una oración)",
@@ -237,13 +333,17 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
 REGLAS FINALES:
 - layout_type es OBLIGATORIO en cada escena. Nunca omitirlo.
 - requires_ai_image es OBLIGATORIO en cada escena. Nunca omitirlo.
+- hook_type es OBLIGATORIO en escenas con scene_type "hook". Para todas las demás: hook_type: null.
 - Si layout_type es process_steps, comparison, hierarchy_diagram, summary_checklist, big_stat o guiding_question → requires_ai_image DEBE ser false.
 - El total de escenas con requires_ai_image: true NO debe superar 8.
 - Si requires_ai_image: false → image_prompt puede ser null.
-- on_screen_text: estructurarlo según lo que pide cada layout_type (ver sección LAYOUT_TYPE)
-- La suma de estimated_duration_seconds debe estar entre 480 y 650
-- Cada escena debe tener estimated_duration_seconds entre 30 y 45
-- El orden de scene_type en el array DEBE respetar la secuencia pedagógica obligatoria`;
+- on_screen_text: estructurarlo según lo que pide cada layout_type y hook_type (ver secciones anteriores).
+- La suma de estimated_duration_seconds debe estar entre 480 y 650.
+- Cada escena debe tener estimated_duration_seconds entre 30 y 45.
+- El orden de scene_type en el array DEBE respetar la secuencia pedagógica obligatoria.
+- NO usar hook_stat por defecto. Solo si el dato es realmente el argumento más poderoso del capítulo.
+- NO repetir el mismo hook_type en dos capítulos consecutivos del mismo curso.
+- El contexto (BLOQUE 2) NO debe forzar cifras. Usar context_stat solo cuando el dato realmente impacte.`;
 
 @Injectable()
 export class AiService {
