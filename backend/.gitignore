@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+*.tsbuildinfo
+logs/
+tmp/
+*.mp4
+*.mp3
+*.wav
