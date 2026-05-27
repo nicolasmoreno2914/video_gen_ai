@@ -142,7 +142,8 @@ export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme)
     </div>
   `;
 
-  if (!requiresAiImage) {
+  // No-image path: by design (requiresAiImage=false) OR fallback (image didn't arrive)
+  if (!requiresAiImage || !imageBase64) {
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -166,6 +167,7 @@ ${footerHtml(brand.logoUrl, brand.institutionName)}
 </html>`;
   }
 
+  // Split layout — only reached when imageBase64 is actually available
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -187,9 +189,7 @@ ${summaryHeader}
   <div class="left-col">${bulletCards}</div>
   <div class="divider"></div>
   <div class="right-col">
-    ${hasImage
-      ? `<img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">`
-      : decoPanel}
+    <img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
   </div>
 </div>
 ${footerHtml(brand.logoUrl, brand.institutionName)}
