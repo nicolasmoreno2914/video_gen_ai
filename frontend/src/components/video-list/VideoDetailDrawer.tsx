@@ -50,6 +50,7 @@ export function VideoDetailDrawer({ job, onClose }: Props) {
   }
 
   const isCompleted = job?.status === 'completed' || job?.status === 'completed_local';
+  const isDryRun = job?.status === 'dry_run_completed';
 
   return (
     <Dialog.Root open={!!job} onOpenChange={(open) => !open && onClose()}>
@@ -174,18 +175,18 @@ export function VideoDetailDrawer({ job, onClose }: Props) {
               )}
 
               {/* Actions */}
-              {(isCompleted || job.youtube_url) && (
+              {(isCompleted || isDryRun || job.youtube_url) && (
                 <div className="px-5 py-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Acciones</p>
                   <div className="space-y-2">
-                    {isCompleted && job.local_mp4_available && (
+                    {(isCompleted || isDryRun) && job.local_mp4_available && (
                       <a
                         href={videoService.getDownloadUrl(job.job_id)}
                         download
                         className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#003366] text-white rounded-xl text-sm font-nunito font-bold hover:bg-[#003366]/90 transition-colors"
                       >
                         <Download className="w-4 h-4" />
-                        Descargar MP4
+                        {isDryRun ? 'Descargar preview (sin audio)' : 'Descargar MP4'}
                       </a>
                     )}
                     {job.youtube_url && (
