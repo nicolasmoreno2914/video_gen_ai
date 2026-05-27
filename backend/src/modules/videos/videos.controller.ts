@@ -38,8 +38,13 @@ export class VideosController {
   @UseGuards(DualAuthGuard)
   async create(
     @Body() dto: CreateVideoDto,
+    @Req() req: Request & { institution?: { id: string } },
     @Res() res: Response,
   ): Promise<void> {
+    // Fallback: if institution_id not in body, take it from auth context
+    if (!dto.institution_id && req.institution?.id) {
+      dto.institution_id = req.institution.id;
+    }
     if (dto.institution_id) {
       const { allowed, used, limit } =
         await this.institutionsService.checkRateLimit(dto.institution_id);
