@@ -99,7 +99,7 @@ export function CostSummaryCards({ summary, isLoading }: Props) {
     {
       label: 'Costo voz',
       value: formatUsd(summary?.breakdown.elevenlabs ?? 0),
-      helper: 'ElevenLabs TTS',
+      helper: 'OpenAI TTS / ElevenLabs',
       icon: Mic,
       iconBg: 'bg-green-50',
       iconColor: 'text-green-600',

@@ -26,7 +26,7 @@ interface ProviderBarDef {
 const PROVIDER_BARS: ProviderBarDef[] = [
   { key: 'openai_text', label: 'OpenAI Texto', barColor: 'bg-blue-500', dotColor: 'bg-blue-500' },
   { key: 'openai_images', label: 'OpenAI Imágenes', barColor: 'bg-purple-500', dotColor: 'bg-purple-500' },
-  { key: 'elevenlabs', label: 'ElevenLabs', barColor: 'bg-green-500', dotColor: 'bg-green-500' },
+  { key: 'elevenlabs', label: 'Voz TTS', barColor: 'bg-green-500', dotColor: 'bg-green-500' },
   { key: 'render', label: 'Render', barColor: 'bg-orange-500', dotColor: 'bg-orange-500' },
   { key: 'youtube', label: 'YouTube', barColor: 'bg-red-500', dotColor: 'bg-red-500' },
 ];

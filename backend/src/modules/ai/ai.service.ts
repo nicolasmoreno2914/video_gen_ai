@@ -386,7 +386,7 @@ ${job.content_txt}`;
     const script = await this.callGptWithRetry(job.id, [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
-    ], 'generate_script');
+    ], 'generate_script', job.institution_id);
 
     // Duration validation and pedagogical expansion
     const finalScript = await this.ensureMinimumDuration(job, script);
@@ -426,6 +426,7 @@ ${job.content_txt}`;
           job.id,
           expansionMessages,
           `expand_script_attempt_${attempt}`,
+          job.institution_id,
         );
 
         const expandedMetrics = this.computeMetrics(expanded);
@@ -519,6 +520,7 @@ ${job.content_txt}`;
     jobId: string,
     messages: Array<{ role: 'system' | 'user'; content: string }>,
     operation: string,
+    institutionId?: string | null,
   ): Promise<GeneratedScript> {
     let lastError: Error | null = null;
 
@@ -539,7 +541,7 @@ ${job.content_txt}`;
         const outputTokens = response.usage?.completion_tokens ?? 0;
         await this.videosService.logApiUsage({
           videoJobId: jobId,
-          institutionId: null,
+          institutionId: institutionId ?? null,
           provider: 'openai_chat',
           operation,
           inputUnits: inputTokens,
@@ -781,7 +783,7 @@ Responde EXCLUSIVAMENTE con JSON válido, sin markdown:
         const expOut = response.usage?.completion_tokens ?? 0;
         await this.videosService.logApiUsage({
           videoJobId: job.id,
-          institutionId: null,
+          institutionId: job.institution_id,
           provider: 'openai_chat',
           operation: 'expand_narrations',
           inputUnits: expIn,

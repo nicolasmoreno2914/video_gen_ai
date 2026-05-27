@@ -32,7 +32,7 @@ function getProviderRows(summary: CostSummary): ProviderRow[] {
     },
     {
       key: 'elevenlabs',
-      label: 'ElevenLabs',
+      label: 'Voz TTS',
       usageLabel: `${formatUnits(summary.usage.elevenlabs_characters)} chars`,
       dotColor: 'bg-green-500',
       barColor: 'bg-green-500',

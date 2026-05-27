@@ -99,6 +99,7 @@ export interface DailyCostEntry {
 const PROVIDER_CATEGORY: Record<string, keyof CostBreakdown> = {
   openai_chat: 'openai_text',
   openai_dalle: 'openai_images',
+  openai_tts: 'elevenlabs',   // OpenAI TTS → mismo bucket "voz" que ElevenLabs
   elevenlabs: 'elevenlabs',
   internal: 'render',
   youtube: 'youtube',
@@ -187,9 +188,14 @@ export class CostsService {
         call_count: string;
       }>();
 
-    // Distinct video count
-    const distinctVideos = await qb
-      .clone()
+    // Distinct video count — fresh QueryBuilder to avoid inheriting GROUP BY from qb above
+    const countQb = this.apiUsageLogRepo
+      .createQueryBuilder('log')
+      .where('log.created_at BETWEEN :from AND :to', { from: fromDate, to: toDate });
+    if (institutionId) {
+      countQb.andWhere('log.institution_id = :institutionId', { institutionId });
+    }
+    const distinctVideos = await countQb
       .select('COUNT(DISTINCT log.video_job_id)', 'cnt')
       .getRawOne<{ cnt: string }>();
 

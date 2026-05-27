@@ -74,11 +74,7 @@ export interface VideoCostDetail {
 export interface DailyCostEntry {
   date: string;
   total_cost: number;
-  videos_count: number;
-  openai_text: number;
-  openai_images: number;
-  elevenlabs: number;
-  render: number;
+  breakdown: CostBreakdown;
 }
 
 export interface ProviderBreakdownItem {
