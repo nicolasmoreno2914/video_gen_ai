@@ -50,7 +50,7 @@ export class DalleService {
   }
 
   async generateAllImages(job: VideoJob, scenes: VideoScene[]): Promise<void> {
-    const aiScenes = scenes.filter(s => s.requires_ai_image !== false).slice(0, 8);
+    const aiScenes = scenes.filter(s => s.requires_ai_image !== false);
     const cssScenes = scenes.length - aiScenes.length;
 
     this.logger.log(

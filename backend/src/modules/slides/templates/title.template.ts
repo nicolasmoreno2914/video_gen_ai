@@ -112,7 +112,7 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
     position:absolute; inset:0;
     background-image:${bgImageStyle};
     background-size:cover; background-position:center;
-    opacity:0.04;
+    opacity:0.22;
     pointer-events:none;
   }
 

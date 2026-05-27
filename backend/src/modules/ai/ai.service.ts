@@ -205,6 +205,16 @@ REGLAS VISUALES
 ════════════════════════════════════
 - on_screen_text: MUY POCO texto. La narración explica, la pantalla apoya.
 - image_prompt: SIEMPRE en inglés, fondo blanco, estilo doodle educativo, sin texto en imagen.
+  VARIEDAD DE COMPOSICIÓN — alterna entre estos tipos para que las escenas no sean monótonas:
+  • wide_establishing: panorámica amplia con múltiples elementos del concepto en contexto
+  • close_up_detail: primer plano de un objeto o mecanismo clave, detalle técnico
+  • birds_eye_diagram: vista cenital, diagrama aéreo con conexiones y relaciones
+  • editorial_collage: varios iconos/objetos flotantes organizados en una composición libre
+  • symbolic_object: un único objeto icónico que simboliza el concepto (simple, poderoso)
+  • human_context: persona o mano interactuando con herramientas/objetos del tema
+  • isometric_diagram: vista isométrica educativa con capas, edificios, máquinas o sistemas
+  • visual_metaphor: metáfora visual abstracta que representa el concepto de forma creativa
+  No repitas el mismo tipo de composición en dos escenas consecutivas.
 - highlight_words: 1–3 palabras que se resaltarán en amarillo en pantalla.
 
 ════════════════════════════════════
@@ -213,7 +223,8 @@ REQUIRES_AI_IMAGE — CAMPO OBLIGATORIO
 Cada escena DEBE incluir "requires_ai_image": true o false.
 Este campo indica si la escena necesita una imagen generada por IA.
 
-LÍMITE GLOBAL: máximo 8 escenas con requires_ai_image: true por video.
+LÍMITE GLOBAL: máximo 12 escenas con requires_ai_image: true por video.
+Las escenas con layout_type "cover" y "conclusion_reflection" NO cuentan para este límite (siempre tienen imagen).
 
 REGLA FIJA por layout_type (NO se puede cambiar):
 • process_steps      → requires_ai_image: FALSE (siempre)
@@ -322,7 +333,7 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
       "narration": "Texto completo para voz IA. MÍNIMO 110 palabras, ideal 130–160 palabras, máximo 180 palabras.",
       "on_screen_text": ["Bullet o item 1", "Bullet o item 2"],
       "visual_direction": "Descripción de cómo debe verse esta escena",
-      "image_prompt": "DALL-E prompt in English: educational doodle illustration of [specific concept], white background, hand-drawn style, black ink lines, minimal color accents, no text in image, clean educational sketch",
+      "image_prompt": "DALL-E prompt in English: [composition_type] — educational doodle illustration of [specific concept], white background, hand-drawn style, black ink lines, minimal color accents, no text in image, clean educational sketch",
       "highlight_words": ["palabra1", "palabra2"],
       "transition": "fade|slide|zoom|dissolve",
       "estimated_duration_seconds": 30
@@ -335,7 +346,7 @@ REGLAS FINALES:
 - requires_ai_image es OBLIGATORIO en cada escena. Nunca omitirlo.
 - hook_type es OBLIGATORIO en escenas con scene_type "hook". Para todas las demás: hook_type: null.
 - Si layout_type es process_steps, comparison, hierarchy_diagram, summary_checklist, big_stat o guiding_question → requires_ai_image DEBE ser false.
-- El total de escenas con requires_ai_image: true NO debe superar 8.
+- El total de escenas con requires_ai_image: true NO debe superar 12 (cover y conclusion_reflection no cuentan para ese límite).
 - Si requires_ai_image: false → image_prompt puede ser null.
 - on_screen_text: estructurarlo según lo que pide cada layout_type y hook_type (ver secciones anteriores).
 - La suma de estimated_duration_seconds debe estar entre 480 y 650.
@@ -629,13 +640,18 @@ ${job.content_txt}`;
       'process_steps', 'comparison', 'hierarchy_diagram',
       'summary_checklist', 'big_stat', 'guiding_question',
     ]);
-    const MAX_AI_IMAGES = 8;
+    // These layouts always get AI images and do NOT count against the cap
+    const ALWAYS_IMAGE_LAYOUTS = new Set(['cover', 'conclusion_reflection']);
+    const MAX_AI_IMAGES = 12;
 
     // Step 1: enforce layout_type → requires_ai_image rules
     scenes = scenes.map(s => {
       const layout = s.layout_type as string;
       if (CSS_ONLY_LAYOUTS.has(layout)) {
         return { ...s, requires_ai_image: false };
+      }
+      if (ALWAYS_IMAGE_LAYOUTS.has(layout)) {
+        return { ...s, requires_ai_image: true };
       }
       // Default true if field is missing
       if (s.requires_ai_image === undefined || s.requires_ai_image === null) {
@@ -644,21 +660,24 @@ ${job.content_txt}`;
       return s;
     });
 
-    // Step 2: count and cap at 8
-    const aiScenes = scenes.filter(s => s.requires_ai_image);
-    if (aiScenes.length > MAX_AI_IMAGES) {
-      const excess = aiScenes.length - MAX_AI_IMAGES;
+    // Step 2: cap at MAX_AI_IMAGES — ALWAYS_IMAGE_LAYOUTS are exempt from the count
+    const cappableAiScenes = scenes.filter(
+      s => s.requires_ai_image && !ALWAYS_IMAGE_LAYOUTS.has(s.layout_type as string),
+    );
+    if (cappableAiScenes.length > MAX_AI_IMAGES) {
+      const excess = cappableAiScenes.length - MAX_AI_IMAGES;
       this.logger.warn(
-        `[AiService] [${jobId}] ${aiScenes.length} escenas con AI image — reduciendo a ${MAX_AI_IMAGES} (eliminando ${excess})`,
+        `[AiService] [${jobId}] ${cappableAiScenes.length} escenas cappables con AI image — reduciendo a ${MAX_AI_IMAGES} (eliminando ${excess})`,
       );
 
-      // Priority order to keep: cover, real_example, conclusion_reflection, content_split
-      const KEEP_PRIORITY = ['cover', 'real_example', 'conclusion_reflection', 'content_split'];
+      // Priority order to keep: real_example first, then content_split
+      const KEEP_PRIORITY = ['real_example', 'content_split'];
       let kept = 0;
       scenes = scenes.map(s => {
         if (!s.requires_ai_image) return s;
+        if (ALWAYS_IMAGE_LAYOUTS.has(s.layout_type as string)) return s; // always keep
         const priority = KEEP_PRIORITY.indexOf(s.layout_type as string);
-        if (kept < MAX_AI_IMAGES && priority <= KEEP_PRIORITY.indexOf('real_example')) {
+        if (kept < MAX_AI_IMAGES && priority === 0) { // real_example: highest priority
           kept++;
           return s;
         }

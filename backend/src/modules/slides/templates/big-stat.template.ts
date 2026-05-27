@@ -16,7 +16,7 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
   const radius = radiusValue(theme);
 
   const first = texts[0] ?? '';
-  const statMatch = first.match(/^([0-9][0-9.,]*\s*[%$€kmKMB+x×]?)/);
+  const statMatch = first.match(/^([$€+\-]?\s*[0-9][0-9.,]*\s*[%$€kmKMBbx×]?)/);
   const statValue = statMatch ? statMatch[1].trim() : first.substring(0, 16);
   const statLabel = statMatch ? first.substring(statMatch[0].length).trim() : '';
   const restItems = texts.slice(1, 4);
