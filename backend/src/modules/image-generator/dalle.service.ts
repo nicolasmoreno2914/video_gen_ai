@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import pLimit from 'p-limit';
@@ -44,8 +43,12 @@ export class DalleService {
     const cfg = this.configService.get<AppConfig['openai']>('openai')!;
     this.client = new OpenAI({ apiKey: cfg.apiKey });
     this.model = cfg.imageModel;
-    this.size = cfg.imageSize as '1792x1024';
-    this.quality = cfg.imageQuality as 'standard' | 'hd';
+    // gpt-image-1 supports: 1024x1024, 1024x1536, 1536x1024
+    // dall-e-3 supported: 1792x1024 (now legacy on project keys)
+    this.size = cfg.imageSize as '1536x1024';
+    // Map legacy quality names: standard→medium, hd→high; pass through auto/low/medium/high
+    const qualityRaw = cfg.imageQuality;
+    this.quality = qualityRaw === 'standard' ? 'medium' : qualityRaw === 'hd' ? 'high' : qualityRaw;
     this.basePath = this.configService.get<AppConfig['storage']>('storage')?.basePath ?? '/tmp/video-engine';
   }
 
@@ -95,16 +98,15 @@ export class DalleService {
           model: this.model,
           prompt: usedPrompt,
           n: 1,
-          size: this.size as '1792x1024',
-          quality: this.quality as 'standard' | 'hd',
-          style: 'natural',
-          response_format: 'url',
+          size: this.size as '1536x1024',
+          quality: this.quality as 'auto' | 'low' | 'medium' | 'high',
+          response_format: 'b64_json',
         });
 
-        const imageUrl = response.data?.[0]?.url;
-        if (!imageUrl) throw new Error('DALL-E no devolvió URL de imagen');
+        const b64 = response.data?.[0]?.b64_json;
+        if (!b64) throw new Error('API de imágenes no devolvió datos');
 
-        await this.downloadImage(imageUrl, outputPath);
+        fs.writeFileSync(outputPath, Buffer.from(b64, 'base64'));
 
         await this.videosService.updateScene(scene.id, {
           image_url: outputPath,
@@ -158,16 +160,15 @@ export class DalleService {
         model: this.model,
         prompt,
         n: 1,
-        size: '1792x1024',
-        quality: this.quality as 'standard' | 'hd',
-        style: 'natural',
-        response_format: 'url',
+        size: this.size as '1536x1024',
+        quality: this.quality as 'auto' | 'low' | 'medium' | 'high',
+        response_format: 'b64_json',
       });
 
-      const imageUrl = response.data?.[0]?.url;
-      if (!imageUrl) throw new Error('No URL returned');
+      const b64 = response.data?.[0]?.b64_json;
+      if (!b64) throw new Error('API de imágenes no devolvió datos para thumbnail');
 
-      await this.downloadImage(imageUrl, outputPath);
+      fs.writeFileSync(outputPath, Buffer.from(b64, 'base64'));
 
       await this.videosService.logApiUsage({
         videoJobId: job.id,
@@ -178,7 +179,7 @@ export class DalleService {
         estimatedCost: 0.04,
         modelName: this.model,
         unitType: 'images',
-        metadata: { image_count: 1, size: '1792x1024', quality: this.quality },
+        metadata: { image_count: 1, size: this.size, quality: this.quality },
       });
 
       this.logger.log(`[DalleService] [${job.id}] Thumbnail generado: ${outputPath}`);
@@ -188,11 +189,6 @@ export class DalleService {
       this.logger.warn(`[DalleService] [${job.id}] Thumbnail fallido: ${msg}`);
       return null;
     }
-  }
-
-  private async downloadImage(url: string, outputPath: string): Promise<void> {
-    const response = await axios.get<Buffer>(url, { responseType: 'arraybuffer' });
-    fs.writeFileSync(outputPath, Buffer.from(response.data));
   }
 
   private sleep(ms: number): Promise<void> {
