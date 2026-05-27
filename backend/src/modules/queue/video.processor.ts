@@ -186,7 +186,7 @@ export class VideoProcessor extends WorkerHost {
 
   private resolveTtsProvider(job: VideoJob): string {
     const meta = job.external_metadata as Record<string, string> | null;
-    return meta?.tts_provider ?? 'elevenlabs';
+    return meta?.tts_provider ?? 'openai';
   }
 
   private async generateAudio(job: VideoJob, institution: typeof job.institution): Promise<void> {

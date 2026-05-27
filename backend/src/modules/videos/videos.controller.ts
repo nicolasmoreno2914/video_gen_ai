@@ -38,8 +38,13 @@ export class VideosController {
   @UseGuards(DualAuthGuard)
   async create(
     @Body() dto: CreateVideoDto,
+    @Req() req: Request & { institution?: { id: string } },
     @Res() res: Response,
   ): Promise<void> {
+    // Fallback: if institution_id not in body, take it from auth context
+    if (!dto.institution_id && req.institution?.id) {
+      dto.institution_id = req.institution.id;
+    }
     if (dto.institution_id) {
       const { allowed, used, limit } =
         await this.institutionsService.checkRateLimit(dto.institution_id);
@@ -119,15 +124,18 @@ export class VideosController {
     });
 
     this.videosService.getStatus(jobId).then((status) => {
-      if (
-        status.status === 'completed' ||
-        status.status === 'completed_local' ||
-        status.status === 'dry_run_completed' ||
-        status.status === 'failed'
-      ) {
-        const eventType =
-          status.status === 'failed' ? 'failed' : 'completed';
+      const isActive = status.status === 'queued' || status.status === 'processing';
+      const isTerminal = !isActive;
+
+      // Always send current snapshot so the frontend never stays at 0%
+      if (isActive) {
+        res.write(`event: progress\ndata: ${JSON.stringify(status)}\n\n`);
+      } else {
+        const eventType = status.status === 'failed' ? 'failed' : 'completed';
         res.write(`event: ${eventType}\ndata: ${JSON.stringify(status)}\n\n`);
+      }
+
+      if (isTerminal) {
         clearInterval(heartbeat);
         subscription.unsubscribe();
         res.end();
