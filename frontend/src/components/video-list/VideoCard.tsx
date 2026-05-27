@@ -244,14 +244,14 @@ export function VideoCard({ job, onViewDetail, onDeleted }: VideoCardProps) {
         {/* Actions */}
         <div className="flex gap-2 pt-0.5">
           {/* Primary action */}
-          {isCompleted && job.local_mp4_available && (
+          {(isCompleted || isDryRun) && job.local_mp4_available && (
             <a
               href={videoService.getDownloadUrl(job.job_id)}
               download
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#003366] text-white rounded-xl text-xs font-nunito font-bold hover:bg-[#003366]/90 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Descargar MP4
+              {isDryRun ? 'Preview sin audio' : 'Descargar MP4'}
             </a>
           )}
           {job.youtube_url && (
@@ -282,7 +282,7 @@ export function VideoCard({ job, onViewDetail, onDeleted }: VideoCardProps) {
             onClick={() => onViewDetail(job)}
             className={cn(
               'flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-nunito font-bold transition-colors border',
-              (isCompleted && (job.local_mp4_available || job.youtube_url)) || isFailed
+              (isCompleted && (job.local_mp4_available || job.youtube_url)) || isFailed || (isDryRun && job.local_mp4_available)
                 ? 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                 : 'flex-1 border-[#003366]/20 text-[#003366] hover:bg-[#003366]/5',
             )}
