@@ -152,8 +152,9 @@ export function buildContentTemplate(data: SlideTemplateData, theme: VideoTheme,
   .watermark img { max-height:36px; object-fit:contain; }
   .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }`;
 
-  if (!requiresAiImage) {
-    // ── Premium no-image layout ──────────────────────────────────────────────
+  // ── No-image path: either by design (requiresAiImage=false)
+  //    or by fallback (requiresAiImage=true but imageBase64 never arrived)
+  if (!requiresAiImage || !imageBase64) {
     const bodyContent = buildNoImageLayout(
       bullets, highlights,
       brand.primaryColor, brand.secondaryColor,

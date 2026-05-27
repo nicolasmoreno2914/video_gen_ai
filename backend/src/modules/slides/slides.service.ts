@@ -123,6 +123,15 @@ export class SlidesService {
 
     const requiresAiImage = scene.requires_ai_image !== false;
     const imageBase64 = requiresAiImage ? this.loadImageBase64(scene.image_url) : null;
+
+    if (requiresAiImage && !imageBase64) {
+      this.logger.warn(
+        `[SlidesService] [${job.id}] Escena ${scene.scene_order} (${scene.layout_type ?? scene.scene_type}): ` +
+        `requires_ai_image=true pero imagen NO disponible → fallback a layout full-width premium. ` +
+        `image_url="${scene.image_url ?? 'null'}"`,
+      );
+    }
+
     const html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage }, theme);
 
     const page = await browser.newPage();
