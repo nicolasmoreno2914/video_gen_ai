@@ -130,17 +130,20 @@ export function useVideoProgress(jobId: string | null) {
           canRetry: data.can_retry,
         }));
         es.close();
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
       });
 
       es.onerror = () => {
         if (!sseFailedRef.current) {
           sseFailedRef.current = true;
           es.close();
-          startPolling(id);
         }
       };
     },
-    [startPolling],
+    [],
   );
 
   useEffect(() => {
@@ -149,6 +152,9 @@ export function useVideoProgress(jobId: string | null) {
     sseFailedRef.current = false;
     setState(INITIAL_STATE);
     startSSE(jobId);
+    // Always poll in parallel — SSE events take priority but polling
+    // ensures the UI never stays at 0% if SSE is slow or misses the first event
+    startPolling(jobId);
 
     return () => {
       eventSourceRef.current?.close();
