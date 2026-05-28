@@ -1,4 +1,4 @@
-import { Download, ExternalLink, RefreshCw, Clock, Film, Eye, Layers, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, RefreshCw, Clock, Film, Eye, Layers, CheckCircle2, XCircle, Loader2, Trash2, Square } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useState } from 'react';
@@ -104,6 +104,24 @@ function StatusBadge({ job }: { job: VideoJob }) {
 export function VideoCard({ job, onViewDetail, onDeleted }: VideoCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  async function handleCancel() {
+    if (!confirmCancel) {
+      setConfirmCancel(true);
+      setTimeout(() => setConfirmCancel(false), 3000);
+      return;
+    }
+    setCancelling(true);
+    try {
+      await videoService.cancel(job.job_id);
+      onDeleted(job.job_id); // refresca la lista
+    } catch {
+      setCancelling(false);
+      setConfirmCancel(false);
+    }
+  }
 
   const isActive = job.status === 'queued' || job.status === 'processing';
   const isCompleted = job.status === 'completed' || job.status === 'completed_local';
@@ -164,10 +182,27 @@ export function VideoCard({ job, onViewDetail, onDeleted }: VideoCardProps) {
               {timeAgo}
             </p>
           </div>
-          {!isActive && (
+          {isActive ? (
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => void handleCancel()}
+              disabled={cancelling}
+              title={confirmCancel ? 'Haz clic para confirmar' : 'Detener generación'}
+              className={cn(
+                'shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-inter font-medium transition-colors',
+                confirmCancel
+                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'text-gray-400 hover:text-orange-500 hover:bg-orange-50',
+                cancelling && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <Square className="w-3.5 h-3.5" />
+              {confirmCancel ? <span>¿Confirmar?</span> : <span>Detener</span>}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
               disabled={deleting}
               title={confirmDelete ? 'Haz clic para confirmar' : 'Eliminar'}
               className={cn(

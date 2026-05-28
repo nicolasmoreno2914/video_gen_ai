@@ -23,6 +23,11 @@ export const videoService = {
     return data;
   },
 
+  async cancel(jobId: string): Promise<{ success: boolean }> {
+    const { data } = await apiClient.post<{ success: boolean }>(`/api/videos/${jobId}/cancel`);
+    return data;
+  },
+
   async list(params?: {
     status?: string;
     page?: number;

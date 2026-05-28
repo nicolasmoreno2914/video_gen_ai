@@ -188,6 +188,36 @@ export class VideosController {
     });
   }
 
+  @Post(':jobId/cancel')
+  @UseGuards(DualAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async cancel(
+    @Param('jobId') jobId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const job = await this.videosService.findById(jobId);
+    const isActive = job.status === 'queued' || job.status === 'processing';
+
+    if (!isActive) {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        error: 'job_not_active',
+        message: 'El job no está en proceso.',
+      });
+      return;
+    }
+
+    try {
+      const bullJob = await this.videoQueue.getJob(jobId);
+      if (bullJob) await bullJob.remove();
+    } catch { /* puede estar procesando activamente, se cancela igual en DB */ }
+
+    await this.videosService.markFailed(jobId, 'Cancelado por el usuario');
+    this.progressEventsService.emitFailed(await this.videosService.findById(jobId), 'cancelled');
+
+    res.status(HttpStatus.OK).json({ success: true, job_id: jobId });
+  }
+
   @Post(':jobId/retry')
   @UseGuards(DualAuthGuard)
   async retry(
