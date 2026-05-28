@@ -141,7 +141,7 @@ export class RendererService {
         ])
         .outputOptions([
           '-map [v]',
-          '-c:v libx264', '-preset fast', '-crf 23', '-profile:v high', '-level 4.1',
+          '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,
           `-t ${duration.toFixed(3)}`,
@@ -162,7 +162,7 @@ export class RendererService {
       ffmpeg()
         .input(concatListPath).inputOptions(['-f concat', '-safe 0'])
         .outputOptions([
-          '-c:v libx264', '-preset fast', '-crf 22', '-profile:v high', '-level 4.1',
+          '-c:v libx264', '-preset ultrafast', '-crf 22', '-profile:v high', '-level 4.1',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,
           '-movflags +faststart',
@@ -204,7 +204,7 @@ export class RendererService {
         ])
         .outputOptions([
           '-map [v]', '-map [a]',
-          '-c:v libx264', '-preset fast', '-crf 23', '-profile:v high', '-level 4.1',
+          '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',
           '-c:a aac', '-b:a 128k', '-ar 44100', '-ac 2',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,
@@ -367,7 +367,7 @@ export class RendererService {
           `Outline=1,Shadow=0,Alignment=2,MarginV=30,Bold=0'`,
         )
         .outputOptions([
-          '-c:v libx264', '-preset fast', '-crf 23', '-profile:v high', '-level 4.1',
+          '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',
           '-c:a aac', '-b:a 128k', '-ar 44100', '-ac 2',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,
