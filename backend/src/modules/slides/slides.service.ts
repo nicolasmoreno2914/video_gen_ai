@@ -152,7 +152,8 @@ export class SlidesService {
   buildSlideHTML(data: SlideTemplateData, theme: VideoTheme): string {
     const { scene } = data;
     const layout = scene.layout_type ?? null;
-    const texts = scene.on_screen_text ?? [];
+    const rawTexts = scene.on_screen_text ?? [];
+    const texts = Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
     const title = scene.title ?? '';
 
     // layout_type es el criterio principal
