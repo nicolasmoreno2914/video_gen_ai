@@ -34,7 +34,7 @@ export class DalleService {
   private readonly size: string;
   private readonly quality: string;
   private readonly basePath: string;
-  private readonly limit = pLimit(2);
+  private readonly limit = pLimit(4);
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,

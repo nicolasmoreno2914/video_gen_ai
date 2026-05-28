@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import * as ffmpeg from 'fluent-ffmpeg';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as FormData from 'form-data';
-import axios from 'axios';
+import OpenAI from 'openai';
+import pLimit from 'p-limit';
 import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
@@ -29,15 +29,18 @@ export class RendererService {
   private readonly logger = new Logger(RendererService.name);
   private readonly basePath: string;
   private readonly fps: number;
-  private readonly elevenLabsApiKey: string;
+  private readonly openai: OpenAI;
+  // pLimit(3): paralleliza escenas sin saturar CPU del VPS
+  private readonly renderLimit = pLimit(3);
+  private readonly sttLimit = pLimit(4);
 
   constructor(private readonly configService: ConfigService<AppConfig>) {
     const storage = this.configService.get<AppConfig['storage']>('storage')!;
     const video = this.configService.get<AppConfig['video']>('video')!;
-    const elevenlabs = this.configService.get<AppConfig['elevenlabs']>('elevenlabs')!;
+    const openaiCfg = this.configService.get<AppConfig['openai']>('openai')!;
     this.basePath = storage.basePath;
     this.fps = video.fps;
-    this.elevenLabsApiKey = elevenlabs.apiKey;
+    this.openai = new OpenAI({ apiKey: openaiCfg.apiKey });
   }
 
   async render(job: VideoJob, scenes: VideoScene[]): Promise<RenderResult> {
@@ -49,21 +52,27 @@ export class RendererService {
     fs.mkdirSync(scenesDir, { recursive: true });
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const sceneVideos: string[] = [];
+    // Paso 1: renderizar todas las escenas en paralelo (pLimit 3)
+    const sceneVideoEntries = await Promise.all(
+      scenes.map((scene) =>
+        this.renderLimit(async () => {
+          const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir);
+          this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
+          return { scene, sceneVideoPath };
+        }),
+      ),
+    );
 
-    for (const scene of scenes) {
-      const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir);
-      sceneVideos.push(sceneVideoPath);
-      this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
-    }
-
-    const srtSceneVideos: string[] = [];
-    for (let i = 0; i < scenes.length; i++) {
-      const scene = scenes[i]!;
-      const subtitledPath = path.join(scenesDir, `scene_${scene.scene_order}_sub.mp4`);
-      await this.burnSceneSubtitles(scene, sceneVideos[i]!, subtitledPath, jobDir);
-      srtSceneVideos.push(subtitledPath);
-    }
+    // Paso 2: quemar subtítulos en paralelo (STT + burn, pLimit 3)
+    const srtSceneVideos = await Promise.all(
+      sceneVideoEntries.map(({ scene, sceneVideoPath }) =>
+        this.renderLimit(async () => {
+          const subtitledPath = path.join(scenesDir, `scene_${scene.scene_order}_sub.mp4`);
+          await this.burnSceneSubtitles(scene, sceneVideoPath, subtitledPath, jobDir);
+          return subtitledPath;
+        }),
+      ),
+    );
 
     const outputPath = path.join(outputDir, 'final.mp4');
     await this.concatenateScenes(srtSceneVideos, outputPath);
@@ -73,6 +82,7 @@ export class RendererService {
     // Validate before delivering — throws if video is not playable
     await this.validateFinalVideo(outputPath, job.id);
 
+    const sceneVideos = sceneVideoEntries.map(e => e.sceneVideoPath);
     this.cleanupTempFiles(jobDir, sceneVideos, srtSceneVideos);
 
     this.logger.log(`[RendererService] [${job.id}] Video final: ${outputPath} (${durationSeconds.toFixed(1)}s)`);
@@ -210,28 +220,29 @@ export class RendererService {
     });
   }
 
-  // ─── STT: transcribir audio con ElevenLabs ───────────────────────────────
+  // ─── STT: transcribir audio con OpenAI Whisper ───────────────────────────
 
   private async transcribeAudio(audioPath: string): Promise<SttWord[] | null> {
     try {
-      const form = new FormData();
-      form.append('file', fs.createReadStream(audioPath), { filename: path.basename(audioPath), contentType: 'audio/mpeg' });
-      form.append('model_id', 'scribe_v1');
-      form.append('timestamps_granularity', 'word');
+      const response = await this.openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioPath) as unknown as File,
+        model: 'whisper-1',
+        response_format: 'verbose_json',
+        timestamp_granularities: ['word'],
+      });
 
-      const response = await axios.post<{ words: SttWord[] }>(
-        'https://api.elevenlabs.io/v1/speech-to-text',
-        form,
-        {
-          headers: { 'xi-api-key': this.elevenLabsApiKey, ...form.getHeaders() },
-          timeout: 60000,
-        },
-      );
+      const words = (response as unknown as { words?: Array<{ word: string; start: number; end: number }> }).words;
+      if (!words || words.length === 0) return null;
 
-      return response.data.words?.filter(w => w.type === 'word') ?? null;
+      return words.map(w => ({
+        text: w.word,
+        start: w.start,
+        end: w.end,
+        type: 'word' as const,
+      }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`[RendererService] STT falló (usando fallback): ${msg}`);
+      this.logger.warn(`[RendererService] STT Whisper falló (usando fallback): ${msg}`);
       return null;
     }
   }
@@ -321,10 +332,10 @@ export class RendererService {
   ): Promise<string> {
     let entries: SrtEntry[];
 
-    // Intentar STT real si hay audio
+    // Intentar STT real si hay audio (Whisper — parallelizado via sttLimit)
     if (scene.audio_url && fs.existsSync(scene.audio_url)) {
-      this.logger.log(`[RendererService] Transcribiendo escena ${scene.scene_order} con STT`);
-      const words = await this.transcribeAudio(scene.audio_url);
+      this.logger.log(`[RendererService] Transcribiendo escena ${scene.scene_order} con Whisper`);
+      const words = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
       if (words && words.length > 0) {
         entries = this.groupSttWordsIntoSrt(words);
         this.logger.log(`[RendererService] STT OK escena ${scene.scene_order}: ${entries.length} bloques`);
@@ -376,13 +387,11 @@ export class RendererService {
       const concatListPath = `${outputPath}.concat.txt`;
       fs.writeFileSync(concatListPath, scenePaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'), 'utf8');
 
+      // -c copy: todos los clips ya son h264/aac con el mismo perfil — stream copy sin re-encodear
       ffmpeg()
         .input(concatListPath).inputOptions(['-f concat', '-safe 0'])
         .outputOptions([
-          '-c:v libx264', '-preset fast', '-crf 22', '-profile:v high', '-level 4.1',
-          '-c:a aac', '-b:a 128k', '-ar 44100', '-ac 2',
-          '-pix_fmt yuv420p',
-          `-r ${this.fps}`,
+          '-c copy',
           '-movflags +faststart',
         ])
         .output(outputPath)

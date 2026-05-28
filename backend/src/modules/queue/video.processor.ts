@@ -62,10 +62,13 @@ export class VideoProcessor extends WorkerHost {
       { key: 'analyzing_content', fn: (): Promise<void> => this.analyzeContent(videoJob) },
       { key: 'generating_script', fn: (): Promise<void> => this.generateScript(videoJob) },
       { key: 'generating_scenes', fn: (): Promise<void> => Promise.resolve() },
-      { key: 'generating_images', fn: (): Promise<void> => this.generateImages(videoJob) },
+      {
+        key: 'generating_images_and_audio',
+        skipOnDryRun: false,
+        fn: (): Promise<void> => this.generateImagesAndAudio(videoJob, institution),
+      },
       { key: 'generating_slides', fn: (): Promise<void> => this.generateSlides(videoJob) },
       { key: 'rendering_dry_run', isDryRunOnly: true, fn: (): Promise<void> => this.renderDryRunVideo(videoJob), isDryRunEnd: true },
-      { key: 'generating_audio', skipOnDryRun: true, fn: (): Promise<void> => this.generateAudio(videoJob, institution) },
       { key: 'rendering_video', skipOnDryRun: true, fn: (): Promise<void> => this.renderVideo(videoJob) },
       { key: 'uploading_youtube', skipOnDryRun: true, skipIfNoCredentials: true, fn: (): Promise<void> => this.uploadYouTube(videoJob, institution) },
     ];
@@ -164,6 +167,32 @@ export class VideoProcessor extends WorkerHost {
       await this.videosService['videoJobRepo'].update(job.id, {
         thumbnail_url: thumbnail,
       });
+    }
+  }
+
+  private async generateImagesAndAudio(job: VideoJob, institution: typeof job.institution): Promise<void> {
+    const scenes = await this.videosService.getScenes(job.id);
+
+    if (job.dry_run) {
+      // Dry run: solo imágenes, audio no es necesario
+      this.logger.log(`[VideoProcessor] [${job.id}] dry_run: generando solo imágenes`);
+      await this.dalleService.generateAllImages(job, scenes);
+      const thumbnail = await this.dalleService.generateThumbnail(job);
+      if (thumbnail) {
+        await this.videosService['videoJobRepo'].update(job.id, { thumbnail_url: thumbnail });
+      }
+    } else {
+      // Producción: imágenes + audio en paralelo
+      this.logger.log(`[VideoProcessor] [${job.id}] Generando imágenes y audio en paralelo`);
+      await Promise.all([
+        this.dalleService.generateAllImages(job, scenes).then(async () => {
+          const thumbnail = await this.dalleService.generateThumbnail(job);
+          if (thumbnail) {
+            await this.videosService['videoJobRepo'].update(job.id, { thumbnail_url: thumbnail });
+          }
+        }),
+        this.generateAudio(job, institution),
+      ]);
     }
   }
 

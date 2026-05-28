@@ -65,7 +65,7 @@ export class SlidesService {
   private readonly logger = new Logger(SlidesService.name);
   private readonly basePath: string;
   private readonly executablePath: string;
-  private readonly limit = pLimit(2);
+  private readonly limit = pLimit(3);
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,
@@ -137,7 +137,8 @@ export class SlidesService {
     const page = await browser.newPage();
     try {
       await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-      await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+      // domcontentloaded: suficiente para HTML local — evita el timeout de networkidle0
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await page.screenshot({ path: outputPath, type: 'png' });
 
       await this.videosService.updateScene(scene.id, { slide_png_url: outputPath });
