@@ -25,7 +25,7 @@ interface VideoJobData {
   jobId: string;
 }
 
-@Processor(VIDEO_QUEUE)
+@Processor(VIDEO_QUEUE, { concurrency: 1 })
 export class VideoProcessor extends WorkerHost {
   private readonly logger = new Logger(VideoProcessor.name);
 
