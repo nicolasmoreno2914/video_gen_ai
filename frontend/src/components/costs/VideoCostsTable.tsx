@@ -19,6 +19,25 @@ const STATUS_STYLES: Record<string, string> = {
   processing: 'bg-yellow-100 text-yellow-700',
 };
 
+const SOURCE_STYLES: Record<string, string> = {
+  Cursia: 'bg-violet-100 text-violet-700',
+  Videogen: 'bg-blue-50 text-blue-600',
+  'API externa': 'bg-orange-50 text-orange-600',
+};
+
+function SourceBadge({ label }: { label: string }) {
+  return (
+    <span
+      className={cn(
+        'px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap',
+        SOURCE_STYLES[label] ?? 'bg-gray-100 text-gray-600',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -35,7 +54,7 @@ function StatusBadge({ status }: { status: string }) {
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      {Array.from({ length: 11 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="h-3 bg-gray-100 rounded w-full" />
         </td>
@@ -78,6 +97,7 @@ export function VideoCostsTable({
               <th className="px-4 py-3 text-xs font-medium text-gray-500 text-right">Voz</th>
               <th className="px-4 py-3 text-xs font-medium text-gray-500 text-right">Total</th>
               <th className="px-4 py-3 text-xs font-medium text-gray-500">Estado</th>
+              <th className="px-4 py-3 text-xs font-medium text-gray-500">Origen</th>
               <th className="px-4 py-3 text-xs font-medium text-gray-500">Acciones</th>
             </tr>
           </thead>
@@ -86,7 +106,7 @@ export function VideoCostsTable({
               Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
             ) : !items || items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-6 py-12 text-center text-gray-400 text-sm">
+                <td colSpan={12} className="px-6 py-12 text-center text-gray-400 text-sm">
                   No hay videos en este período
                 </td>
               </tr>
@@ -118,6 +138,9 @@ export function VideoCostsTable({
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={item.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <SourceBadge label={item.source_label ?? 'Videogen'} />
                   </td>
                   <td className="px-4 py-3">
                     <button

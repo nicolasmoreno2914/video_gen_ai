@@ -45,6 +45,7 @@ export class VideosController {
     if (!dto.institution_id && req.institution?.id) {
       dto.institution_id = req.institution.id;
     }
+    if (!dto.source_system) dto.source_system = 'videogen_ui';
     if (dto.institution_id) {
       const { allowed, used, limit } =
         await this.institutionsService.checkRateLimit(dto.institution_id);

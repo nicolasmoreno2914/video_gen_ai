@@ -45,6 +45,8 @@ export interface VideoCostItem {
   created_at: Date;
   total_cost: number;
   breakdown: CostBreakdown;
+  source_system: string | null;
+  source_label: string;
 }
 
 export interface ApiUsageLogRow {
@@ -117,6 +119,13 @@ function emptyBreakdown(): CostBreakdown {
 
 function providerCategory(provider: string): keyof CostBreakdown {
   return PROVIDER_CATEGORY[provider] ?? 'render';
+}
+
+function sourceLabel(source: string | null): string {
+  if (source === 'cursia') return 'Cursia';
+  if (source === 'external_api') return 'API externa';
+  if (source === 'videogen_ui' || source === 'internal' || source == null) return 'Videogen';
+  return 'Integración externa';
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +349,8 @@ export class CostsService {
         created_at: job.created_at,
         total_cost: Math.round(totalCost * 1_000_000) / 1_000_000,
         breakdown: bd,
+        source_system: job.source_system,
+        source_label: sourceLabel(job.source_system),
       };
     });
 

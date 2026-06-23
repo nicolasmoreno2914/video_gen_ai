@@ -34,6 +34,8 @@ export interface VideoCostItem {
   ai_images_count: number;
   total_cost: number;
   breakdown: CostBreakdown;
+  source_system: string | null;
+  source_label: string;
 }
 
 export interface Pagination {
