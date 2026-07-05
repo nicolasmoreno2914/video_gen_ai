@@ -47,8 +47,10 @@ export default function SettingsPage() {
   const [brandPrimary, setBrandPrimary] = useState('');
   const [brandSecondary, setBrandSecondary] = useState('');
   const [brandSaved, setBrandSaved] = useState(false);
+  const [brandError, setBrandError] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const brandInitialized = useRef(false);
 
   const { data: institution } = useQuery<Institution>({
     queryKey: ['current-institution'],
@@ -58,11 +60,13 @@ export default function SettingsPage() {
     },
   });
 
+  // Pre-fill form only once when institution first loads.
   useEffect(() => {
-    if (!institution) return;
-    setBrandName((prev) => prev || institution.brand_institution_name || institution.name);
-    setBrandPrimary((prev) => prev || institution.brand_primary_color);
-    setBrandSecondary((prev) => prev || institution.brand_secondary_color);
+    if (!institution || brandInitialized.current) return;
+    brandInitialized.current = true;
+    setBrandName(institution.brand_institution_name || institution.name);
+    setBrandPrimary(institution.brand_primary_color);
+    setBrandSecondary(institution.brand_secondary_color);
   }, [institution]);
 
   const { data: keysData } = useQuery<{ items: ApiKeyRecord[] }>({
@@ -108,10 +112,14 @@ export default function SettingsPage() {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(['current-institution'], data);
       setBrandSaved(true);
+      setBrandError('');
       setTimeout(() => setBrandSaved(false), 2500);
-      void queryClient.invalidateQueries({ queryKey: ['current-institution'] });
+    },
+    onError: (err: Error) => {
+      setBrandError(err.message || 'Error al guardar');
     },
   });
 
@@ -278,6 +286,8 @@ export default function SettingsPage() {
             </button>
             {!isValidHex(brandPrimary) || !isValidHex(brandSecondary) ? (
               <span className="text-xs text-red-500">El color debe ser un hex válido (#RRGGBB)</span>
+            ) : brandError ? (
+              <span className="text-xs text-red-500">{brandError}</span>
             ) : null}
           </div>
         </section>
