@@ -87,8 +87,10 @@ export function lerpColor(hex1: string, hex2: string, t: number): string {
 
 export function watermarkHtml(logoBase64: string | null, institutionName: string, dark = false): string {
   return `<div class="watermark">
-    ${logoBase64 ? `<img src="${logoBase64}" alt="logo">` : ''}
-    <span class="watermark-name" style="color:${dark ? '#fff' : '#1A1A1A'}">${escape(institutionName)}</span>
+    ${logoBase64
+      ? `<img src="${logoBase64}" alt="logo">`
+      : `<span class="watermark-name" style="color:${dark ? '#fff' : '#1A1A1A'}">${escape(institutionName)}</span>`
+    }
   </div>`;
 }
 
