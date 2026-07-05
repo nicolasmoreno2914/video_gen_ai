@@ -2,7 +2,7 @@ import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import {
   GOOGLE_FONTS, escape, highlighted, bgStyle, footerHtml, headerHtml,
-  radiusValue, bulletFontSize, lerpColor, isKeyword,
+  radiusValue, bulletFontSize, lerpColor, isKeyword, baseSlideCSS,
 } from './shared';
 
 /**
@@ -143,15 +143,6 @@ export function buildContentTemplate(data: SlideTemplateData, theme: VideoTheme,
   const hasImage = requiresAiImage && !!imageBase64;
   const fontSize = bulletFontSize(bullets);
 
-  const baseCSS = `
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; object-fit:contain; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }`;
-
   // ── No-image path: either by design (requiresAiImage=false)
   //    or by fallback (requiresAiImage=true but imageBase64 never arrived)
   if (!requiresAiImage || !imageBase64) {
@@ -167,7 +158,7 @@ export function buildContentTemplate(data: SlideTemplateData, theme: VideoTheme,
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body-row { flex:1; display:flex; position:relative; z-index:1; align-items:stretch; overflow:hidden; }
 </style>
 </head>
@@ -235,7 +226,7 @@ ${footerHtml(brand.logoBase64, brand.institutionName)}
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body-row { flex:1; display:flex; position:relative; z-index:1; flex-direction:${imgLeft ? 'row-reverse' : 'row'}; align-items:stretch; }
   .text-col { width:54%; padding:40px 48px 40px 64px; display:flex; flex-direction:column; justify-content:center; }
   .divider { width:3px; background:linear-gradient(to bottom,${brand.secondaryColor}00,${brand.secondaryColor}55,${brand.secondaryColor}00); margin:40px 0; border-radius:3px; flex-shrink:0; }

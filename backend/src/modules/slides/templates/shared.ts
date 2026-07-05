@@ -83,6 +83,31 @@ export function lerpColor(hex1: string, hex2: string, t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
+// ─── Shared base CSS for standard templates (grid-bg + header + body + footer) ──
+
+export function baseSlideCSS(theme: VideoTheme): string {
+  const bg = bgStyle(theme);
+  return `* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width:1920px; height:1080px; overflow:hidden;
+  background:#f3f5f8; font-family:'Nunito',sans-serif;
+  display:flex; flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+.grid-bg { position:fixed; inset:0; ${bg} opacity:0.50; z-index:0; }
+.footer {
+  height:68px;
+  border-top:1px solid rgba(0,0,0,0.06);
+  display:flex; align-items:center; justify-content:flex-end;
+  padding:0 44px; position:relative; z-index:1;
+  background:#f8f9fb;
+}
+.watermark { display:flex; align-items:center; gap:10px; opacity:0.55; }
+.watermark img { max-height:42px; object-fit:contain; }
+.watermark-name { font-family:'Inter',sans-serif; font-size:15px; font-weight:500; color:#777; }`;
+}
+
 // ─── HTML building blocks ─────────────────────────────────────────────────────
 
 export function watermarkHtml(logoBase64: string | null, institutionName: string, dark = false): string {

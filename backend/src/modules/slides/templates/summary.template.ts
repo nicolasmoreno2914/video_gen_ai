@@ -1,6 +1,6 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, radiusValue, bulletFontSize, lerpColor, adaptiveTitleSize } from './shared';
+import { GOOGLE_FONTS, escape, footerHtml, radiusValue, bulletFontSize, lerpColor, adaptiveTitleSize, baseSlideCSS } from './shared';
 
 export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64, requiresAiImage } = data;
@@ -89,15 +89,6 @@ export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme)
     </div>
   `;
 
-  const baseCSS = `
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }`;
-
   // Premium header bar using brand primary color
   const summaryHeader = `
     <div style="
@@ -150,7 +141,7 @@ export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme)
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body-row { flex:1; display:flex; position:relative; z-index:1; align-items:center; }
   .left-col { flex:1; padding:44px 52px 44px 80px; display:flex; flex-direction:column; justify-content:center; }
 </style>
@@ -174,7 +165,7 @@ ${footerHtml(brand.logoBase64, brand.institutionName)}
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body-row { flex:1; display:flex; position:relative; z-index:1; align-items:stretch; }
   .left-col { width:54%; padding:40px 44px 40px 80px; display:flex; flex-direction:column; justify-content:center; }
   .divider { width:3px; background:linear-gradient(to bottom,${brand.secondaryColor}00,${brand.secondaryColor}55,${brand.secondaryColor}00); margin:40px 0; border-radius:3px; flex-shrink:0; }

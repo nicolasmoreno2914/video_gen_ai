@@ -1,6 +1,6 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, radiusValue, bulletFontSize, lerpColor } from './shared';
+import { GOOGLE_FONTS, escape, footerHtml, headerHtml, radiusValue, bulletFontSize, lerpColor, baseSlideCSS } from './shared';
 
 function statNumberSize(statValue: string): number {
   const len = statValue.replace(/\s/g, '').length;
@@ -87,15 +87,6 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
     ${supportCards}
   `;
 
-  const baseCSS = `
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }`;
-
   // Decorative concentric rings element
   const decoRings = `
     <div style="position:relative; width:440px; height:440px; flex-shrink:0;">
@@ -137,7 +128,7 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body { flex:1; display:flex; position:relative; z-index:1; align-items:center; }
   .stat-col { flex:1; display:flex; flex-direction:column; justify-content:center; padding:52px 60px 52px 100px; gap:20px; }
   .deco-col { width:480px; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; }
@@ -162,7 +153,7 @@ ${footerHtml(brand.logoBase64, brand.institutionName)}
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  ${baseCSS}
+  ${baseSlideCSS(theme)}
   .body { flex:1; display:flex; position:relative; z-index:1; }
   .stat-col { width:54%; display:flex; flex-direction:column; justify-content:center; padding:52px 40px 52px 100px; gap:20px; }
   .img-col { width:46%; display:flex; align-items:center; justify-content:center; padding:44px; }

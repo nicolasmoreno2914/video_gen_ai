@@ -36,7 +36,11 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#fff; font-family:'Nunito',sans-serif; display:flex; }
+  body {
+    width:1920px; height:1080px; overflow:hidden; background:#fff;
+    font-family:'Nunito',sans-serif; display:flex;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
 
   /* Left hero panel */
   .hero-panel {
@@ -187,7 +191,7 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
   <div class="content-bg"></div>
   ${imageBase64 ? '<div class="img-texture"></div>' : ''}
   <div class="content-inner">
-    <div class="slide-tag">${escape(brand.institutionName)}</div>
+    <div class="slide-tag">MATERIAL EDUCATIVO</div>
     <div class="main-title" style="font-size:${titleSize}px">${escape(scene.title ?? '')}</div>
     ${subtitle ? `<div class="subtitle-text">${escape(subtitle)}</div>` : ''}
     ${bullets.length > 0

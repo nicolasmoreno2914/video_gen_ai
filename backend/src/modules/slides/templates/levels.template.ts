@@ -1,24 +1,22 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, lerpColor } from './shared';
+import { GOOGLE_FONTS, escape, footerHtml, headerHtml, lerpColor, baseSlideCSS } from './shared';
 
 export function buildLevelsTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand } = data;
   const levels = (scene.on_screen_text ?? []).slice(0, 7);
   const count = levels.length;
 
-  // Dynamic sizing
-  const fontSize = count <= 3 ? 34 : count <= 5 ? 28 : 23;
-  const barHeight = count <= 3 ? 106 : count <= 5 ? 88 : 72;
-  const gap = count <= 4 ? 12 : 8;
-  const borderR = 12;
+  // Dynamic sizing — taller bars for fewer items so the slide feels full
+  const fontSize = count <= 3 ? 36 : count <= 5 ? 29 : 23;
+  const barHeight = count <= 3 ? 138 : count <= 5 ? 108 : 82;
+  const gap = count <= 3 ? 20 : count <= 5 ? 16 : 10;
+  const borderR = 14;
 
-  // Width: narrowest at top (level 1 = highest/most specific), widest at bottom (foundational)
-  // index 0 in array = "level 1" shown at top = narrowest
+  // Width: narrowest at top (most specific), widest at bottom (foundational)
   const levelBoxes = levels.map((level, i) => {
     const pct = count === 1 ? 1 : i / (count - 1);
-    // i=0 → pct=0 → narrowest; i=last → pct=1 → widest
-    const widthPct = Math.round(36 + pct * 54); // 36% to 90%
+    const widthPct = Math.round(42 + pct * 54); // 42% → 96%
     const color = lerpColor(brand.secondaryColor, brand.primaryColor, pct);
     const labelNum = count - i; // visual label: top=highest number, bottom=1 (foundational)
 
@@ -111,15 +109,9 @@ export function buildLevelsTemplate(data: SlideTemplateData, theme: VideoTheme):
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
-  .body { flex:1; display:flex; align-items:center; justify-content:center; position:relative; z-index:1; padding:24px 80px; }
-  .pyramid { display:flex; flex-direction:column; align-items:center; width:100%; }
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }
+  ${baseSlideCSS(theme)}
+  .body { flex:1; display:flex; align-items:center; justify-content:center; position:relative; z-index:1; padding:28px 100px; }
+  .pyramid { display:flex; flex-direction:column; align-items:center; width:100%; gap:0; }
 </style>
 </head>
 <body>

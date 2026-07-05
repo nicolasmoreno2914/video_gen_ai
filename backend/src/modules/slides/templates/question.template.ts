@@ -1,6 +1,6 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, adaptiveTitleSize } from './shared';
+import { GOOGLE_FONTS, escape, footerHtml, adaptiveTitleSize, baseSlideCSS } from './shared';
 import { radiusValue } from '../theme';
 
 export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme): string {
@@ -57,13 +57,7 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    width:1920px; height:1080px; overflow:hidden;
-    background:#f5f7fa; font-family:'Nunito',sans-serif;
-    display:flex; flex-direction:column; position:relative;
-  }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.40; z-index:0; }
+  ${baseSlideCSS(theme)}
 
   /* Large ghosted "?" in background */
   .big-q {
@@ -134,10 +128,6 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
     position:relative; z-index:1;
   }
 
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }
 </style>
 </head>
 <body>

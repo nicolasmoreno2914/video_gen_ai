@@ -60,6 +60,8 @@ export function buildConclusionTemplate(data: SlideTemplateData, theme: VideoThe
     font-family:'Nunito',sans-serif;
     display:flex; align-items:center; justify-content:center;
     position:relative;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
   }
 
   /* Background image texture */
@@ -144,8 +146,10 @@ ${imageBase64 ? '<div class="doodle-bg"></div>' : ''}
 </div>
 
 <div class="watermark">
-  ${brand.logoBase64 ? `<img src="${brand.logoBase64}" alt="logo">` : ''}
-  <span class="watermark-name">${escape(brand.institutionName)}</span>
+  ${brand.logoBase64
+    ? `<img src="${brand.logoBase64}" alt="logo">`
+    : `<span class="watermark-name">${escape(brand.institutionName)}</span>`
+  }
 </div>
 </body>
 </html>`;

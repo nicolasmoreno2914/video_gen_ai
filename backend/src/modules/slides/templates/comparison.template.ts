@@ -1,6 +1,6 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
-import { GOOGLE_FONTS, escape, bgStyle, footerHtml, headerHtml, bulletFontSize, radiusValue, lerpColor } from './shared';
+import { GOOGLE_FONTS, escape, footerHtml, headerHtml, bulletFontSize, radiusValue, lerpColor, baseSlideCSS } from './shared';
 
 function extractColumnTitles(title: string): [string, string] {
   // "A vs B" / "A versus B"
@@ -77,9 +77,7 @@ export function buildComparisonTemplate(data: SlideTemplateData, theme: VideoThe
 <meta charset="UTF-8">
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { width:1920px; height:1080px; overflow:hidden; background:#f5f7fa; font-family:'Nunito',sans-serif; display:flex; flex-direction:column; }
-  .grid-bg { position:fixed; inset:0; ${bgStyle(theme)} opacity:0.45; z-index:0; }
+  ${baseSlideCSS(theme)}
   .body { flex:1; display:flex; position:relative; z-index:1; gap:0; }
 
   /* Left column */
@@ -136,10 +134,6 @@ export function buildComparisonTemplate(data: SlideTemplateData, theme: VideoThe
     border:4px solid white;
   }
 
-  .footer { height:88px; border-top:1px solid #e5e8ec; display:flex; align-items:center; justify-content:flex-end; padding:0 36px; position:relative; z-index:1; background:white; }
-  .watermark { display:flex; align-items:center; gap:10px; opacity:0.45; }
-  .watermark img { max-height:36px; }
-  .watermark-name { font-family:'Inter',sans-serif; font-size:16px; }
 </style>
 </head>
 <body>
