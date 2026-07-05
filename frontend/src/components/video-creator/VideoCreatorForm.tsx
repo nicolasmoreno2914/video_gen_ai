@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Sparkles, Youtube } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VisualStyle } from '@/types';
@@ -6,9 +7,17 @@ import { FileDropzone } from './FileDropzone';
 import { StyleSelector } from './StyleSelector';
 import { AdvancedConfig } from './AdvancedConfig';
 import { useCreateVideo } from '@/hooks/useCreateVideo';
+import { apiClient } from '@/services/api';
 
 interface VideoCreatorFormProps {
   onJobCreated: (jobId: string) => void;
+}
+
+interface Institution {
+  name: string;
+  brand_institution_name: string | null;
+  brand_primary_color: string;
+  brand_secondary_color: string;
 }
 
 interface FormState {
@@ -16,9 +25,6 @@ interface FormState {
   content: string;
   fileName: string | null;
   visualStyle: VisualStyle;
-  primaryColor: string;
-  secondaryColor: string;
-  institutionName: string;
   targetMinutes: number;
   voiceId: string;
   uploadYoutube: boolean;
@@ -33,15 +39,20 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
     content: '',
     fileName: null,
     visualStyle: 'notebooklm',
-    primaryColor: '#003366',
-    secondaryColor: '#00AEEF',
-    institutionName: 'Institución Demo',
     targetMinutes: 10,
     voiceId: '',
     uploadYoutube: false,
     dryRun: false,
     youtubePrivacy: 'unlisted',
     youtubeTitle: '',
+  });
+
+  const { data: institution } = useQuery<Institution>({
+    queryKey: ['current-institution'],
+    queryFn: async () => {
+      const res = await apiClient.get<Institution>('/api/institutions/current');
+      return res.data;
+    },
   });
 
   const mutation = useCreateVideo();
@@ -64,9 +75,9 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
       target_duration_minutes: form.targetMinutes,
       dry_run: form.dryRun,
       brand: {
-        institution_name: form.institutionName || 'Institución Demo',
-        primary_color: form.primaryColor,
-        secondary_color: form.secondaryColor,
+        institution_name: institution?.brand_institution_name || institution?.name || 'Institución Demo',
+        primary_color: institution?.brand_primary_color ?? '#003366',
+        secondary_color: institution?.brand_secondary_color ?? '#00AEEF',
         voice_id: form.voiceId || undefined,
       },
       youtube: form.uploadYoutube
@@ -119,9 +130,6 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
       </div>
 
       <AdvancedConfig
-        primaryColor={form.primaryColor}
-        secondaryColor={form.secondaryColor}
-        institutionName={form.institutionName}
         targetMinutes={form.targetMinutes}
         voiceId={form.voiceId}
         onChange={handleAdvancedChange}
