@@ -89,18 +89,22 @@ export class StorageService {
 
   /** Returns the public URL for a remote key. */
   getPublicUrl(remoteKey: string): string {
-    if (this.driver === 'local') return remoteKey;
+    if (this.driver === 'local') return `/api/storage/${remoteKey}`;
     return `${this.publicBaseUrl}/${remoteKey}`;
+  }
+
+  /** Returns the absolute local filesystem path for a remote key. */
+  getLocalPath(remoteKey: string): string {
+    return path.join(this.basePath, remoteKey);
   }
 
   /** Upload a Buffer directly to R2 (used for logos uploaded via multipart). */
   async uploadBuffer(buffer: Buffer, remoteKey: string, contentType: string): Promise<string> {
     if (this.driver === 'local') {
-      // Write to local basePath so it's accessible on disk
       const localPath = path.join(this.basePath, remoteKey);
       fs.mkdirSync(path.dirname(localPath), { recursive: true });
       fs.writeFileSync(localPath, buffer);
-      return localPath;
+      return this.getPublicUrl(remoteKey);
     }
 
     if (!this.s3) {
