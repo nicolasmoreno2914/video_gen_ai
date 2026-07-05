@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Copy, Plus, Trash2, KeyRound, LogOut, Building2, Check, Upload, Palette, ImageIcon } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
@@ -56,15 +56,14 @@ export default function SettingsPage() {
       const res = await apiClient.get<Institution>('/api/institutions/current');
       return res.data;
     },
-    // Pre-fill brand form once loaded
-    select: (data) => {
-      // Use functional update to avoid re-setting on every re-render
-      setBrandName((prev) => prev || data.brand_institution_name || data.name);
-      setBrandPrimary((prev) => prev || data.brand_primary_color);
-      setBrandSecondary((prev) => prev || data.brand_secondary_color);
-      return data;
-    },
   });
+
+  useEffect(() => {
+    if (!institution) return;
+    setBrandName((prev) => prev || institution.brand_institution_name || institution.name);
+    setBrandPrimary((prev) => prev || institution.brand_primary_color);
+    setBrandSecondary((prev) => prev || institution.brand_secondary_color);
+  }, [institution]);
 
   const { data: keysData } = useQuery<{ items: ApiKeyRecord[] }>({
     queryKey: ['api-keys'],
