@@ -40,7 +40,6 @@ async function bootstrap(): Promise<void> {
   // Serve uploaded logos from disk when using local storage driver.
   // In R2 mode, logos are served directly from Cloudflare — this middleware is a no-op.
   if ((process.env.STORAGE_DRIVER ?? 'local') !== 'r2') {
-    const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
     app.useStaticAssets(path.join(storagePath, 'logos'), {
       prefix: '/api/storage/logos',
       index: false,
