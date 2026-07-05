@@ -101,10 +101,8 @@ export class StorageService {
   /** Upload a Buffer directly to R2 (used for logos uploaded via multipart). */
   async uploadBuffer(buffer: Buffer, remoteKey: string, contentType: string): Promise<string> {
     if (this.driver === 'local') {
-      const localPath = path.join(this.basePath, remoteKey);
-      fs.mkdirSync(path.dirname(localPath), { recursive: true });
-      fs.writeFileSync(localPath, buffer);
-      return this.getPublicUrl(remoteKey);
+      // Return a data URL so the logo is self-contained — no file serving needed.
+      return `data:${contentType};base64,${buffer.toString('base64')}`;
     }
 
     if (!this.s3) {
