@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -28,13 +29,23 @@ async function bootstrap(): Promise<void> {
   }
 
   console.log('[BOOT] Initializing NestJS app...');
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: false,
     logger: createWinstonLogger(),
     rawBody: true,
   });
 
   console.log('[BOOT] NestJS app created OK');
+
+  // Serve uploaded logos from disk when using local storage driver.
+  // In R2 mode, logos are served directly from Cloudflare — this middleware is a no-op.
+  if ((process.env.STORAGE_DRIVER ?? 'local') !== 'r2') {
+    const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
+    app.useStaticAssets(path.join(storagePath, 'logos'), {
+      prefix: '/api/storage/logos',
+      index: false,
+    });
+  }
 
   app.setGlobalPrefix('api', { exclude: ['health', 'health/(.*)'] });
 
