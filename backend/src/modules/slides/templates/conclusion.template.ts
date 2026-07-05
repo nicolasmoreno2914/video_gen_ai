@@ -124,9 +124,9 @@ export function buildConclusionTemplate(data: SlideTemplateData, theme: VideoThe
   .watermark {
     position:absolute; bottom:24px; right:32px;
     display:flex; align-items:center; gap:10px;
-    opacity:0.30; z-index:2;
+    opacity:0.88; z-index:2;
   }
-  .watermark img { max-height:32px; }
+  .watermark img { max-height:64px; object-fit:contain; }
   .watermark-name { font-family:'Inter',sans-serif; font-size:15px; color:#fff; }
 </style>
 </head>

@@ -158,9 +158,9 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
   .watermark {
     position:absolute; bottom:28px; right:36px;
     display:flex; align-items:center; gap:12px;
-    opacity:0.38; z-index:10;
+    opacity:0.88; z-index:10;
   }
-  .watermark img { max-height:40px; object-fit:contain; }
+  .watermark img { max-height:64px; object-fit:contain; }
   .watermark-name { font-family:'Inter',sans-serif; font-size:15px; color:#1A1A1A; }
 </style>
 </head>

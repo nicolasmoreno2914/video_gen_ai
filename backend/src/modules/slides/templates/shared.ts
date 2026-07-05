@@ -103,8 +103,8 @@ body {
   padding:0 44px; position:relative; z-index:1;
   background:#f8f9fb;
 }
-.watermark { display:flex; align-items:center; gap:10px; opacity:0.55; }
-.watermark img { max-height:42px; object-fit:contain; }
+.watermark { display:flex; align-items:center; gap:10px; opacity:0.88; }
+.watermark img { max-height:64px; object-fit:contain; }
 .watermark-name { font-family:'Inter',sans-serif; font-size:15px; font-weight:500; color:#777; }`;
 }
 
