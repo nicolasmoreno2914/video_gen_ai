@@ -185,7 +185,9 @@ export default function SettingsPage() {
               {institution?.brand_logo_url ? (
                 <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
                   <img
-                    src={institution.brand_logo_url}
+                    src={institution.brand_logo_url.startsWith('/')
+                      ? `${import.meta.env.VITE_API_URL ?? ''}${institution.brand_logo_url}`
+                      : institution.brand_logo_url}
                     alt="Logo actual"
                     className="max-w-full max-h-full object-contain p-1"
                   />
