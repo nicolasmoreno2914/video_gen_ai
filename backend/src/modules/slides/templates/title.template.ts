@@ -204,7 +204,7 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
 </div>
 
 <!-- Watermark -->
-${watermarkHtml(brand.logoUrl, brand.institutionName)}
+${watermarkHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

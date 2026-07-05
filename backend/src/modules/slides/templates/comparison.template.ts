@@ -170,7 +170,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
     <div class="items">${colItems(rightItems, brand.secondaryColor)}</div>
   </div>
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

@@ -162,7 +162,7 @@ ${summaryHeader}
   <div class="left-col">${bulletCards}</div>
   ${decoPanel}
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
   }
@@ -192,7 +192,7 @@ ${summaryHeader}
     <img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
   </div>
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

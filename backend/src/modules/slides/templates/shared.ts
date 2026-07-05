@@ -85,16 +85,16 @@ export function lerpColor(hex1: string, hex2: string, t: number): string {
 
 // ─── HTML building blocks ─────────────────────────────────────────────────────
 
-export function watermarkHtml(logoUrl: string | null, institutionName: string, dark = false): string {
+export function watermarkHtml(logoBase64: string | null, institutionName: string, dark = false): string {
   return `<div class="watermark">
-    ${logoUrl ? `<img src="${logoUrl}" alt="logo">` : ''}
+    ${logoBase64 ? `<img src="${logoBase64}" alt="logo">` : ''}
     <span class="watermark-name" style="color:${dark ? '#fff' : '#1A1A1A'}">${escape(institutionName)}</span>
   </div>`;
 }
 
-export function footerHtml(logoUrl: string | null, institutionName: string): string {
+export function footerHtml(logoBase64: string | null, institutionName: string): string {
   return `<div class="footer">
-    ${watermarkHtml(logoUrl, institutionName)}
+    ${watermarkHtml(logoBase64, institutionName)}
   </div>`;
 }
 

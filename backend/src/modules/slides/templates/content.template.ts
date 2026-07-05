@@ -177,7 +177,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
 <div class="body-row">
   ${bodyContent}
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
   }
@@ -251,7 +251,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   <div class="divider"></div>
   ${imgLeft ? textCol : imgCol}
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

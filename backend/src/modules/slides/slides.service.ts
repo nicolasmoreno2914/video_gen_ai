@@ -24,7 +24,7 @@ export interface BrandData {
   primaryColor: string;
   secondaryColor: string;
   institutionName: string;
-  logoUrl: string | null;
+  logoBase64: string | null;
 }
 
 export interface SlideTemplateData {
@@ -118,7 +118,7 @@ export class SlidesService {
       primaryColor: job.brand_primary_color ?? '#003366',
       secondaryColor: job.brand_secondary_color ?? '#00AEEF',
       institutionName: job.brand_institution_name ?? 'Video Engine IA',
-      logoUrl: job.brand_logo_url,
+      logoBase64: this.loadLogoBase64(job.brand_logo_url),
     };
 
     const requiresAiImage = scene.requires_ai_image !== false;
@@ -194,6 +194,24 @@ export class SlidesService {
       case 'summary':      return buildSummaryTemplate(data, theme);
       case 'conclusion':   return buildConclusionTemplate(data, theme);
       default:             return buildContentTemplate(data, theme);
+    }
+  }
+
+  private loadLogoBase64(logoUrl: string | null): string | null {
+    if (!logoUrl) return null;
+    try {
+      // Relative URLs like /api/storage/logos/<key> → resolve to disk path
+      const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
+      const localPath = logoUrl.startsWith('/api/storage/')
+        ? path.join(storagePath, logoUrl.replace('/api/storage/', ''))
+        : logoUrl; // absolute path or full URL — try as-is
+      if (!fs.existsSync(localPath)) return null;
+      const ext = path.extname(localPath).toLowerCase().replace('.', '') || 'png';
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      const b64 = fs.readFileSync(localPath).toString('base64');
+      return `data:${mime};base64,${b64}`;
+    } catch {
+      return null;
     }
   }
 

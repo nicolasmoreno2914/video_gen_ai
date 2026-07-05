@@ -150,7 +150,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')
   <div class="stat-col">${statBlock}</div>
   <div class="deco-col">${decoRings}</div>
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
   }
@@ -178,7 +178,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')
     <img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
   </div>
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

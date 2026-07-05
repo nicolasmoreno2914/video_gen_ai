@@ -128,7 +128,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
 <div class="body">
   <div class="pyramid">${barsHtml}</div>
 </div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }

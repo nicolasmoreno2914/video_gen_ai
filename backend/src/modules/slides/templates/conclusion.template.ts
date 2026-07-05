@@ -144,7 +144,7 @@ ${imageBase64 ? '<div class="doodle-bg"></div>' : ''}
 </div>
 
 <div class="watermark">
-  ${brand.logoUrl ? `<img src="${brand.logoUrl}" alt="logo">` : ''}
+  ${brand.logoBase64 ? `<img src="${brand.logoBase64}" alt="logo">` : ''}
   <span class="watermark-name">${escape(brand.institutionName)}</span>
 </div>
 </body>

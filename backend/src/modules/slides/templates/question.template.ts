@@ -166,7 +166,7 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
   <div class="right">${rightPanel}</div>
 </div>
 <div class="bottom-bar"></div>
-${footerHtml(brand.logoUrl, brand.institutionName)}
+${footerHtml(brand.logoBase64, brand.institutionName)}
 </body>
 </html>`;
 }
