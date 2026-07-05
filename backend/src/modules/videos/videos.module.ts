@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { ApiUsageLog } from '../database/entities/api-usage-log.entity';
+import { Institution } from '../database/entities/institution.entity';
 import { VideosService } from './videos.service';
 import { VideosController } from './videos.controller';
 import { CleanupService } from './cleanup.service';
@@ -12,7 +13,7 @@ import { EventsModule } from '../events/events.module';
 import { VIDEO_QUEUE } from '../queue/queue.constants';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([VideoJob, VideoScene, ApiUsageLog]),
+    TypeOrmModule.forFeature([VideoJob, VideoScene, ApiUsageLog, Institution]),
     BullModule.registerQueue({ name: VIDEO_QUEUE }),
     InstitutionsModule,
     EventsModule,

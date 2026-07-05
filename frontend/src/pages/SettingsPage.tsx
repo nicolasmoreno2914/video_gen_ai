@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Copy, Plus, Trash2, KeyRound, LogOut, Building2, Check } from 'lucide-react';
+import { Copy, Plus, Trash2, KeyRound, LogOut, Building2, Check, Upload, Palette, ImageIcon } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../services/api';
@@ -10,8 +10,10 @@ interface Institution {
   name: string;
   slug: string;
   daily_video_limit: number;
+  brand_logo_url: string | null;
   brand_primary_color: string;
   brand_secondary_color: string;
+  brand_institution_name: string | null;
 }
 
 interface ApiKeyRecord {
@@ -39,11 +41,28 @@ export default function SettingsPage() {
   const [revealedKey, setRevealedKey] = useState<NewApiKey | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Brand state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [brandName, setBrandName] = useState('');
+  const [brandPrimary, setBrandPrimary] = useState('');
+  const [brandSecondary, setBrandSecondary] = useState('');
+  const [brandSaved, setBrandSaved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
+
   const { data: institution } = useQuery<Institution>({
     queryKey: ['current-institution'],
     queryFn: async () => {
       const res = await apiClient.get<Institution>('/api/institutions/current');
       return res.data;
+    },
+    // Pre-fill brand form once loaded
+    select: (data) => {
+      // Use functional update to avoid re-setting on every re-render
+      setBrandName((prev) => prev || data.brand_institution_name || data.name);
+      setBrandPrimary((prev) => prev || data.brand_primary_color);
+      setBrandSecondary((prev) => prev || data.brand_secondary_color);
+      return data;
     },
   });
 
@@ -57,6 +76,47 @@ export default function SettingsPage() {
 
   const apiKeys = keysData?.items ?? [];
 
+  // ── Logo upload ──────────────────────────────────────────────────────────
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoError('');
+    setLogoUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      await apiClient.post('/api/institutions/current/logo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await queryClient.invalidateQueries({ queryKey: ['current-institution'] });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setLogoError(msg ?? 'Error al subir el logo');
+    } finally {
+      setLogoUploading(false);
+      // Reset input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  // ── Brand update ─────────────────────────────────────────────────────────
+  const updateBrand = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.patch<Institution>('/api/institutions/current/brand', {
+        brand_institution_name: brandName.trim() || null,
+        brand_primary_color: brandPrimary,
+        brand_secondary_color: brandSecondary,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setBrandSaved(true);
+      setTimeout(() => setBrandSaved(false), 2500);
+      void queryClient.invalidateQueries({ queryKey: ['current-institution'] });
+    },
+  });
+
+  // ── API Keys ─────────────────────────────────────────────────────────────
   const generateKey = useMutation({
     mutationFn: async (name: string) => {
       const res = await apiClient.post<NewApiKey>('/api/api-keys', { name });
@@ -84,13 +144,15 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-3xl mx-auto px-6 pt-24 pb-16 space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
 
-        {/* Institution */}
+        {/* Institution info */}
         <section className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
           <div className="flex items-center gap-3 mb-2">
             <Building2 className="w-5 h-5 text-gray-400" />
@@ -101,24 +163,122 @@ export default function SettingsPage() {
               <Row label="Nombre" value={institution.name} />
               <Row label="Slug" value={institution.slug} />
               <Row label="Límite diario" value={`${institution.daily_video_limit} videos`} />
-              <div className="flex items-center gap-3 py-2 border-b border-gray-50">
-                <span className="w-36 text-gray-400">Color primario</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full border border-gray-200" style={{ background: institution.brand_primary_color }} />
-                  <span className="font-mono text-gray-700">{institution.brand_primary_color}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 py-2">
-                <span className="w-36 text-gray-400">Color secundario</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full border border-gray-200" style={{ background: institution.brand_secondary_color }} />
-                  <span className="font-mono text-gray-700">{institution.brand_secondary_color}</span>
-                </div>
-              </div>
             </div>
           ) : (
             <p className="text-sm text-gray-400">Cargando...</p>
           )}
+        </section>
+
+        {/* Brand identity */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <Palette className="w-5 h-5 text-gray-400" />
+            <h2 className="font-semibold text-gray-900">Identidad de marca</h2>
+          </div>
+          <p className="text-xs text-gray-400 -mt-2">
+            Estos valores se aplican automáticamente a todos los videos generados (UI y API).
+          </p>
+
+          {/* Logo */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">Logo</label>
+            <div className="flex items-center gap-4">
+              {institution?.brand_logo_url ? (
+                <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={institution.brand_logo_url}
+                    alt="Logo actual"
+                    className="max-w-full max-h-full object-contain p-1"
+                  />
+                </div>
+              ) : (
+                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-1">
+                  <ImageIcon className="w-6 h-6 text-gray-300" />
+                  <span className="text-xs text-gray-300">Sin logo</span>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => void handleLogoChange(e)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={logoUploading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  {logoUploading ? 'Subiendo...' : institution?.brand_logo_url ? 'Cambiar logo' : 'Subir logo'}
+                </button>
+                <p className="text-xs text-gray-400">PNG, JPEG o WebP · máx. 2 MB</p>
+                {logoError && <p className="text-xs text-red-500">{logoError}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Brand name */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">
+              Nombre en slides
+            </label>
+            <input
+              type="text"
+              value={brandName}
+              onChange={(e) => setBrandName(e.target.value)}
+              placeholder="Ej: Cursia · Plataforma Educativa"
+              maxLength={255}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-400">
+              Aparece junto al logo en el footer de cada slide. Si está vacío, usa el nombre de la institución.
+            </p>
+          </div>
+
+          {/* Colors */}
+          <div className="grid grid-cols-2 gap-4">
+            <ColorField
+              label="Color primario"
+              value={brandPrimary}
+              onChange={setBrandPrimary}
+            />
+            <ColorField
+              label="Color secundario"
+              value={brandSecondary}
+              onChange={setBrandSecondary}
+            />
+          </div>
+
+          {/* Save button */}
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => updateBrand.mutate()}
+              disabled={
+                updateBrand.isPending ||
+                !isValidHex(brandPrimary) ||
+                !isValidHex(brandSecondary)
+              }
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#003366] text-white text-sm font-semibold rounded-xl hover:bg-[#003366]/90 disabled:opacity-50 transition-colors"
+            >
+              {updateBrand.isPending ? (
+                'Guardando...'
+              ) : brandSaved ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Guardado
+                </>
+              ) : (
+                'Guardar cambios'
+              )}
+            </button>
+            {!isValidHex(brandPrimary) || !isValidHex(brandSecondary) ? (
+              <span className="text-xs text-red-500">El color debe ser un hex válido (#RRGGBB)</span>
+            ) : null}
+          </div>
         </section>
 
         {/* API Keys */}
@@ -128,7 +288,6 @@ export default function SettingsPage() {
             <h2 className="font-semibold text-gray-900">API Keys</h2>
           </div>
 
-          {/* One-time reveal */}
           {revealedKey && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
               <p className="text-sm font-semibold text-amber-800">{revealedKey.message}</p>
@@ -151,7 +310,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Create new key */}
           <div className="flex gap-2">
             <input
               type="text"
@@ -171,7 +329,6 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {/* Keys table */}
           {apiKeys.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">Sin API keys aún</p>
           ) : (
@@ -246,6 +403,41 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center gap-3 py-2 border-b border-gray-50">
       <span className="w-36 text-gray-400 text-sm">{label}</span>
       <span className="text-sm text-gray-700">{value}</span>
+    </div>
+  );
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const valid = /^#[0-9A-Fa-f]{6}$/.test(value);
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-gray-700">{label}</label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={valid ? value : '#003366'}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={7}
+          placeholder="#003366"
+          className={`flex-1 border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            valid ? 'border-gray-200' : 'border-red-300 bg-red-50'
+          }`}
+        />
+      </div>
     </div>
   );
 }

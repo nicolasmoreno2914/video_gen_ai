@@ -28,6 +28,7 @@ import { Repository } from 'typeorm';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { ApiUsageLog } from '../database/entities/api-usage-log.entity';
+import { Institution } from '../database/entities/institution.entity';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { VideoStatusResponse, VideoSceneSummary } from './dto/video-status.dto';
 import { VideoStatus, STEP_LABELS, ApiProvider } from '../../common/types';
@@ -43,6 +44,8 @@ export class VideosService {
     private readonly videoSceneRepo: Repository<VideoScene>,
     @InjectRepository(ApiUsageLog)
     private readonly usageLogRepo: Repository<ApiUsageLog>,
+    @InjectRepository(Institution)
+    private readonly institutionRepo: Repository<Institution>,
   ) {}
 
   async create(dto: CreateVideoDto): Promise<{
@@ -69,6 +72,11 @@ export class VideosService {
       previousJobId = existing.id;
     }
 
+    // Load institution brand defaults when caller doesn't provide brand data
+    const institution = dto.institution_id
+      ? await this.institutionRepo.findOne({ where: { id: dto.institution_id } })
+      : null;
+
     const job = this.videoJobRepo.create({
       institution_id: dto.institution_id ?? null,
       course_id: dto.course_id,
@@ -79,10 +87,10 @@ export class VideosService {
       target_duration_minutes: dto.target_duration_minutes ?? 10,
       visual_style: dto.visual_style ?? 'notebooklm',
       dry_run: dto.dry_run ?? false,
-      brand_logo_url: dto.brand?.logo_url ?? null,
-      brand_primary_color: dto.brand?.primary_color ?? '#003366',
-      brand_secondary_color: dto.brand?.secondary_color ?? '#00AEEF',
-      brand_institution_name: dto.brand?.institution_name ?? null,
+      brand_logo_url: dto.brand?.logo_url ?? institution?.brand_logo_url ?? null,
+      brand_primary_color: dto.brand?.primary_color ?? institution?.brand_primary_color ?? '#003366',
+      brand_secondary_color: dto.brand?.secondary_color ?? institution?.brand_secondary_color ?? '#00AEEF',
+      brand_institution_name: dto.brand?.institution_name ?? institution?.brand_institution_name ?? null,
       brand_voice_id: dto.brand?.voice_id ?? null,
       youtube_privacy: dto.youtube?.privacy_status ?? 'unlisted',
       youtube_title: dto.youtube?.title ?? null,

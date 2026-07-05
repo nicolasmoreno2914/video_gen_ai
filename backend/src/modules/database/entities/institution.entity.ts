@@ -36,6 +36,9 @@ export class Institution {
   brand_secondary_color!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
+  brand_institution_name!: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
   elevenlabs_voice_id!: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })

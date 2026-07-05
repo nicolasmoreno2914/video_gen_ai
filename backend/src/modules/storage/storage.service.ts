@@ -93,6 +93,37 @@ export class StorageService {
     return `${this.publicBaseUrl}/${remoteKey}`;
   }
 
+  /** Upload a Buffer directly to R2 (used for logos uploaded via multipart). */
+  async uploadBuffer(buffer: Buffer, remoteKey: string, contentType: string): Promise<string> {
+    if (this.driver === 'local') {
+      // Write to local basePath so it's accessible on disk
+      const localPath = path.join(this.basePath, remoteKey);
+      fs.mkdirSync(path.dirname(localPath), { recursive: true });
+      fs.writeFileSync(localPath, buffer);
+      return localPath;
+    }
+
+    if (!this.s3) {
+      this.logger.error('[StorageService] R2 client not initialised');
+      throw new Error('Storage not available');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: remoteKey,
+        Body: buffer,
+        ContentType: contentType,
+      }),
+    );
+
+    const url = this.getPublicUrl(remoteKey);
+    this.logger.log(`[StorageService] Uploaded buffer → ${url}`);
+    return url;
+  }
+
   /** Upload job output files (mp4 + thumbnail) and return their public URLs. */
   async uploadJobOutput(jobId: string, localMp4Path: string, localThumbnailPath?: string) {
     const mp4Key = `jobs/${jobId}/output/final.mp4`;
