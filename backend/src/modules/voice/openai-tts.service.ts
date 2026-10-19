@@ -9,6 +9,7 @@ import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
+import { DEFAULT_OPENAI_TTS_MODEL } from './openai-tts.constants';
 
 export interface OpenAiTtsOpts {
   voice?: string;
@@ -23,7 +24,6 @@ const VALID_VOICES = new Set([
 ]);
 
 const DEFAULT_VOICE = 'marin';
-const DEFAULT_MODEL = 'gpt-4o-mini-tts';
 
 // Cost estimate: gpt-4o-mini-tts ≈ $0.60 per 1M chars = $0.0000006/char
 const COST_PER_CHAR = 0.0000006;
@@ -33,6 +33,7 @@ export class OpenAiTtsService {
   private readonly logger = new Logger(OpenAiTtsService.name);
   private readonly apiKey: string;
   private readonly basePath: string;
+  private readonly defaultModel: string;
   private readonly limit = pLimit(3);
 
   constructor(
@@ -41,6 +42,7 @@ export class OpenAiTtsService {
   ) {
     const cfg = this.configService.get<AppConfig['openai']>('openai')!;
     this.apiKey = cfg.apiKey;
+    this.defaultModel = cfg.ttsModel || DEFAULT_OPENAI_TTS_MODEL;
     this.basePath =
       this.configService.get<AppConfig['storage']>('storage')?.basePath ??
       '/tmp/video-engine';
@@ -52,7 +54,7 @@ export class OpenAiTtsService {
     opts: OpenAiTtsOpts = {},
   ): Promise<void> {
     const voice = this.resolveVoice(job, opts.voice);
-    const model = opts.model ?? DEFAULT_MODEL;
+    const model = opts.model ?? this.defaultModel;
 
     this.logger.log(
       `[OpenAiTtsService] [${job.id}] Generando audio para ${scenes.length} escenas ` +
@@ -90,7 +92,7 @@ export class OpenAiTtsService {
     if (scenes.length === 0) return;
 
     const voice = this.resolveVoice(job, opts.voice);
-    const model = opts.model ?? DEFAULT_MODEL;
+    const model = opts.model ?? this.defaultModel;
 
     this.logger.log(
       `[OpenAiTtsService] [${job.id}] Regenerando audio para ${scenes.length} escenas ` +

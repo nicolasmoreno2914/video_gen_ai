@@ -1,3 +1,5 @@
+import { DEFAULT_OPENAI_TTS_MODEL } from '../modules/voice/openai-tts.constants';
+
 export interface AppConfig {
   port: number;
   nodeEnv: string;
@@ -30,6 +32,7 @@ export interface AppConfig {
     imageModel: string;
     imageSize: string;
     imageQuality: string;
+    ttsModel: string;
   };
   elevenlabs: {
     apiKey: string;
@@ -104,6 +107,8 @@ export default (): AppConfig => ({
     imageModel: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',
     imageSize: process.env.OPENAI_IMAGE_SIZE ?? '1792x1024',
     imageQuality: process.env.OPENAI_IMAGE_QUALITY ?? 'standard',
+    // Snapshot fijado: el alias 'gpt-4o-mini-tts' se cuelga (125–172 s) desde 2026-10-15/16
+    ttsModel: process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_OPENAI_TTS_MODEL,
   },
   elevenlabs: {
     apiKey: process.env.ELEVENLABS_API_KEY ?? '',

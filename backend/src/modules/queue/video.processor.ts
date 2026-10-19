@@ -228,7 +228,7 @@ export class VideoProcessor extends WorkerHost {
     if (ttsProvider === 'openai') {
       await this.openAiTtsService.generateAllAudio(job, scenes, {
         voice: meta?.tts_voice ?? 'marin',
-        model: meta?.tts_model ?? 'gpt-4o-mini-tts',
+        model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
       });
     } else {
       await this.elevenLabsService.generateAllAudio(job, scenes, institution);
@@ -329,7 +329,7 @@ export class VideoProcessor extends WorkerHost {
         const meta = job.external_metadata as Record<string, string> | null;
         await this.openAiTtsService.regenerateScenesAudio(job, expandedScenes, {
           voice: meta?.tts_voice ?? 'marin',
-          model: meta?.tts_model ?? 'gpt-4o-mini-tts',
+          model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
         });
       } else {
         await this.elevenLabsService.regenerateScenesAudio(job, expandedScenes, institution);
