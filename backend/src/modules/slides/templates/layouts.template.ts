@@ -217,3 +217,143 @@ export function buildConclusionEditorialTemplate(data: SlideTemplateData): strin
     brand, eyebrow: eyebrow(data, 'Para cerrar'), title: scene.title ?? '', css, body, timeline: data.timeline, variant: 'dark',
   });
 }
+
+// ─── Portada (cover) ─────────────────────────────────────────────────────────
+
+export function buildCoverTemplate(data: SlideTemplateData): string {
+  const { brand, scene, imageBase64, requiresAiImage } = data;
+  const items = sceneItems(data, 3);
+  const hasImage = requiresAiImage && !!imageBase64;
+  const title = scene.title ?? '';
+  const size = title.length <= 24 ? 104 : title.length <= 40 ? 88 : title.length <= 60 ? 72 : 60;
+
+  const css = `
+.cover-art { position:absolute; top:0; right:0; bottom:0; width:${hasImage ? 1060 : 860}px; z-index:0; }
+.cover-art img { width:100%; height:100%; object-fit:cover; display:block; }
+.cover-art::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg, #F6F7F9 0%, rgba(246,247,249,0.85) 18%, rgba(246,247,249,0) 48%); }
+.cover-orb { position:absolute; right:150px; top:190px; width:560px; height:560px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor});
+  box-shadow:0 40px 100px ${alpha(brand.primaryColor, 0.35)}; }
+.cover-text { position:absolute; left:110px; top:0; bottom:84px; width:${hasImage ? 980 : 1040}px; display:flex; flex-direction:column;
+  justify-content:center; gap:30px; z-index:1; }
+.kicker { display:inline-flex; align-self:flex-start; align-items:center; gap:12px; padding:12px 26px; border-radius:40px;
+  background:${alpha(brand.secondaryColor, 0.14)}; color:${brand.primaryColor}; font-weight:700; font-size:24px; letter-spacing:2px; text-transform:uppercase; }
+.cover-title { font-family:'Nunito',sans-serif; font-weight:900; color:${brand.primaryColor}; line-height:1.0; letter-spacing:-1px; font-size:${size}px; }
+.cover-sub { display:flex; flex-direction:column; gap:14px; }
+.cover-sub div { font-size:34px; font-weight:600; color:#3A404A; padding-left:26px; border-left:5px solid ${brand.secondaryColor}; }`;
+
+  const art = hasImage
+    ? `<div class="cover-art" data-anim="image"><img src="data:image/png;base64,${imageBase64}" alt=""></div>`
+    : `<div class="cover-orb" data-anim="image">${iconSvg(items[0]?.icon ?? 'graduation-cap', 260, '#fff', 1.4) || iconSvg('graduation-cap', 260, '#fff', 1.4)}</div>`;
+
+  const body = `${art}
+    <div class="cover-text">
+      <div class="kicker" data-anim="enter">${escape(brand.institutionName)}</div>
+      <div class="cover-title" data-anim="enter">${escape(title)}</div>
+      <div class="cover-sub">${items.map((it, i) => `<div data-reveal="${i + 1}">${escape(it.text)}</div>`).join('')}</div>
+    </div>`;
+  // La portada usa todo el lienzo: sin encabezado y con el escenario a pantalla completa
+  return editorialPage({ brand, eyebrow: '', title: '', css: `${css}\n.stage { top:0; bottom:0; }`, body, timeline: data.timeline });
+}
+
+// ─── Pregunta guía (guiding_question) ────────────────────────────────────────
+
+export function buildQuestionEditorialTemplate(data: SlideTemplateData): string {
+  const { brand, scene, imageBase64, requiresAiImage } = data;
+  const hint = sceneItems(data, 1)[0];
+  const hasImage = requiresAiImage && !!imageBase64;
+  const q = scene.title ?? '';
+  const size = q.length <= 40 ? 88 : q.length <= 70 ? 72 : 58;
+
+  const css = `
+.qwrap { position:absolute; inset:0; display:flex; align-items:center; padding:0 110px; gap:80px; }
+.qtext { flex:1; display:flex; flex-direction:column; gap:40px; position:relative; z-index:1; }
+.question { font-family:'Nunito',sans-serif; font-weight:900; color:${brand.primaryColor}; line-height:1.05; letter-spacing:-0.5px; font-size:${size}px; }
+.hint { display:flex; align-items:center; gap:22px; align-self:flex-start; background:#fff; border-radius:24px; padding:24px 34px;
+  font-size:34px; font-weight:600; color:#2A2F38; box-shadow:0 14px 40px ${alpha(brand.primaryColor, 0.10)}; }
+.big-q { position:absolute; right:60px; top:-40px; font-family:'Nunito',sans-serif; font-weight:900; font-size:900px; line-height:1;
+  color:${alpha(brand.secondaryColor, 0.10)}; z-index:0; }
+.qimg { width:720px; height:620px; flex-shrink:0; border-radius:36px; overflow:hidden; box-shadow:0 30px 70px ${alpha(brand.primaryColor, 0.22)}; z-index:1; }
+.qimg img { width:100%; height:100%; object-fit:cover; display:block; }`;
+
+  const body = `${hasImage ? '' : '<div class="big-q" data-anim="image">?</div>'}
+    <div class="qwrap">
+      <div class="qtext">
+        <div class="kicker-q" style="font-weight:700;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:${brand.secondaryColor}" data-anim="enter">Pregunta clave</div>
+        <div class="question" data-anim="enter">${escape(q)}</div>
+        ${hint ? `<div class="hint" data-reveal="1">${iconSvg(hint.icon ?? 'lightbulb', 44, brand.secondaryColor, 2)}${escape(hint.text)}</div>` : ''}
+      </div>
+      ${hasImage ? `<div class="qimg" data-anim="image"><img src="data:image/png;base64,${imageBase64}" alt=""></div>` : ''}
+    </div>`;
+  return editorialPage({ brand, eyebrow: '', title: '', css: `${css}\n.stage { top:0; bottom:84px; }`, body, timeline: data.timeline });
+}
+
+// ─── Dato clave (big_stat): on_screen_text[0] = "87% de los adultos…" ─────────
+
+export function buildBigStatEditorialTemplate(data: SlideTemplateData): string {
+  const { brand, scene } = data;
+  const items = sceneItems(data, 4);
+  const first = items[0]?.text ?? '';
+  const m = first.match(/^([$€+\-]?\s*[0-9][0-9.,]*\s*[%$€kmKMBbx×]?)/);
+  const value = m ? m[1].trim() : first.substring(0, 16);
+  const label = m ? first.substring(m[0].length).trim() : '';
+  const len = value.replace(/\s/g, '').length;
+  const numSize = len <= 3 ? 300 : len <= 5 ? 240 : len <= 7 ? 190 : 140;
+  const rest = items.slice(1);
+  const fontSize = labelSize(rest.map((r) => r.text), 32, 24);
+
+  const css = `
+.statwrap { position:absolute; left:110px; right:110px; top:0; bottom:40px; display:flex; align-items:center; gap:90px; }
+.stat { flex:1.2; display:flex; flex-direction:column; gap:10px; }
+.stat-num { font-family:'Nunito',sans-serif; font-weight:900; line-height:0.9; letter-spacing:-4px; font-size:${numSize}px;
+  background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor}); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.stat-label { font-size:44px; font-weight:700; color:#1B1E24; line-height:1.2; max-width:900px; }
+.facts { flex:1; display:flex; flex-direction:column; gap:22px; }
+.fact { display:flex; align-items:center; gap:22px; background:#fff; border-radius:24px; padding:24px 30px;
+  box-shadow:0 12px 36px ${alpha(brand.primaryColor, 0.08)}; }
+.fact-text { font-weight:600; line-height:1.3; color:#1B1E24; }`;
+
+  const body = `<div class="statwrap">
+    <div class="stat" data-reveal="1">
+      <div class="stat-num">${escape(value)}</div>
+      ${label ? `<div class="stat-label">${escape(label)}</div>` : ''}
+    </div>
+    ${rest.length ? `<div class="facts">${rest.map((it, i) => `
+      <div class="fact" data-reveal="${i + 2}">
+        ${iconChip(it.icon, i + 1, 64, brand.primaryColor, alpha(brand.secondaryColor, 0.16))}
+        <div class="fact-text" style="font-size:${fontSize}px">${escape(it.text)}</div>
+      </div>`).join('')}</div>` : ''}
+  </div>`;
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Dato clave'), title: scene.title ?? '', css, body, timeline: data.timeline });
+}
+
+// ─── Niveles (hierarchy_diagram): escalera ascendente, del primero al último ──
+
+export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
+  const { brand } = data;
+  const items = sceneItems(data, 6);
+  const n = Math.max(items.length, 1);
+  const stepW = Math.floor(1700 / n) - 14;
+  const stepH = Math.min(110, Math.floor(560 / n));
+  const fontSize = labelSize(items.map((i) => i.text), n <= 4 ? 32 : 28, 22);
+
+  const steps = items.map((it, i) => {
+    const h = 150 + stepH * i;
+    const x = 110 + i * (stepW + 14);
+    const t = n === 1 ? 1 : i / (n - 1);
+    return `
+    <div class="lvl" data-reveal="${i + 1}" style="left:${x}px;width:${stepW}px;height:${h}px;
+      background:linear-gradient(180deg, ${alpha(brand.secondaryColor, 0.75 + 0.25 * t)}, ${alpha(brand.primaryColor, 0.8 + 0.2 * t)})">
+      <div class="lvl-icon">${iconSvg(it.icon, 46, '#fff', 2) || `<span>${i + 1}</span>`}</div>
+      <div class="lvl-text" style="font-size:${fontSize}px">${escape(it.text)}</div>
+    </div>`;
+  }).join('');
+
+  const css = `
+.lvl { position:absolute; bottom:60px; border-radius:24px 24px 10px 10px; display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; gap:14px; padding:26px 16px; color:#fff; text-align:center; box-shadow:0 14px 40px ${alpha(brand.primaryColor, 0.18)}; }
+.lvl-icon { width:76px; height:76px; border-radius:22px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center;
+  font-family:'Nunito',sans-serif; font-weight:900; font-size:34px; }
+.lvl-text { font-weight:800; line-height:1.2; }`;
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Niveles'), title: data.scene.title ?? '', css, body: steps, timeline: data.timeline });
+}

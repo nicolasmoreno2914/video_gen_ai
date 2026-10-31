@@ -52,6 +52,7 @@ export function editorialPage(opts: {
   eyebrow: string;
   title: string;
   css: string;
+  /** Contenido de la escena. Con title vacío no se dibuja el encabezado (portada). */
   body: string;
   timeline?: SceneTimeline | null;
   /** 'dark': fondo con degradado de la marca y texto blanco (cierre). */
@@ -81,14 +82,14 @@ ${css}
 <div class="bg-dots"></div>
 <div class="bg-blob bg-a"></div>
 <div class="bg-blob bg-b"></div>
-<div class="header">
+${title ? `<div class="header">
   <div class="eyebrow">${escape(eyebrow)}</div>
   <div class="scene-title" style="font-size:${titleSize(title)}px">${escape(title)}</div>
-</div>
+</div>` : ''}
 <div class="stage">
 ${body}
 </div>
-<div class="footer">${watermarkHtml(brand.logoBase64, brand.institutionName)}</div>
+<div class="footer">${watermarkHtml(brand.logoBase64, brand.institutionName, variant === 'dark')}</div>
 ${animationRuntime(timeline)}
 </body>
 </html>`;

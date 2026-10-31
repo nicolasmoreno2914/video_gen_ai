@@ -9,15 +9,12 @@ import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { getVideoTheme, VideoTheme } from './theme';
-import { buildTitleTemplate } from './templates/title.template';
-import { buildQuestionTemplate } from './templates/question.template';
-import { buildBigStatTemplate } from './templates/big-stat.template';
-import { buildLevelsTemplate } from './templates/levels.template';
 import {
   buildConceptMapTemplate, buildCycleTemplate, buildIconCardsTemplate, buildTimelineTemplate,
 } from './templates/diagrams.template';
 import {
-  buildComparisonEditorialTemplate, buildConclusionEditorialTemplate, buildSplitTemplate,
+  buildBigStatEditorialTemplate, buildComparisonEditorialTemplate, buildConclusionEditorialTemplate,
+  buildCoverTemplate, buildLevelsEditorialTemplate, buildQuestionEditorialTemplate, buildSplitTemplate,
   buildStepsEditorialTemplate, buildSummaryEditorialTemplate,
 } from './templates/layouts.template';
 import { SceneTimeline } from './templates/animation';
@@ -212,11 +209,11 @@ export class SlidesService {
     // layout_type es el criterio principal
     if (layout) {
       switch (layout) {
-        case 'cover':              return buildTitleTemplate(data, theme);
-        case 'guiding_question':   return buildQuestionTemplate(data, theme);
-        case 'big_stat':           return buildBigStatTemplate(data, theme);
+        case 'cover':              return buildCoverTemplate(data);
+        case 'guiding_question':   return buildQuestionEditorialTemplate(data);
+        case 'big_stat':           return buildBigStatEditorialTemplate(data);
         case 'content_split':      return split();
-        case 'hierarchy_diagram':  return buildLevelsTemplate(data, theme);
+        case 'hierarchy_diagram':  return buildLevelsEditorialTemplate(data);
         case 'process_steps':      return buildStepsEditorialTemplate(data);
         case 'comparison':         return buildComparisonEditorialTemplate(data);
         case 'real_example':       return split(true);
@@ -234,12 +231,12 @@ export class SlidesService {
     switch (type) {
       case 'hook':
         return isQuestion(title, texts)
-          ? buildQuestionTemplate(data, theme)
-          : buildTitleTemplate(data, theme);
+          ? buildQuestionEditorialTemplate(data)
+          : buildCoverTemplate(data);
       case 'context':
-        return hasKeyStats(texts) ? buildBigStatTemplate(data, theme) : split();
+        return hasKeyStats(texts) ? buildBigStatEditorialTemplate(data) : split();
       case 'explanation':
-        return isHierarchical(texts) ? buildLevelsTemplate(data, theme) : split();
+        return isHierarchical(texts) ? buildLevelsEditorialTemplate(data) : split();
       case 'process':      return buildStepsEditorialTemplate(data);
       case 'comparison':   return buildComparisonEditorialTemplate(data);
       case 'application':
