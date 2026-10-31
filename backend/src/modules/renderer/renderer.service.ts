@@ -47,6 +47,7 @@ export class RendererService {
   private readonly sttLimit = pLimit(4);
   private readonly sttModel = 'whisper-1';
   private readonly subtitlesMode: 'burned' | 'sidecar';
+  private readonly preset: string;
 
   constructor(private readonly configService: ConfigService<AppConfig>) {
     const storage = this.configService.get<AppConfig['storage']>('storage')!;
@@ -55,6 +56,7 @@ export class RendererService {
     this.basePath = storage.basePath;
     this.fps = video.fps;
     this.subtitlesMode = video.subtitlesMode ?? 'burned';
+    this.preset = video.renderPreset || 'ultrafast';
     this.openai = new OpenAI({ apiKey: openaiCfg.apiKey });
   }
 
@@ -239,8 +241,8 @@ export class RendererService {
           // fps=: el demuxer concat entrega solo los fotogramas clave; el filtro rellena los tramos
           // quietos y tpad sostiene el último durante la pausa. Los JPEG son de rango completo
           // (yuvj420p): se pasan a yuv420p de rango TV, el formato que exigen los reproductores.
-          `[0:v]${animated ? `fps=${this.fps},` : ''}scale=1920:1080:flags=lanczos` +
-          `${animated ? ':out_range=tv' : ''},format=yuv420p,` +
+          // Los slides ya miden 1920×1080: el escalado solo convierte el rango de color
+          `[0:v]${animated ? `fps=${this.fps},scale=out_range=tv` : 'scale=1920:1080'},format=yuv420p,` +
           `tpad=stop_mode=clone:stop_duration=${opts.pause}` +
           (this.subtitlesMode === 'burned'
             ? `,subtitles='${escapedSrt}':force_style='${this.subtitleStyle(opts.brand.primary)}'[base]`
@@ -256,7 +258,7 @@ export class RendererService {
           '-map [v]', '-map [a]',
           // Calidad: crf 18 evita bandas en los degradados; stillimage favorece contenido tipo slide
           // crf 16 + GOP de 2 s: margen para la recodificación de YouTube sin bandas en los degradados
-          '-c:v libx264', '-preset veryfast', '-tune stillimage', '-crf 16', '-g 60', '-profile:v high', '-level 4.1',
+          '-c:v libx264', `-preset ${this.preset}`, '-tune stillimage', '-crf 16', '-g 60', '-profile:v high', '-level 4.1',
           '-c:a aac', '-b:a 160k', '-ar 48000', '-ac 2',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,

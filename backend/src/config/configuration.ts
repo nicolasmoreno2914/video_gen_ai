@@ -62,6 +62,9 @@ export interface AppConfig {
     enableZoomEffect: boolean;
     animatedSlides: boolean;
     subtitlesMode: 'burned' | 'sidecar';
+    slidesMotionFps: number;
+    slidesConcurrency: number;
+    renderPreset: string;
   };
   rateLimit: {
     defaultDailyVideoLimit: number;
@@ -145,6 +148,13 @@ export default (): AppConfig => ({
     // burned: subtítulos quemados en el video; sidecar: solo el archivo subtitles.vtt (sin texto
     // redundante en pantalla; el reproductor o el LMS los muestra si el estudiante los activa)
     subtitlesMode: process.env.SUBTITLES_MODE === 'sidecar' ? 'sidecar' : 'burned',
+    // Velocidad en el VPS (CPU sin GPU): cada captura de 1080p cuesta ~1 s. Las transiciones de
+    // los slides duran 0,4–0,8 s, así que 15 fps de captura bastan; el video sale igual a DEFAULT_FPS.
+    slidesMotionFps: parseInt(process.env.SLIDES_MOTION_FPS ?? '15', 10),
+    slidesConcurrency: parseInt(process.env.SLIDES_CONCURRENCY ?? '4', 10),
+    // ultrafast: ~35 % más rápido que veryfast con calidad visual equivalente (SSIM 0,998 a crf 16);
+    // el archivo pesa ~2× (≈2 Mbps), aceptable para slides
+    renderPreset: process.env.RENDER_X264_PRESET ?? 'ultrafast',
   },
   rateLimit: {
     defaultDailyVideoLimit: parseInt(process.env.DEFAULT_DAILY_VIDEO_LIMIT ?? '10', 10),
