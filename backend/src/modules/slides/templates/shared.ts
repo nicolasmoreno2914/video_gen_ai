@@ -96,6 +96,8 @@ body {
   -moz-osx-font-smoothing:grayscale;
 }
 .grid-bg { position:fixed; inset:0; ${bg} opacity:0.50; z-index:0; }
+.header { height:110px; display:flex; align-items:center; padding:0 70px; gap:20px; position:relative; z-index:1; flex-shrink:0; }
+.scene-title { font-weight:700; flex:1; }
 .footer {
   height:68px;
   border-top:1px solid rgba(0,0,0,0.06);
