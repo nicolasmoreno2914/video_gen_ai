@@ -21,6 +21,7 @@ const LINE_CHARS = 42;
 const MAX_CHARS = 64;
 const MIN_CHARS = 20;
 const MIN_DURATION = 1.0;
+const MAX_MERGE_GAP = 0.6; // s: una pausa mayor separa ideas y nunca se fusiona
 // No cortar una línea después de estas palabras (artículos, preposiciones, conjunciones)
 const NO_BREAK_AFTER = new Set([
   'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'al', 'a', 'en', 'y', 'o', 'u', 'e',
@@ -188,11 +189,14 @@ export function buildSubtitleCues(narration: string, words: TimedWord[]): Subtit
     else if (len > MAX_CHARS + 12) flush(); // seguridad: nunca líneas larguísimas
   }
   flush();
-  // Fusionar líneas de menos de 1 s con la siguiente si caben (evita destellos como "F.")
+  // Fusionar líneas de menos de 1 s con la siguiente si caben (evita destellos como "F."), salvo
+  // que haya una pausa entre ambas: en la práctica, "Piénsalo un momento." no puede arrastrar la
+  // respuesta, que se dice después de 5 s de silencio
   const merged: SubtitleCue[] = [];
   for (const c of cues) {
     const prev = merged[merged.length - 1];
-    if (prev && prev.end - prev.start < MIN_DURATION && (prev.text + ' ' + c.text).length <= MAX_CHARS + 14) {
+    if (prev && prev.end - prev.start < MIN_DURATION && c.start - prev.end < MAX_MERGE_GAP &&
+      (prev.text + ' ' + c.text).length <= MAX_CHARS + 14) {
       prev.text = `${prev.text} ${c.text}`;
       prev.end = c.end;
     } else merged.push({ ...c });
