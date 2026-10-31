@@ -5,6 +5,8 @@
 //   [data-anim="image"]      → imagen IA, entra poco después del header
 //   [data-anim="enter"]      → texto principal (portada, pregunta, cierre), entra al inicio
 //   [data-reveal="N"]        → elemento N (1-based) aparece en timeline.revealTimes[N-1]
+//   [data-draw="N"]          → trazo SVG que se dibuja justo antes del elemento N
+//   [data-fade="N"]          → detalle que aparece al terminar el trazo N (punta de flecha)
 //
 // Todas las animaciones se crean con la Web Animations API y quedan EN PAUSA:
 // el capturador llama window.__anim.seek(t) para fijar el instante exacto de cada
@@ -57,6 +59,25 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
     el.querySelectorAll('mark').forEach(function (mark) {
       add(mark, [{ backgroundColor: 'rgba(255,229,0,0)' }, { backgroundColor: 'rgba(255,229,0,1)' }], delay + 350, 400);
     });
+  });
+
+  // Conectores SVG: el trazo se "dibuja" justo antes de que aparezca el nodo al que llega
+  document.querySelectorAll('[data-draw]').forEach(function (el) {
+    if (typeof el.getTotalLength !== 'function') return;
+    var idx = Number(el.getAttribute('data-draw')) - 1;
+    var t = timeline.revealTimes[idx];
+    if (typeof t !== 'number') t = 0.6 + idx * 0.4;
+    var len = el.getTotalLength();
+    el.style.strokeDasharray = len + ' ' + len;
+    add(el, [{ strokeDashoffset: len }, { strokeDashoffset: 0 }], Math.max(0, Math.round(t * 1000) - 250), 600);
+  });
+
+  // Detalles que solo aparecen (sin desplazamiento), p. ej. puntas de flecha tras dibujar el trazo
+  document.querySelectorAll('[data-fade]').forEach(function (el) {
+    var idx = Number(el.getAttribute('data-fade')) - 1;
+    var t = timeline.revealTimes[idx];
+    if (typeof t !== 'number') t = 0.6 + idx * 0.4;
+    add(el, [{ opacity: 0 }, { opacity: 1 }], Math.round(t * 1000) + 300, 250);
   });
 
   window.__anim = {

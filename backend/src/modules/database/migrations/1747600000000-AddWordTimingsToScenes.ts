@@ -5,7 +5,8 @@ export class AddWordTimingsToScenes1747600000000 implements MigrationInterface {
     await queryRunner.query(`
       ALTER TABLE video_scenes
       ADD COLUMN IF NOT EXISTS word_timings JSONB NULL,
-      ADD COLUMN IF NOT EXISTS reveal_cues JSONB NULL;
+      ADD COLUMN IF NOT EXISTS reveal_cues JSONB NULL,
+      ADD COLUMN IF NOT EXISTS icons JSONB NULL;
     `);
   }
 
@@ -13,7 +14,8 @@ export class AddWordTimingsToScenes1747600000000 implements MigrationInterface {
     await queryRunner.query(`
       ALTER TABLE video_scenes
       DROP COLUMN IF EXISTS word_timings,
-      DROP COLUMN IF EXISTS reveal_cues;
+      DROP COLUMN IF EXISTS reveal_cues,
+      DROP COLUMN IF EXISTS icons;
     `);
   }
 }

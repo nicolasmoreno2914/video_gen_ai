@@ -75,6 +75,10 @@ export class VideoScene {
   @Column({ type: 'jsonb', nullable: true })
   reveal_cues!: Array<string | null> | null;
 
+  /** Icono Lucide por cada on_screen_text (mismo índice), de la lista cerrada de templates/icons.ts. */
+  @Column({ type: 'jsonb', nullable: true })
+  icons!: Array<string | null> | null;
+
   @CreateDateColumn()
   created_at!: Date;
 
