@@ -125,6 +125,11 @@ DEFAULT_VISUAL_STYLE=notebooklm
 ENABLE_ZOOM_EFFECT=false
 # Slides animados sincronizados con la voz (captura por fotogramas clave). Default: false
 # ANIMATED_SLIDES=true
+# Velocidad de render (opcionales): captura del movimiento a 15 fps, 4 slides en paralelo,
+# preset x264 ultrafast (~35 % más rápido en el VPS, archivo ~2× más pesado)
+# SLIDES_MOTION_FPS=15
+# SLIDES_CONCURRENCY=4
+# RENDER_X264_PRESET=ultrafast
 DEFAULT_DAILY_VIDEO_LIMIT=10
 
 # ── Logging ───────────────────────────────────────────────────

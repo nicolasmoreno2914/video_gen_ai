@@ -68,10 +68,10 @@ export class SlidesService {
   private readonly logger = new Logger(SlidesService.name);
   private readonly basePath: string;
   private readonly executablePath: string;
-  private readonly limit = pLimit(3);
+  private readonly limit: ReturnType<typeof pLimit>;
   private readonly animated: boolean;
   private readonly subtitlesMode: 'burned' | 'sidecar';
-  private readonly fps: number;
+  private readonly motionFps: number;
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,
@@ -84,7 +84,11 @@ export class SlidesService {
     const video = this.configService.get<AppConfig['video']>('video');
     this.animated = video?.animatedSlides ?? false;
     this.subtitlesMode = video?.subtitlesMode ?? 'burned';
-    this.fps = video?.fps ?? 30;
+    const fps = video?.fps || 30;
+    const motionFps = video?.slidesMotionFps;
+    this.motionFps = motionFps && motionFps > 0 ? Math.min(motionFps, fps) : Math.min(15, fps);
+    const concurrency = video?.slidesConcurrency;
+    this.limit = pLimit(concurrency && concurrency > 0 ? concurrency : 4);
   }
 
   /** true si los slides de este job se renderizan animados (requiere audio, no aplica a dry-run). */
@@ -182,7 +186,7 @@ export class SlidesService {
       if (timeline) {
         const framesDir = path.dirname(SlidesService.framesListPath(outputPath, scene.scene_order));
         fs.rmSync(framesDir, { recursive: true, force: true });
-        const { frameCount } = await captureKeyframes(page, framesDir, duration, this.fps);
+        const { frameCount } = await captureKeyframes(page, framesDir, duration, this.motionFps);
         // Estado final como PNG: thumbnail, dry-run y respaldo si falta la lista de fotogramas
         await page.evaluate((t: number) => {
           (window as unknown as { __anim?: { seek(t: number): void } }).__anim?.seek(t);
