@@ -30,8 +30,10 @@ export interface AppConfig {
     apiKey: string;
     model: string;
     imageModel: string;
+    imageModelPrecise: string;
     imageSize: string;
     imageQuality: string;
+    visionModel: string;
     ttsModel: string;
     ttsInstructions: string;
   };
@@ -101,9 +103,14 @@ export default (): AppConfig => ({
   openai: {
     apiKey: process.env.OPENAI_API_KEY ?? '',
     model: process.env.OPENAI_MODEL ?? 'gpt-4o',
-    imageModel: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',
-    imageSize: process.env.OPENAI_IMAGE_SIZE ?? '1792x1024',
-    imageQuality: process.env.OPENAI_IMAGE_QUALITY ?? 'standard',
+    // dall-e-3 y gpt-image-1 ya no generan imágenes (2026-10): defaults a la familia gpt-image vigente
+    imageModel: process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-1-mini',
+    // Portada, gancho y escenas de precisión alta (anatomía, procedimientos, técnica)
+    imageModelPrecise: process.env.OPENAI_IMAGE_MODEL_PRECISE ?? 'gpt-image-2',
+    imageSize: process.env.OPENAI_IMAGE_SIZE ?? '1536x1024',
+    imageQuality: process.env.OPENAI_IMAGE_QUALITY ?? 'medium',
+    // Verifica las imágenes de precisión alta contra image_check
+    visionModel: process.env.OPENAI_VISION_MODEL ?? 'gpt-4.1-mini',
     // Snapshot fijado: el alias 'gpt-4o-mini-tts' se cuelga (125–172 s) desde 2026-10-15/16
     ttsModel: process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_OPENAI_TTS_MODEL,
     ttsInstructions: process.env.OPENAI_TTS_INSTRUCTIONS?.trim() || DEFAULT_OPENAI_TTS_INSTRUCTIONS,

@@ -79,6 +79,18 @@ export class VideoScene {
   @Column({ type: 'jsonb', nullable: true })
   icons!: Array<string | null> | null;
 
+  /** 'high' → modelo de imagen preciso + verificación con visión. */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  image_precision!: string | null;
+
+  /** Solo en videos realistas: 'atlas' (estructuras) o 'photo' (personas, procedimientos). */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  image_style!: string | null;
+
+  /** Qué debe verse correcto en la imagen; lo verifica un modelo de visión. */
+  @Column({ type: 'text', nullable: true })
+  image_check!: string | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

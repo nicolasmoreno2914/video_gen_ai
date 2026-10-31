@@ -17,6 +17,10 @@ export interface SceneInsertData {
   image_prompt?: string | null;
   highlight_words?: string[] | null;
   reveal_cues?: Array<string | null> | null;
+  icons?: Array<string | null> | null;
+  image_precision?: string | null;
+  image_style?: string | null;
+  image_check?: string | null;
   transition?: string;
   image_url?: string | null;
   slide_png_url?: string | null;

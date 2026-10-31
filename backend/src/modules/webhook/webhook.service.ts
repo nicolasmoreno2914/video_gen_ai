@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { VideoJob } from '../database/entities/video-job.entity';
+import { AI_DISCLOSURE } from '../youtube/youtube.service';
 
 @Injectable()
 export class WebhookService {
@@ -28,6 +29,8 @@ export class WebhookService {
       scenes_count: job.scenes_count,
       thumbnail_url: job.thumbnail_url,
       visual_style: job.visual_style,
+      // Para que la integración lo muestre en la descripción o créditos del video
+      ai_disclosure: AI_DISCLOSURE,
     };
 
     await this.sendWithRetry(job.callback_url, payload, job.id);

@@ -16,11 +16,12 @@ import { InstitutionsService } from '../institutions/institutions.service';
 import { CostsService } from '../costs/costs.service';
 import { StorageService } from '../storage/storage.service';
 import { VideoJob } from '../database/entities/video-job.entity';
-import { VideoScene } from '../database/entities/video-scene.entity';
 import { GeneratedScript, STEP_PROGRESS } from '../../common/types';
 import { priceRender, priceStt } from '../costs/cost-config';
 import * as path from 'path';
 import * as fs from 'fs';
+
+const MAX_VIDEO_SECONDS = 420;
 
 interface VideoJobData {
   jobId: string;
@@ -151,6 +152,10 @@ export class VideoProcessor extends WorkerHost {
       image_prompt: s.image_prompt ?? null,
       highlight_words: s.highlight_words,
       reveal_cues: Array.isArray(s.reveal_cues) ? s.reveal_cues : null,
+      icons: s.icons ?? null,
+      image_precision: s.image_precision ?? null,
+      image_style: s.image_style ?? null,
+      image_check: s.image_check ?? null,
       transition: s.transition,
       estimated_duration_seconds: s.estimated_duration_seconds,
     }));
@@ -172,7 +177,9 @@ export class VideoProcessor extends WorkerHost {
     }
   }
 
-  private async generateImagesAndAudio(job: VideoJob): Promise<void> {
+  private async generateImagesAndAudio(staleJob: VideoJob): Promise<void> {
+    // El job se cargó antes de generar el guion: recargarlo para tener generated_script (visual_family)
+    const job = await this.videosService.findById(staleJob.id);
     const scenes = await this.videosService.getScenes(job.id);
 
     if (job.dry_run) {
@@ -236,124 +243,16 @@ export class VideoProcessor extends WorkerHost {
       model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
     });
 
-    await this.ensureRealAudioDuration(job);
+    await this.logRealAudioDuration(job);
   }
 
-  private async ensureRealAudioDuration(job: VideoJob): Promise<void> {
-    const TARGET_SECONDS = 420;
-    const HARD_MIN_SECONDS = 390;
-    const MAX_CYCLES = 2;
-    const SKIP_TYPES = new Set(['hook', 'summary', 'conclusion']);
-
-    for (let cycle = 1; cycle <= MAX_CYCLES; cycle++) {
-      const scenes = await this.videosService.getScenes(job.id);
-      const totalSeconds = scenes.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
-      const label = this.formatDuration(totalSeconds);
-
-      if (totalSeconds >= TARGET_SECONDS) {
-        this.logger.log(
-          `[VideoProcessor] [${job.id}] Duración real de audio: ${label} (${Math.round(totalSeconds)}s / ${scenes.length} escenas) ✓`,
-        );
-        return;
-      }
-
-      const missingSeconds = TARGET_SECONDS - totalSeconds;
-      this.logger.warn(
-        `[VideoProcessor] [${job.id}] [DurationFix] Audio total: ${Math.round(totalSeconds)}s (${label}). ` +
-        `Objetivo: ${TARGET_SECONDS}s. Faltan ${Math.round(missingSeconds)}s. Ciclo ${cycle}/${MAX_CYCLES}`,
-      );
-
-      // Find candidate scenes to expand
-      const candidates = scenes.filter(s => {
-        if (SKIP_TYPES.has(s.scene_type ?? '')) return false;
-        const wordCount = (s.narration ?? '').split(/\s+/).filter(Boolean).length;
-        if (wordCount > 160) return false;
-        if ((s.duration_seconds ?? 0) > 35) return false;
-        return (s.duration_seconds ?? 0) < 22 || wordCount < 100;
-      }).slice(0, 8);
-
-      if (candidates.length === 0) {
-        this.logger.warn(`[VideoProcessor] [${job.id}] [DurationFix] No hay escenas candidatas para expandir`);
-        break;
-      }
-
-      this.logger.log(
-        `[VideoProcessor] [${job.id}] [DurationFix] Expandiendo ${candidates.length} escenas candidatas`,
-      );
-
-      let expansions: Array<{ scene_order: number; narration: string }>;
-      try {
-        expansions = await this.aiService.expandSceneNarrationsForDuration({
-          job,
-          scenesToExpand: candidates,
-          missingSeconds,
-          sourceContent: job.content_txt,
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`[VideoProcessor] [${job.id}] [DurationFix] GPT expansión falló: ${msg}`);
-        break;
-      }
-
-      if (expansions.length === 0) {
-        this.logger.warn(`[VideoProcessor] [${job.id}] [DurationFix] GPT no devolvió expansiones válidas`);
-        break;
-      }
-
-      // Update narrations in DB + delete old audio files
-      const expandedScenes: VideoScene[] = [];
-      const sceneMap = new Map(scenes.map(s => [s.scene_order, s]));
-
-      for (const exp of expansions) {
-        const scene = sceneMap.get(exp.scene_order);
-        if (!scene) continue;
-
-        // Delete old audio file
-        if (scene.audio_url && fs.existsSync(scene.audio_url)) {
-          try { fs.rmSync(scene.audio_url, { force: true }); } catch { /* non-critical */ }
-        }
-
-        await this.videosService.updateScene(scene.id, {
-          narration: exp.narration,
-          duration_seconds: 0,
-          audio_url: null as unknown as string,
-        });
-
-        expandedScenes.push({ ...scene, narration: exp.narration });
-      }
-
-      // Regenerate only the expanded scenes' audio
-      const meta = job.external_metadata as Record<string, string> | null;
-      await this.openAiTtsService.regenerateScenesAudio(job, expandedScenes, {
-        voice: meta?.tts_voice, // sin tts_voice → voz por defecto del servicio (cedar)
-        model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
-      });
-    }
-
-    // Final check after all cycles
-    const finalScenes = await this.videosService.getScenes(job.id);
-    const finalTotal = finalScenes.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
-    const finalLabel = this.formatDuration(finalTotal);
-
-    if (finalTotal < HARD_MIN_SECONDS) {
-      throw new Error(
-        `Duración real insuficiente tras ${MAX_CYCLES} ciclos de expansión: ${Math.round(finalTotal)}s (${finalLabel}). ` +
-        `Mínimo requerido: ${HARD_MIN_SECONDS}s (6:30 min). ` +
-        `El contenido educativo puede ser demasiado corto para generar un video de 7 minutos. ` +
-        `Intenta con más contenido o un tema más extenso.`,
-      );
-    }
-
-    if (finalTotal < TARGET_SECONDS) {
-      this.logger.warn(
-        `[VideoProcessor] [${job.id}] AVISO: duración final = ${finalLabel} (${Math.round(finalTotal)}s). ` +
-        `Dentro del margen aceptable (${HARD_MIN_SECONDS}–${TARGET_SECONDS - 1}s).`,
-      );
-    } else {
-      this.logger.log(
-        `[VideoProcessor] [${job.id}] Duración final: ${finalLabel} (${Math.round(finalTotal)}s) ✓`,
-      );
-    }
+  /** Solo informa la duración real del audio: ya no se alarga la narración para llegar a un mínimo. */
+  private async logRealAudioDuration(job: VideoJob): Promise<void> {
+    const scenes = await this.videosService.getScenes(job.id);
+    const totalSeconds = scenes.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    const msg = `[VideoProcessor] [${job.id}] Duración real de audio: ${this.formatDuration(totalSeconds)} (${scenes.length} escenas)`;
+    if (totalSeconds > MAX_VIDEO_SECONDS + 30) this.logger.warn(`${msg} — supera el tope de 7 min`);
+    else this.logger.log(msg);
   }
 
   private formatDuration(totalSeconds: number): string {

@@ -19,6 +19,9 @@ import { buildBigStatTemplate } from './templates/big-stat.template';
 import { buildComparisonTemplate } from './templates/comparison.template';
 import { buildLevelsTemplate } from './templates/levels.template';
 import { buildExampleCardTemplate } from './templates/example-card.template';
+import {
+  buildConceptMapTemplate, buildCycleTemplate, buildIconCardsTemplate, buildTimelineTemplate,
+} from './templates/diagrams.template';
 import { SceneTimeline } from './templates/animation';
 import { captureKeyframes } from './keyframe-capture';
 import { computeRevealTimes } from './reveal-timing';
@@ -209,13 +212,22 @@ export class SlidesService {
         case 'cover':              return buildTitleTemplate(data, theme);
         case 'guiding_question':   return buildQuestionTemplate(data, theme);
         case 'big_stat':           return buildBigStatTemplate(data, theme);
-        case 'content_split':      return buildContentTemplate(data, theme);
+        case 'content_split':
+          // Sin imagen (por diseño o porque falló), las tarjetas con iconos lucen mucho mejor
+          if (!(data.requiresAiImage && data.imageBase64) && scene.icons?.some(Boolean)) {
+            return buildIconCardsTemplate(data);
+          }
+          return buildContentTemplate(data, theme);
         case 'hierarchy_diagram':  return buildLevelsTemplate(data, theme);
         case 'process_steps':      return buildStepsTemplate(data, theme);
         case 'comparison':         return buildComparisonTemplate(data, theme);
         case 'real_example':       return buildExampleCardTemplate(data, theme);
         case 'summary_checklist':  return buildSummaryTemplate(data, theme);
         case 'conclusion_reflection': return buildConclusionTemplate(data, theme);
+        case 'icon_cards':         return buildIconCardsTemplate(data);
+        case 'cycle_diagram':      return buildCycleTemplate(data);
+        case 'concept_map':        return buildConceptMapTemplate(data);
+        case 'timeline':           return buildTimelineTemplate(data);
       }
     }
 

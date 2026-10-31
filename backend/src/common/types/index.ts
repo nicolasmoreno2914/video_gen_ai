@@ -27,7 +27,11 @@ export type LayoutType =
   | 'comparison'
   | 'real_example'
   | 'summary_checklist'
-  | 'conclusion_reflection';
+  | 'conclusion_reflection'
+  | 'icon_cards'
+  | 'cycle_diagram'
+  | 'concept_map'
+  | 'timeline';
 
 export type TransitionType = 'fade' | 'slide' | 'zoom' | 'dissolve';
 
@@ -51,6 +55,12 @@ export interface GeneratedScene {
   highlight_words: string[];
   /** Frase literal de la narración donde se menciona cada on_screen_text (mismo índice). */
   reveal_cues?: Array<string | null>;
+  /** Icono Lucide por elemento de on_screen_text (lista cerrada de slides/templates/icons.ts). */
+  icons?: Array<string | null>;
+  image_precision?: 'high' | 'normal';
+  image_style?: 'atlas' | 'photo' | null;
+  /** Qué debe verse correcto en una imagen de precisión alta (lo verifica un modelo de visión). */
+  image_check?: string | null;
   transition: TransitionType;
   estimated_duration_seconds: number;
 }
@@ -60,6 +70,8 @@ export interface GeneratedScript {
   estimated_duration_minutes: number;
   total_narration_characters: number;
   guiding_question: string;
+  /** Estilo de imagen del video, elegido por el guion según el tema. */
+  visual_family?: 'illustration' | 'realistic';
   scenes: GeneratedScene[];
 }
 

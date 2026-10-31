@@ -96,8 +96,11 @@ body {
   -moz-osx-font-smoothing:grayscale;
 }
 .grid-bg { position:fixed; inset:0; ${bg} opacity:0.50; z-index:0; }
-.header { height:110px; display:flex; align-items:center; padding:0 70px; gap:20px; position:relative; z-index:1; flex-shrink:0; }
-.scene-title { font-weight:700; flex:1; }
+.header { display:flex; flex-direction:column; gap:10px; padding:48px 110px 8px 110px; position:relative; z-index:1; flex-shrink:0; }
+.header-eyebrow { display:flex; align-items:center; gap:14px; font-family:'Inter',sans-serif; font-weight:700;
+  font-size:20px; letter-spacing:3px; text-transform:uppercase; }
+.header-eyebrow::before { content:''; width:44px; height:5px; border-radius:3px; background:currentColor; }
+.scene-title { font-family:'Nunito',sans-serif; font-weight:900; line-height:1.05; letter-spacing:-0.5px; }
 .footer {
   height:68px;
   border-top:1px solid rgba(0,0,0,0.06);
@@ -134,15 +137,15 @@ export function headerHtml(
   title: string,
   badge?: string,
 ): string {
-  const titleColor = headerTitleColor(theme);
-  const hStyle = headerCSS(theme, primaryColor);
-  const fontSize = adaptiveTitleSize(title, 42, 26);
-  const badgeHtml = badge
-    ? `<div style="background:${secondaryColor};color:#fff;font-family:'Inter',sans-serif;font-size:20px;font-weight:600;padding:8px 24px;border-radius:30px;white-space:nowrap;flex-shrink:0">${escape(badge)}</div>`
+  // Mismo encabezado editorial que las plantillas de diagramas: etiqueta + título grande
+  void theme;
+  const fontSize = adaptiveTitleSize(title, 58, 38);
+  const eyebrow = badge
+    ? `<div class="header-eyebrow" style="color:${secondaryColor}">${escape(badge)}</div>`
     : '';
-  return `<div class="header" style="${hStyle}">
-    <div class="scene-title" style="color:${titleColor};font-size:${fontSize}px">${escape(title)}</div>
-    ${badgeHtml}
+  return `<div class="header">
+    ${eyebrow}
+    <div class="scene-title" style="color:${primaryColor};font-size:${fontSize}px">${escape(title)}</div>
   </div>`;
 }
 

@@ -135,7 +135,10 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
 export function buildConceptMapTemplate(data: SlideTemplateData): string {
   const { brand, scene } = data;
   const items = sceneItems(data, 6);
-  const center = (scene.highlight_words?.[0] ?? scene.title ?? '').trim();
+  // Concepto central: highlight_words[0] salvo que sea una de las ramas; si no, el título
+  const hw = (scene.highlight_words?.[0] ?? '').trim();
+  const isBranch = hw && items.some((it) => it.text.toLowerCase().includes(hw.toLowerCase()));
+  const center = (hw && !isBranch ? hw : scene.title ?? '').trim();
   const cx = 960, cy = 383;
   const left = items.filter((_, i) => i % 2 === 0);
   const right = items.filter((_, i) => i % 2 === 1);

@@ -64,9 +64,13 @@ QUEUE_CONCURRENCY=1
 # ── OpenAI ───────────────────────────────────────────────────
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o
-OPENAI_IMAGE_MODEL=gpt-image-2
+# Imágenes normales / portada, gancho y escenas de precisión (anatomía, procedimientos)
+OPENAI_IMAGE_MODEL=gpt-image-1-mini
+OPENAI_IMAGE_MODEL_PRECISE=gpt-image-2
 OPENAI_IMAGE_SIZE=1536x1024
-OPENAI_IMAGE_QUALITY=standard
+OPENAI_IMAGE_QUALITY=medium
+# Modelo de visión que verifica las imágenes de precisión alta
+# OPENAI_VISION_MODEL=gpt-4.1-mini
 # Opcional: modelo TTS (default: snapshot fijado gpt-4o-mini-tts-2025-03-20)
 # OPENAI_TTS_MODEL=gpt-4o-mini-tts-2025-03-20
 # Opcional: indicaciones de estilo de voz (default en voice/openai-tts.constants.ts)
