@@ -106,6 +106,23 @@ function bestWindow(words: string[], keywords: string[], itemKeys: string[], pre
   return pick.i;
 }
 
+/**
+ * Inicio de la frase de referencia (cue) en la narración: exige al menos 2 palabras
+ * consecutivas coincidentes (las primeras de la cue que no sean vacías). -1 si no aparece.
+ */
+function findCuePhrase(words: string[], cue: string, preferAfter: number): number {
+  const toks = tokenize(cue);
+  if (toks.length < 2) return -1;
+  const k = Math.min(toks.length, 3);
+  const hits: number[] = [];
+  for (let i = 0; i + 1 < words.length; i++) {
+    let run = 0;
+    while (run < k && i + run < words.length && sameWord(words[i + run], toks[run])) run++;
+    if (run >= Math.min(k, 2)) hits.push(i);
+  }
+  return hits.find((i) => i >= preferAfter) ?? hits[0] ?? -1;
+}
+
 export function computeRevealTimes(
   items: string[],
   cues: Array<string | null> | null | undefined,
@@ -134,11 +151,18 @@ export function computeRevealTimes(
       idx = bestWindow(flat, numKeys, numKeys, prevIdx);
     }
     // La cue solo cuenta si comparte alguna palabra clave con su elemento
+    // 1º la frase de referencia literal (≥ 2 palabras seguidas), si comparte alguna clave con su elemento
+    if (idx < 0 && cue && flat.length && keywordsOf(cue).some((c) => keys.some((k) => sameWord(c, k)))) {
+      idx = findCuePhrase(flat, cue, prevIdx);
+    }
     if (idx < 0 && cue && flat.length) {
       const cueKeys = keywordsOf(cue);
       if (cueKeys.some((c) => keys.some((k) => sameWord(c, k)))) idx = bestWindow(flat, [...new Set([...cueKeys, ...keys])], keys, prevIdx);
     }
     if (idx < 0 && flat.length) idx = bestWindow(flat, keys, keys, prevIdx);
+    // Si el texto en pantalla parafrasea la voz (sin palabras en común), la cue literal es mejor
+    // referencia que repartir los tiempos de forma uniforme
+    if (idx < 0 && cue && flat.length) idx = findCuePhrase(flat, cue, prevIdx);
     if (idx >= 0) {
       raw.push(ws[owner[idx]].start - LEAD);
       prevIdx = idx + 1;

@@ -16,9 +16,9 @@ export function alpha(hex: string, a: number): string {
 export function editorialCSS(brand: BrandData): string {
   const p = brand.primaryColor;
   const s = brand.secondaryColor;
-  return `mark { background:none; color:${p}; font-weight:800; padding:0; }
+  return `mark { background:none; color:inherit; font-weight:800; padding:0; }
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
+body { --mark:${p};
   width:1920px; height:1080px; overflow:hidden; position:relative;
   background:#F6F7F9; font-family:'Inter',sans-serif; color:#14161A;
   -webkit-font-smoothing:antialiased;
@@ -57,8 +57,8 @@ export function editorialPage(opts: {
   /** Contenido de la escena. Con title vacío no se dibuja el encabezado (portada). */
   body: string;
   timeline?: SceneTimeline | null;
-  /** 'dark': fondo con degradado de la marca y texto blanco (cierre). */
-  variant?: 'light' | 'dark';
+  /** 'dark': fondo con degradado de la marca y texto blanco; 'tint': fondo claro teñido de la marca. */
+  variant?: 'light' | 'dark' | 'tint';
   /** Diagramas: el esquema completo se ve atenuado desde el inicio. */
   ghost?: boolean;
 }): string {
@@ -72,7 +72,9 @@ export function editorialPage(opts: {
 .bg-b { background:radial-gradient(circle, ${alpha(brand.secondaryColor, 0.35)} 0%, ${alpha(brand.secondaryColor, 0)} 70%); }
 .eyebrow { color:#fff; opacity:0.85; } .eyebrow::before { background:#fff; }
 .scene-title { color:#fff; } .watermark-name { color:rgba(255,255,255,0.8); }`
-    : '';
+    : variant === 'tint'
+      ? `body { background:linear-gradient(180deg, ${alpha(brand.secondaryColor, 0.10)}, ${alpha(brand.primaryColor, 0.06)}), #F6F7F9; }`
+      : '';
   return `<!DOCTYPE html>
 <html>
 <head>

@@ -136,7 +136,8 @@ export function numbersToDigits(text: string): string {
       if (/[,.;:!?]$/.test(raw)) break; // la puntuación cierra el número
     }
     const isPercent = normalizeToken(tokens[j] ?? '') === 'por' && normalizeToken(tokens[j + 1] ?? '').startsWith('ciento');
-    if (count >= 2 || usedMil || (count === 1 && isPercent)) {
+    // También números de una palabra a partir de 10 ("dieciocho" → 18, "veintiún" → 21)
+    if (count >= 2 || usedMil || (count === 1 && (isPercent || current >= 10))) {
       const value = total + current;
       const lastRaw = isPercent ? tokens[j + 1] : tokens[j - 1];
       const trail = (lastRaw.match(/[,.;:!?]+$/) ?? [''])[0];
@@ -175,8 +176,14 @@ export function buildSubtitleCues(narration: string, words: TimedWord[]): Subtit
     const rest = aligned.slice(k + 1, k + 3);
     const orphan = rest.length > 0 && rest.findIndex((x) => /[.!?…:;]$/.test(x.text)) >= 0 && len + rest.map((x) => x.text.length + 1).reduce((a, b) => a + b, 0) <= MAX_CHARS + 14;
     const nextLen = next ? len + 1 + next.text.length : Infinity;
-    // No separar un número de su unidad ("66 / días") ni cortar tras una abreviatura
-    const canBreak = !NO_BREAK_AFTER.has(normalizeToken(w.text)) && !/^\d+[.,]?\d*%?$/.test(w.text) && !abbrev;
+    // No separar un número de su unidad ("66 / días"), no partir un número dicho en palabras
+    // ("cuarenta y / tres por ciento") ni cortar tras una abreviatura
+    const wn = normalizeToken(w.text);
+    const nn = next ? normalizeToken(next.text) : '';
+    const inNumber = (wn in NUM_WORDS || wn === 'mil' || wn === 'y' || wn === 'por') &&
+      (nn in NUM_WORDS || nn === 'mil' || nn === 'y' || nn === 'por' || nn.startsWith('ciento'));
+    const numericEnd = (wn in NUM_WORDS || /^\d/.test(w.text)) && !/[,.;:!?]$/.test(w.text);
+    const canBreak = !NO_BREAK_AFTER.has(wn) && !/^\d+[.,]?\d*%?$/.test(w.text) && !abbrev && !inNumber && !numericEnd;
     if (endsSentence || (canBreak && !orphan && len >= MIN_CHARS && (comma || pause || nextLen > MAX_CHARS))) flush();
     else if (len > MAX_CHARS + 12) flush(); // seguridad: nunca líneas larguísimas
   }

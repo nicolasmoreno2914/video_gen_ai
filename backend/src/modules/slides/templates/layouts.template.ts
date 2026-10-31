@@ -340,7 +340,11 @@ export function buildBigStatEditorialTemplate(data: SlideTemplateData): string {
         <div class="fact-text" style="font-size:${fontSize}px">${escape(it.text)}</div>
       </div>`).join('')}</div>` : visual}
   </div>`;
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Dato clave'), title: scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Dato clave'), title: scene.title ?? '', css: `${css}
+.stat-num { background:linear-gradient(135deg, #ffffff, ${alpha(brand.secondaryColor, 0.9)}); -webkit-background-clip:text; background-clip:text; }
+.stat-label { color:#fff; } .fact { background:rgba(255,255,255,0.10); box-shadow:none; } .fact-text { color:#fff; }
+.donut circle:first-child { stroke:rgba(255,255,255,0.15); } .stat-icon { background:rgba(255,255,255,0.10); }`,
+    body, timeline: data.timeline, variant: 'dark', ghost: true });
 }
 
 // ─── Niveles (hierarchy_diagram): escalera ascendente, del primero al último ──
@@ -378,13 +382,15 @@ export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
 
 export function buildPracticeTemplate(data: SlideTemplateData): string {
   const { brand, scene } = data;
-  const [question, answer] = sceneItems(data, 2);
+  const items = sceneItems(data, 3);
+  // [escenario, pregunta, respuesta] (formato actual) o [pregunta, respuesta] (guiones anteriores)
+  const [scenario, question, answer] = items.length >= 3 ? items : [null, items[0], items[1]];
   const r = 92;
   const circ = 2 * Math.PI * r;
 
   const css = `
-.practice { position:absolute; left:160px; right:160px; top:0; bottom:0; display:flex; flex-direction:column; justify-content:center; gap:44px; }
-.q-card { display:flex; align-items:center; gap:48px; background:#fff; border-radius:36px; padding:64px 64px; min-height:300px;
+.practice { position:absolute; left:160px; right:160px; top:0; bottom:0; display:flex; flex-direction:column; justify-content:center; gap:36px; }
+.q-card { display:flex; align-items:center; gap:48px; background:#fff; border-radius:36px; padding:48px 64px; min-height:240px;
   box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; border-left:10px solid ${brand.secondaryColor}; }
 .q-text { flex:1; font-family:'Nunito',sans-serif; font-weight:900; font-size:${(question?.text.length ?? 0) > 70 ? 54 : 64}px;
   line-height:1.15; color:${brand.primaryColor}; }
@@ -393,6 +399,8 @@ export function buildPracticeTemplate(data: SlideTemplateData): string {
 .timer-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
 .a-card { display:flex; align-items:center; gap:28px; background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor});
   color:#fff; border-radius:32px; padding:44px 56px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.25)}; }
+.scenario { display:flex; align-items:center; gap:22px; font-size:38px; font-weight:600; color:#2A2F38;
+  background:${alpha(brand.secondaryColor, 0.12)}; border-radius:24px; padding:24px 36px; align-self:flex-start; }
 .a-slot { position:relative; }
 .a-ghost { display:flex; align-items:center; gap:24px; border:4px dashed ${alpha(brand.primaryColor, 0.25)}; border-radius:32px;
   padding:44px 56px; font-size:44px; font-weight:700; color:${alpha(brand.primaryColor, 0.45)}; }
@@ -401,20 +409,22 @@ export function buildPracticeTemplate(data: SlideTemplateData): string {
 .a-text { font-size:54px; font-weight:800; line-height:1.2; }`;
 
   const body = `<div class="practice">
+    ${scenario ? `<div class="scenario" data-anim="enter">${iconSvg(scenario.icon ?? 'user', 52, brand.secondaryColor, 2)}<span>${escape(scenario.text)}</span></div>` : ''}
     <div class="q-card" data-anim="enter">
       <div class="q-text">${escape(question?.text ?? scene.title ?? '')}</div>
       <div class="timer">
         <svg width="220" height="220" viewBox="0 0 220 220">
           <circle cx="110" cy="110" r="${r}" fill="none" stroke="${alpha(brand.secondaryColor, 0.18)}" stroke-width="16"/>
-          <circle data-countdown="1" cx="110" cy="110" r="${r}" fill="none" stroke="${brand.secondaryColor}" stroke-width="12"
+          <circle data-countdown="${scenario ? 2 : 1}" cx="110" cy="110" r="${r}" fill="none" stroke="${brand.secondaryColor}" stroke-width="12"
             stroke-width="16" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="0"/>
         </svg>
         <div class="timer-label">${iconSvg('timer', 84, brand.primaryColor, 2)}</div>
       </div>
     </div>
-    ${answer ? `<div class="a-slot"><div class="a-ghost">${iconSvg('circle-help', 56, alpha(brand.primaryColor, 0.45), 2)}<span>Tu respuesta…</span></div><div class="a-card" data-reveal="2">${iconSvg('circle-check', 60, '#fff', 2.2)}<div class="a-label">Respuesta</div><div class="a-text">${escape(answer.text)}</div></div></div>` : ''}
+    ${answer ? `<div class="a-slot" data-countdown-end><div class="a-ghost">${iconSvg('circle-help', 56, alpha(brand.primaryColor, 0.45), 2)}<span>Piensa tu respuesta…</span></div><div class="a-card" data-reveal="${scenario ? 3 : 2}">${iconSvg('circle-check', 60, '#fff', 2.2)}<div class="a-label">Respuesta</div><div class="a-text">${escape(answer.text)}</div></div></div>` : ''}
   </div>`;
   // El título no repite la pregunta (que ya ocupa la tarjeta principal)
-  const title = scene.title && scene.title.trim() !== (question?.text ?? '').trim() ? scene.title : 'Ponte a prueba';
+  const title = scene.title && scene.title.trim() !== (question?.text ?? '').trim() && !/ponte a prueba/i.test(scene.title)
+    ? scene.title : 'Aplica lo aprendido';
   return editorialPage({ brand, eyebrow: 'Práctica', title, css, body, timeline: data.timeline, ghost: false });
 }

@@ -137,7 +137,7 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
     ${nodes}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'El ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'El ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true, variant: 'tint' });
 }
 
 // ─── Mapa de conceptos (concepto central + 2–6 ramas) ────────────────────────
@@ -200,7 +200,7 @@ export function buildConceptMapTemplate(data: SlideTemplateData): string {
     ${cards}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Mapa de ideas'), title: scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Mapa de ideas'), title: scene.title ?? '', css, body, timeline: data.timeline, ghost: true, variant: 'tint' });
 }
 
 // ─── Línea de tiempo (3–6 hitos; "1990: evento" separa fecha y texto) ────────
@@ -257,5 +257,5 @@ export function buildTimelineTemplate(data: SlideTemplateData): string {
     ${points}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Línea de tiempo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Línea de tiempo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true, variant: 'tint' });
 }

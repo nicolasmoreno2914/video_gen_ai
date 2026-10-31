@@ -20,7 +20,8 @@ function numberedParagraphs(content: string): string {
 
 // Duración según el contenido, con tope (decisión de producto 2026-10-31)
 const MAX_VIDEO_SECONDS = 420;
-const WORDS_PER_MINUTE = 140;
+// Velocidad real medida con la voz cedar + pausas (≈130 ppm efectivas, no 140)
+const WORDS_PER_MINUTE = 130;
 const MAX_NARRATION_WORDS = Math.round((MAX_VIDEO_SECONDS / 60) * WORDS_PER_MINUTE * 0.95);
 
 const SYSTEM_PROMPT = `Eres un experto mundial en storytelling educativo, instructional design, guionización pedagógica, microlearning y creación de videos educativos tipo NotebookLM Video Overview.
@@ -86,11 +87,13 @@ BLOQUE 4 — APLICACIÓN (1–3 escenas)
 BLOQUE 4B — PRÁCTICA (2 escenas, OBLIGATORIO)
   → practice: escena con layout_type "practice_question" y requires_ai_image false.
      • Una pregunta de APLICACIÓN (no de memoria literal) sobre lo explicado, idealmente usando el ejemplo ancla.
-     • on_screen_text: exactamente 2 elementos: [pregunta corta (máx 14 palabras), respuesta corta (máx 14 palabras)].
+     • on_screen_text: exactamente 3 elementos: [escenario breve (máx 12 palabras, la situación concreta),
+       pregunta corta (máx 12 palabras), respuesta corta (máx 14 palabras)].
      • Narración: plantea la pregunta (frase corta, sin gerundios colgados), luego "Piénsalo un momento." seguido EXACTAMENTE de [PAUSA]
        (el sistema inserta 4 segundos de silencio real) y después "La respuesta: …" con una
        explicación breve de por qué. No digas "tres, dos, uno".
-     • reveal_cues: [frase literal donde empieza la pregunta, "La respuesta"].
+     • reveal_cues: [frase literal donde se plantea el escenario, frase literal de la pregunta, "La respuesta"].
+     • Solo pregunta por algo que YA se explicó en una escena anterior.
      • Ubicación: una a mitad del video (tras el concepto central) y otra antes del resumen.
      • Al menos una pregunta de TRANSFERENCIA: aplicar el método a una situación NUEVA (no vista antes).
      • Una práctica por cada objetivo principal (p. ej. una sobre cómo se forma y otra sobre cómo cambiar).
@@ -132,7 +135,11 @@ EJEMPLO ANCLA Y EXACTITUD — OBLIGATORIO
 - Si hay un mito, la escena de comparación se titula "Mito vs Realidad" (primera mitad = mito).
 - El texto en pantalla debe resumir lo que dice la narración de esa escena: si la narración enumera
   N elementos, la pantalla muestra los N.
-- Español neutro sin regionalismos ("comer algo" y no "picar algo"; "andar en bicicleta").
+- Español neutro latinoamericano: "comer algo" (no "picar"), "manejar" (no "conducir"),
+  "tenis" (no "zapatillas"), "andar en bicicleta".
+- Ninguna escena supera 110 palabras: si hay más contenido, divídela en dos escenas.
+- El resumen usa EXACTAMENTE los términos y listas completas de las escenas anteriores (si los
+  factores son cuatro, nombra los cuatro) y no mezcla "crear" con "cambiar".
 
 ════════════════════════════════════
 CÓMO ESCRIBIR on_screen_text SEGÚN TIPO
@@ -160,7 +167,7 @@ El on_screen_text determina el LAYOUT VISUAL. Escríbelo acorde:
 • cycle_diagram → 3–6 etapas de 1–3 palabras c/u, en el orden del ciclo
 • concept_map → 3–6 componentes o factores, máx 6 palabras c/u. highlight_words[0] = el concepto central (1–2 palabras)
 • timeline → 3–6 hitos con formato "FECHA: hecho" (ej. "1969: Nace ARPANET"), en orden cronológico
-• practice_question → [pregunta, respuesta]
+• practice_question → [escenario, pregunta, respuesta]
 
 ════════════════════════════════════
 ESTILO DE NARRACIÓN — ESCRIBIR PARA EL OÍDO
@@ -557,7 +564,10 @@ Devuelve el MISMO JSON (mismos campos, mismo número y orden de escenas, mismos 
    apuntando al momento en que se menciona ESE elemento.
 6. Gramática y ortografía correctas; español neutro sin regionalismos.
 7. En comparaciones de mito, el título es "Mito vs Realidad".
-8. Deben existir 2 escenas practice_question con [pregunta, respuesta] y "[PAUSA]" en la narración.
+8. Deben existir 2 escenas practice_question con [escenario, pregunta, respuesta] y "[PAUSA]" en la narración,
+   y cada una debe preguntar algo ya explicado antes.
+13. Ninguna escena supera 110 palabras (divide si hace falta). El resumen repite los términos y listas
+    completas de las escenas (mismos 4 factores, mismo orden del ciclo).
 9. COBERTURA: cada sección del capítulo con contenido práctico (métodos, pasos, cómo cambiar algo) y cada
    learning_objective deben tener al menos una escena. Si falta una, REEMPLAZA o acorta escenas de menor
    valor (historia, repeticiones) para incluirla; no la omitas.
@@ -587,6 +597,7 @@ Responde SOLO con el JSON completo corregido.`;
         const still = this.missingParagraphs(job.content_txt, reviewed);
         if (still.length) this.logger.warn(`[AiService] [${job.id}] Siguen sin cubrir: ${still.map((m) => m + 1).join(', ')}`);
       }
+      await this.enforceLength(job, reviewed, reviewer);
       this.logCoverage(job.id, reviewed);
       this.stripUnsupportedYears(job, reviewed);
       this.logger.log(`[AiService] [${job.id}] Revisión crítica aplicada (${reviewed.scenes.length} escenas)`);
@@ -613,13 +624,67 @@ Responde SOLO con el JSON completo corregido.`;
     }
   }
 
-  /** Párrafos del capítulo (≥ 40 palabras) que ninguna escena declara en source_paragraphs. */
+  /**
+   * El modelo no respeta siempre los límites del prompt: si alguna escena pasa de 120 palabras o el
+   * total supera el tope, una pasada dirigida divide/acorta esas escenas. Se acepta solo si no
+   * empeora la cobertura de párrafos.
+   */
+  private async enforceLength(job: VideoJob, script: GeneratedScript, reviewer: string): Promise<void> {
+    const words = (s: GeneratedScene): number => (s.narration ?? '').replace(/\[PAUSA\]/g, ' ').split(/\s+/).filter(Boolean).length;
+    const total = script.scenes.reduce((a, s) => a + words(s), 0);
+    const long = script.scenes.filter((s) => words(s) > 120);
+    if (!long.length && total <= MAX_NARRATION_WORDS) return;
+    this.logger.warn(
+      `[AiService] [${job.id}] Longitud: ${total} palabras; escenas largas: ${long.map((s) => `${s.scene_order} (${words(s)})`).join(', ') || 'ninguna'} — ajustando`,
+    );
+    try {
+      const fixed = await this.callGptWithRetry(job.id, [
+        { role: 'system', content: reviewer },
+        { role: 'user', content: `AJUSTA LA LONGITUD: el total debe quedar entre ${MAX_NARRATION_WORDS - 120} y ${MAX_NARRATION_WORDS} palabras ` +
+          `de narración y NINGUNA escena puede superar 110 palabras. ` +
+          (long.length ? `Divide en dos o acorta las escenas ${long.map((s) => s.scene_order).join(', ')} (la historia se resume; ` +
+            `lo práctico se conserva). ` : '') +
+          `Recorta primero lo que no sea práctico. Mantén source_paragraphs actualizados y no elimines la cobertura de ningún párrafo.\n` +
+          // Un presupuesto por escena se cumple mucho mejor que un total abstracto
+          `PRESUPUESTO DE PALABRAS POR ESCENA (no lo superes): ` +
+          script.scenes.map((s) => `escena ${s.scene_order}: ${Math.max(35, Math.min(110, Math.floor(words(s) * (MAX_NARRATION_WORDS - 40) / total)))}`).join('; ') +
+          `\n\nCAPÍTULO (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
+      ], 'length_fix', job.institution_id);
+      const before = this.missingParagraphs(job.content_txt, script).length;
+      const after = this.missingParagraphs(job.content_txt, fixed).length;
+      const newTotal = fixed.scenes.reduce((a, s) => a + words(s), 0);
+      if (after <= before && newTotal <= total) {
+        Object.assign(script, fixed);
+        this.logger.log(`[AiService] [${job.id}] Longitud ajustada: ${newTotal} palabras, ${fixed.scenes.length} escenas`);
+      } else {
+        this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud descartado (cobertura ${before}→${after}, ${total}→${newTotal} palabras)`);
+      }
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud omitido: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /**
+   * Párrafos del capítulo (≥ 40 palabras) sin una escena explicativa. No basta con que el modelo lo
+   * declare en source_paragraphs: la narración de las escenas no-práctica debe contener al menos
+   * el 30 % de las palabras DISTINTIVAS del párrafo (las que no aparecen en ningún otro párrafo).
+   */
   private missingParagraphs(content: string, script: GeneratedScript): number[] {
     const paragraphs = sourceParagraphs(content);
-    const covered = new Set(script.scenes.flatMap((s) => (s.source_paragraphs ?? []).map((n) => Number(n) - 1)));
+    const explain = script.scenes.filter((s) => s.layout_type !== 'practice_question' && s.scene_type !== 'practice');
+    const declared = new Set(explain.flatMap((s) => (s.source_paragraphs ?? []).map((n) => Number(n) - 1)));
+    const stem = (w: string): string => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zñ]/g, '').slice(0, 6);
+    const words = (t: string): Set<string> => new Set(t.split(/\s+/).map(stem).filter((w) => w.length >= 5));
+    const perParagraph = paragraphs.map(words);
+    const narration = words(explain.map((s) => s.narration ?? '').join(' '));
     return paragraphs
-      .map((p, i) => ({ i, words: p.split(/\s+/).length }))
-      .filter((x) => x.words >= 40 && !covered.has(x.i))
+      .map((p, i) => {
+        const distinctive = [...perParagraph[i]].filter((w) => perParagraph.every((o, j) => j === i || !o.has(w)));
+        const hit = distinctive.filter((w) => narration.has(w)).length;
+        const lexical = distinctive.length < 5 || hit / distinctive.length >= 0.3;
+        return { i, words: p.split(/\s+/).length, ok: declared.has(i) && lexical };
+      })
+      .filter((x) => x.words >= 40 && !x.ok)
       .map((x) => x.i);
   }
 

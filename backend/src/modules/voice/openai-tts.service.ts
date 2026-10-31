@@ -273,7 +273,7 @@ export class OpenAiTtsService {
     const tmp = `${file}.trim.mp3`;
     await new Promise<void>((resolve) => {
       childProcess.execFile('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-af',
-        'silenceremove=stop_periods=-1:stop_duration=0.7:stop_threshold=-45dB:stop_silence=0.6', '-b:a', '128k', tmp],
+        'silenceremove=stop_periods=-1:stop_duration=1.0:stop_threshold=-55dB:stop_silence=0.7', '-b:a', '128k', tmp],
       (err) => {
         if (!err && fs.existsSync(tmp)) fs.renameSync(tmp, file);
         resolve(); // si falla, se conserva el audio original

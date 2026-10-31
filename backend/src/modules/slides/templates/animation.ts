@@ -59,7 +59,7 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
       : [{ opacity: 0, transform: 'translateY(28px) scale(0.98)' }, { opacity: 1, transform: 'none' }], delay, 550);
     // Resaltado: el amarillo se "enciende" justo después de que aparece el bullet
     el.querySelectorAll('mark').forEach(function (mark) {
-      add(mark, [{ opacity: 0.55 }, { opacity: 1 }], delay + 350, 450);
+      add(mark, [{ color: 'inherit' }, { color: 'var(--mark, inherit)' }], delay + 350, 450);
     });
   });
 
