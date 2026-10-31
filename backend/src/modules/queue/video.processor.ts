@@ -18,6 +18,7 @@ import { StorageService } from '../storage/storage.service';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { GeneratedScript, STEP_PROGRESS } from '../../common/types';
+import { priceRender, priceStt } from '../costs/cost-config';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -398,16 +399,43 @@ export class VideoProcessor extends WorkerHost {
     });
 
     // Log render infrastructure cost
+    const renderPrice = priceRender(result.durationSeconds);
     await this.videosService.logApiUsage({
       videoJobId: job.id,
       institutionId: job.institution_id,
       provider: 'internal',
       operation: 'render',
       inputUnits: Math.round(result.durationSeconds),
-      estimatedCost: (result.durationSeconds / 60) * 0.02,
+      estimatedCost: renderPrice.cost,
       unitType: 'seconds',
-      metadata: { duration_seconds: Math.round(result.durationSeconds), scenes_count: scenes.length, resolution: '1920x1080', fps: 30 },
+      metadata: {
+        duration_seconds: Math.round(result.durationSeconds),
+        scenes_count: scenes.length,
+        resolution: '1920x1080',
+        fps: 30,
+        pricing: renderPrice.pricing,
+      },
     });
+
+    // Log subtitle transcription (Whisper) cost
+    if (result.stt && result.stt.calls > 0) {
+      const sttPrice = priceStt(result.stt.model, result.stt.audioSeconds);
+      await this.videosService.logApiUsage({
+        videoJobId: job.id,
+        institutionId: job.institution_id,
+        provider: 'openai_stt',
+        operation: 'subtitles_transcription',
+        inputUnits: Math.round(result.stt.audioSeconds),
+        estimatedCost: sttPrice.cost,
+        modelName: result.stt.model,
+        unitType: 'seconds',
+        metadata: {
+          audio_seconds: result.stt.audioSeconds,
+          calls: result.stt.calls,
+          pricing: sttPrice.pricing,
+        },
+      });
+    }
   }
 
   private async uploadYouTube(job: VideoJob, institution: typeof job.institution): Promise<void> {

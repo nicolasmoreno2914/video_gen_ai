@@ -33,6 +33,7 @@ export class RendererService {
   // pLimit(3): paralleliza escenas sin saturar CPU del VPS
   private readonly renderLimit = pLimit(3);
   private readonly sttLimit = pLimit(4);
+  private readonly sttModel = 'whisper-1';
 
   constructor(private readonly configService: ConfigService<AppConfig>) {
     const storage = this.configService.get<AppConfig['storage']>('storage')!;
@@ -64,11 +65,12 @@ export class RendererService {
     );
 
     // Paso 2: quemar subtítulos en paralelo (STT + burn, pLimit 3)
+    const stt = { model: this.sttModel, audioSeconds: 0, calls: 0 };
     const srtSceneVideos = await Promise.all(
       sceneVideoEntries.map(({ scene, sceneVideoPath }) =>
         this.renderLimit(async () => {
           const subtitledPath = path.join(scenesDir, `scene_${scene.scene_order}_sub.mp4`);
-          await this.burnSceneSubtitles(scene, sceneVideoPath, subtitledPath, jobDir);
+          await this.burnSceneSubtitles(scene, sceneVideoPath, subtitledPath, jobDir, stt);
           return subtitledPath;
         }),
       ),
@@ -86,7 +88,7 @@ export class RendererService {
     this.cleanupTempFiles(jobDir, sceneVideos, srtSceneVideos);
 
     this.logger.log(`[RendererService] [${job.id}] Video final: ${outputPath} (${durationSeconds.toFixed(1)}s)`);
-    return { outputPath, durationSeconds };
+    return { outputPath, durationSeconds, stt };
   }
 
   async renderDryRun(job: VideoJob, scenes: VideoScene[]): Promise<RenderResult> {
@@ -222,24 +224,31 @@ export class RendererService {
 
   // ─── STT: transcribir audio con OpenAI Whisper ───────────────────────────
 
-  private async transcribeAudio(audioPath: string): Promise<SttWord[] | null> {
+  // Devuelve null solo si la llamada falló (no se factura); words vacío si no hubo texto.
+  private async transcribeAudio(audioPath: string): Promise<{ words: SttWord[]; billedSeconds: number } | null> {
     try {
       const response = await this.openai.audio.transcriptions.create({
         file: fs.createReadStream(audioPath) as unknown as File,
-        model: 'whisper-1',
+        model: this.sttModel,
         response_format: 'verbose_json',
         timestamp_granularities: ['word'],
       });
 
-      const words = (response as unknown as { words?: Array<{ word: string; start: number; end: number }> }).words;
-      if (!words || words.length === 0) return null;
+      const verbose = response as unknown as {
+        duration?: number;
+        words?: Array<{ word: string; start: number; end: number }>;
+      };
+      const billedSeconds = Number(verbose.duration) || 0;
 
-      return words.map(w => ({
-        text: w.word,
-        start: w.start,
-        end: w.end,
-        type: 'word' as const,
-      }));
+      return {
+        billedSeconds,
+        words: (verbose.words ?? []).map(w => ({
+          text: w.word,
+          start: w.start,
+          end: w.end,
+          type: 'word' as const,
+        })),
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`[RendererService] STT Whisper falló (usando fallback): ${msg}`);
@@ -329,13 +338,19 @@ export class RendererService {
     inputPath: string,
     outputPath: string,
     jobDir: string,
+    sttUsage: { audioSeconds: number; calls: number },
   ): Promise<string> {
     let entries: SrtEntry[];
 
     // Intentar STT real si hay audio (Whisper — parallelizado via sttLimit)
     if (scene.audio_url && fs.existsSync(scene.audio_url)) {
       this.logger.log(`[RendererService] Transcribiendo escena ${scene.scene_order} con Whisper`);
-      const words = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
+      const stt = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
+      if (stt) {
+        sttUsage.audioSeconds += stt.billedSeconds || (scene.duration_seconds ?? 0);
+        sttUsage.calls += 1;
+      }
+      const words = stt?.words ?? null;
       if (words && words.length > 0) {
         entries = this.groupSttWordsIntoSrt(words);
         this.logger.log(`[RendererService] STT OK escena ${scene.scene_order}: ${entries.length} bloques`);

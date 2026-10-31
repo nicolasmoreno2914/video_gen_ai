@@ -8,6 +8,7 @@ import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
+import { imageUsageFromResponse, priceImage } from '../costs/cost-config';
 
 const DOODLE_SUFFIX =
   'White background only. No text, no letters, no numbers. ' +
@@ -100,6 +101,7 @@ export class DalleService {
           n: 1,
           size: this.size as '1536x1024',
           quality: this.quality as 'auto' | 'low' | 'medium' | 'high',
+          ...this.responseFormat(),
         });
 
         const b64 = response.data?.[0]?.b64_json;
@@ -111,16 +113,25 @@ export class DalleService {
           image_url: outputPath,
         });
 
+        const usage = imageUsageFromResponse(response);
+        const price = priceImage(this.model, this.size, this.quality, usage);
         await this.videosService.logApiUsage({
           videoJobId: job.id,
           institutionId: job.institution_id,
           provider: 'openai_dalle',
           operation: 'image_generation',
           inputUnits: 1,
-          estimatedCost: 0.04,
+          estimatedCost: price.cost,
           modelName: this.model,
           unitType: 'images',
-          metadata: { image_count: 1, size: this.size, quality: this.quality, scene_order: scene.scene_order },
+          metadata: {
+            image_count: 1,
+            size: this.size,
+            quality: this.quality,
+            scene_order: scene.scene_order,
+            ...this.usageMetadata(usage),
+            pricing: price.pricing,
+          },
         });
 
         this.logger.log(
@@ -161,7 +172,7 @@ export class DalleService {
         n: 1,
         size: this.size as '1536x1024',
         quality: this.quality as 'auto' | 'low' | 'medium' | 'high',
-        response_format: 'b64_json',
+        ...this.responseFormat(),
       });
 
       const b64 = response.data?.[0]?.b64_json;
@@ -169,16 +180,24 @@ export class DalleService {
 
       fs.writeFileSync(outputPath, Buffer.from(b64, 'base64'));
 
+      const usage = imageUsageFromResponse(response);
+      const price = priceImage(this.model, this.size, this.quality, usage);
       await this.videosService.logApiUsage({
         videoJobId: job.id,
         institutionId: job.institution_id,
         provider: 'openai_dalle',
         operation: 'thumbnail_generation',
         inputUnits: 1,
-        estimatedCost: 0.04,
+        estimatedCost: price.cost,
         modelName: this.model,
         unitType: 'images',
-        metadata: { image_count: 1, size: this.size, quality: this.quality },
+        metadata: {
+          image_count: 1,
+          size: this.size,
+          quality: this.quality,
+          ...this.usageMetadata(usage),
+          pricing: price.pricing,
+        },
       });
 
       this.logger.log(`[DalleService] [${job.id}] Thumbnail generado: ${outputPath}`);
@@ -188,6 +207,21 @@ export class DalleService {
       this.logger.warn(`[DalleService] [${job.id}] Thumbnail fallido: ${msg}`);
       return null;
     }
+  }
+
+  // dall-e-* devuelve URL por defecto y necesita b64_json explícito;
+  // gpt-image-* siempre devuelve b64 y rechaza el parámetro response_format.
+  private responseFormat(): { response_format?: 'b64_json' } {
+    return this.model.startsWith('dall-e') ? { response_format: 'b64_json' } : {};
+  }
+
+  private usageMetadata(usage: ReturnType<typeof imageUsageFromResponse>): Record<string, number> {
+    if (!usage) return {};
+    return {
+      text_input_tokens: usage.textInputTokens ?? 0,
+      image_input_tokens: usage.imageInputTokens ?? 0,
+      output_tokens: usage.outputTokens ?? 0,
+    };
   }
 
   private sleep(ms: number): Promise<void> {

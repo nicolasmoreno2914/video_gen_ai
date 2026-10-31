@@ -10,6 +10,7 @@ import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { DEFAULT_OPENAI_TTS_MODEL } from './openai-tts.constants';
+import { priceOpenAiTts } from '../costs/cost-config';
 
 export interface OpenAiTtsOpts {
   voice?: string;
@@ -24,9 +25,6 @@ const VALID_VOICES = new Set([
 ]);
 
 const DEFAULT_VOICE = 'marin';
-
-// Cost estimate: gpt-4o-mini-tts ≈ $0.60 per 1M chars = $0.0000006/char
-const COST_PER_CHAR = 0.0000006;
 
 @Injectable()
 export class OpenAiTtsService {
@@ -150,13 +148,14 @@ export class OpenAiTtsService {
           duration_seconds: durationSeconds,
         });
 
+        const price = priceOpenAiTts(model, text.length, durationSeconds);
         await this.videosService.logApiUsage({
           videoJobId: job.id,
           institutionId: job.institution_id,
           provider: 'openai_tts',
           operation: 'tts',
           inputUnits: text.length,
-          estimatedCost: text.length * COST_PER_CHAR,
+          estimatedCost: price.cost,
           modelName: model,
           unitType: 'characters',
           metadata: {
@@ -165,6 +164,7 @@ export class OpenAiTtsService {
             model,
             scene_order: scene.scene_order,
             duration_seconds: durationSeconds,
+            pricing: price.pricing,
           },
         });
 

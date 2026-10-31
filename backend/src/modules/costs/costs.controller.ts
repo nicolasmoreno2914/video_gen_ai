@@ -61,12 +61,19 @@ export class CostsController {
     return this.costsService.getDailyCosts(query.from, query.to, institutionId);
   }
 
-  // POST /api/costs/videos/:jobId/rebuild
+  // POST /api/costs/videos/:jobId/rebuild[?reprice=true]
+  // reprice=true recalcula cada log con el catálogo de precios actual antes de sumar.
   @Post('videos/:jobId/rebuild')
   @HttpCode(HttpStatus.OK)
-  async rebuildCosts(@Req() req: AuthRequest, @Param('jobId') jobId: string) {
+  async rebuildCosts(
+    @Req() req: AuthRequest,
+    @Param('jobId') jobId: string,
+    @Query('reprice') reprice?: string,
+  ) {
     const institutionId = req.institution?.id;
-    await this.costsService.rebuildCostsForJob(jobId, institutionId);
-    return { success: true, job_id: jobId };
+    const repriced = await this.costsService.rebuildCostsForJob(jobId, institutionId, {
+      reprice: reprice === 'true',
+    });
+    return { success: true, job_id: jobId, repriced_logs: repriced };
   }
 }

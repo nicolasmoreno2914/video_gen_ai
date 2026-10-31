@@ -35,7 +35,7 @@ export type VisualStyle = 'notebooklm' | 'whiteboard' | 'sketch';
 
 export type YoutubePrivacy = 'public' | 'unlisted' | 'private';
 
-export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'openai_tts' | 'elevenlabs' | 'youtube' | 'internal';
+export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'openai_tts' | 'openai_stt' | 'elevenlabs' | 'youtube' | 'internal';
 
 export interface GeneratedScene {
   scene_order: number;
@@ -121,6 +121,8 @@ export interface VideoFailedEvent {
 export interface RenderResult {
   outputPath: string;
   durationSeconds: number;
+  /** Uso de transcripción (subtítulos) para registrar su costo. */
+  stt?: { model: string; audioSeconds: number; calls: number };
 }
 
 export const STEP_LABELS: Record<string, string> = {

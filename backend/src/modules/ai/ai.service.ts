@@ -6,6 +6,7 @@ import { GeneratedScript, GeneratedScene } from '../../common/types';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
+import { priceChat } from '../costs/cost-config';
 
 const SCRIPT_MINIMUMS = {
   scenes: 18,
@@ -539,6 +540,8 @@ ${job.content_txt}`;
 
         const inputTokens = response.usage?.prompt_tokens ?? 0;
         const outputTokens = response.usage?.completion_tokens ?? 0;
+        const modelName = response.model ?? this.model;
+        const price = priceChat(modelName, inputTokens, outputTokens);
         await this.videosService.logApiUsage({
           videoJobId: jobId,
           institutionId: institutionId ?? null,
@@ -546,10 +549,10 @@ ${job.content_txt}`;
           operation,
           inputUnits: inputTokens,
           outputUnits: outputTokens,
-          estimatedCost: this.estimateChatCost(inputTokens, outputTokens),
-          modelName: this.model,
+          estimatedCost: price.cost,
+          modelName,
           unitType: 'tokens',
-          metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
+          metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens, pricing: price.pricing },
         });
 
         return script;
@@ -781,6 +784,8 @@ Responde EXCLUSIVAMENTE con JSON válido, sin markdown:
 
         const expIn = response.usage?.prompt_tokens ?? 0;
         const expOut = response.usage?.completion_tokens ?? 0;
+        const expModel = response.model ?? this.model;
+        const expPrice = priceChat(expModel, expIn, expOut);
         await this.videosService.logApiUsage({
           videoJobId: job.id,
           institutionId: job.institution_id,
@@ -788,10 +793,10 @@ Responde EXCLUSIVAMENTE con JSON válido, sin markdown:
           operation: 'expand_narrations',
           inputUnits: expIn,
           outputUnits: expOut,
-          estimatedCost: this.estimateChatCost(expIn, expOut),
-          modelName: this.model,
+          estimatedCost: expPrice.cost,
+          modelName: expModel,
           unitType: 'tokens',
-          metadata: { input_tokens: expIn, output_tokens: expOut, total_tokens: expIn + expOut },
+          metadata: { input_tokens: expIn, output_tokens: expOut, total_tokens: expIn + expOut, pricing: expPrice.pricing },
         });
 
         this.logger.log(
@@ -807,11 +812,6 @@ Responde EXCLUSIVAMENTE con JSON válido, sin markdown:
     }
 
     throw new Error(`expandSceneNarrations falló: ${lastError?.message ?? 'Error desconocido'}`);
-  }
-
-  private estimateChatCost(inputTokens: number, outputTokens: number): number {
-    // GPT-4o pricing: $5/1M input, $15/1M output
-    return (inputTokens / 1_000_000) * 5 + (outputTokens / 1_000_000) * 15;
   }
 
   private sleep(ms: number): Promise<void> {

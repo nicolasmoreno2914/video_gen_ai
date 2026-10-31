@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ApiUsageLog } from '../database/entities/api-usage-log.entity';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { CostVideosQueryDto } from './dto/cost-query.dto';
+import { repriceUsageLog } from './cost-config';
 
 // ---------------------------------------------------------------------------
 // Response shape types
@@ -102,6 +103,7 @@ const PROVIDER_CATEGORY: Record<string, keyof CostBreakdown> = {
   openai_chat: 'openai_text',
   openai_dalle: 'openai_images',
   openai_tts: 'elevenlabs',   // OpenAI TTS → mismo bucket "voz" que ElevenLabs
+  openai_stt: 'render',       // Whisper para subtítulos → parte del paso de render
   elevenlabs: 'elevenlabs',
   internal: 'render',
   youtube: 'youtube',
@@ -534,7 +536,12 @@ export class CostsService {
   // rebuildCostsForJob
   // -------------------------------------------------------------------------
 
-  async rebuildCostsForJob(jobId: string, institutionId?: string): Promise<void> {
+  /** Devuelve cuántos logs se recalcularon (0 si reprice=false). */
+  async rebuildCostsForJob(
+    jobId: string,
+    institutionId?: string,
+    opts: { reprice?: boolean } = {},
+  ): Promise<number> {
     const job = await this.videoJobRepo.findOne({ where: { id: jobId } });
     if (!job) throw new NotFoundException(`VideoJob ${jobId} no encontrado`);
     if (institutionId && job.institution_id !== institutionId) {
@@ -542,6 +549,18 @@ export class CostsService {
     }
 
     const logs = await this.apiUsageLogRepo.find({ where: { video_job_id: jobId } });
+
+    let repriced = 0;
+    if (opts.reprice) {
+      for (const log of logs) {
+        const price = repriceUsageLog(log);
+        if (!price) continue;
+        log.estimated_cost = price.cost;
+        log.metadata = { ...(log.metadata ?? {}), pricing: price.pricing };
+        await this.apiUsageLogRepo.save(log);
+        repriced++;
+      }
+    }
 
     const breakdown = emptyBreakdown();
     for (const log of logs) {
@@ -556,7 +575,11 @@ export class CostsService {
       cost_breakdown: breakdown as unknown as Record<string, number>,
     });
 
-    this.logger.log(`[CostsService] [${jobId}] Costos recalculados — total: $${totalCost.toFixed(6)}`);
+    this.logger.log(
+      `[CostsService] [${jobId}] Costos recalculados — total: $${totalCost.toFixed(6)}` +
+      (opts.reprice ? ` (${repriced} logs re-tarifados)` : ''),
+    );
+    return repriced;
   }
 
   // -------------------------------------------------------------------------

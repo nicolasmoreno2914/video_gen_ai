@@ -75,6 +75,10 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_DEFAULT_VOICE_ID=
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 
+# ── Costos (catálogo central: src/modules/costs/cost-config.ts) ─
+# Opcional: costo del servidor de render prorrateado por minuto de video (default 0.02)
+# RENDER_USD_PER_MINUTE=0.02
+
 # ── YouTube (no usado por Videogen — lo maneja Cursia) ───────
 # Videogen NO sube videos a YouTube. Estas vars solo existen por
 # compatibilidad con el módulo YouTubeModule. Déjalas vacías.
