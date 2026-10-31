@@ -205,7 +205,9 @@ export class RendererService {
         .complexFilter([
           // fps=: el demuxer concat entrega solo los fotogramas clave; el filtro rellena
           // los tramos quietos (con -r de salida el último tramo largo se perdía)
-          `[0:v]${animated ? `fps=${this.fps},` : ''}scale=1920:1080:flags=lanczos,` +
+          // Los fotogramas JPEG son de rango completo (yuvj420p): se convierten a yuv420p de rango TV,
+          // el formato que exigen los reproductores (y la validación final)
+          `[0:v]${animated ? `fps=${this.fps},` : ''}scale=1920:1080:flags=lanczos${animated ? ':out_range=tv,format=yuv420p' : ''},` +
           `fade=t=in:st=0:d=0.4:color=white,` +
           `fade=t=out:st=${fadeOut.toFixed(3)}:d=0.4:color=white[v]`,
           `[1:a]aresample=44100,afade=t=in:st=0:d=0.2,afade=t=out:st=${Math.max(0, duration - 0.2).toFixed(3)}:d=0.2[a]`,
@@ -383,11 +385,12 @@ export class RendererService {
       ffmpeg(inputPath)
         .videoFilters(
           `subtitles='${escapedSrt}':force_style=` +
-          `'FontName=Arial,FontSize=15,` +
+          // Caja semitransparente detrás del texto (BorderStyle=3): legible sobre cualquier fondo
+          `'FontName=Arial,FontSize=13,Bold=1,` +
           `PrimaryColour=&H00FFFFFF,` +
-          `OutlineColour=&H66000000,` +
-          `BackColour=&H40000000,` +
-          `Outline=1,Shadow=0,Alignment=2,MarginV=30,Bold=0'`,
+          `OutlineColour=&H8C1A1A1A,` +
+          `BackColour=&H8C1A1A1A,` +
+          `BorderStyle=3,Outline=7,Shadow=0,Alignment=2,MarginV=16'`,
         )
         .outputOptions([
           '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',

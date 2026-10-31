@@ -12,6 +12,7 @@ import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 // Duración según el contenido, con tope (decisión de producto 2026-10-31)
 const MAX_VIDEO_SECONDS = 420;
 const WORDS_PER_MINUTE = 140;
+const MAX_NARRATION_WORDS = Math.round((MAX_VIDEO_SECONDS / 60) * WORDS_PER_MINUTE * 0.95);
 
 const SYSTEM_PROMPT = `Eres un experto mundial en storytelling educativo, instructional design, guionización pedagógica, microlearning y creación de videos educativos tipo NotebookLM Video Overview.
 
@@ -436,8 +437,16 @@ export class AiService {
   async generateScript(job: VideoJob): Promise<GeneratedScript> {
     this.logger.log(`[AiService] [${job.id}] Generando guion con ${this.model}`);
 
+    // Objetivo de longitud según el capítulo: sin él, el modelo resume de más (escenas de ~35 palabras)
+    const sourceWords = job.content_txt.split(/\s+/).filter(Boolean).length;
+    const targetWords = Math.max(450, Math.min(MAX_NARRATION_WORDS, sourceWords));
+    const targetScenes = Math.max(6, Math.round(targetWords / 85));
     const userPrompt = `Título del capítulo: ${job.title}
-Duración objetivo: ${job.target_duration_minutes} minutos
+LONGITUD OBLIGATORIA: la narración total DEBE tener entre ${targetWords - 80} y ${targetWords + 30} palabras
+(≈ ${(targetWords / WORDS_PER_MINUTE).toFixed(1)} minutos), repartidas en unas ${targetScenes} escenas.
+Cada escena: MÍNIMO 60 y máximo 110 palabras de narración (excepto el gancho inicial, mínimo 35).
+Cubre TODAS las ideas, datos, fechas y ejemplos importantes del capítulo: desarrolla cada idea con
+explicación y un ejemplo concreto, sin relleno ni repeticiones. Antes de responder, cuenta las palabras.
 Idioma de narración: español
 Estilo visual del video: ${job.visual_style}
 

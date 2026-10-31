@@ -102,7 +102,8 @@ export default (): AppConfig => ({
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY ?? '',
-    model: process.env.OPENAI_MODEL ?? 'gpt-4o',
+    // gpt-4.1 sigue mejor la longitud pedida que gpt-4o (≈745 vs ≈410 palabras) por el mismo costo
+    model: process.env.OPENAI_MODEL ?? 'gpt-4.1',
     // dall-e-3 y gpt-image-1 ya no generan imágenes (2026-10): defaults a la familia gpt-image vigente
     imageModel: process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-1-mini',
     // Portada, gancho y escenas de precisión alta (anatomía, procedimientos, técnica)
