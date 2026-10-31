@@ -11,8 +11,9 @@
 // Todas las animaciones se crean con la Web Animations API y quedan EN PAUSA:
 // el capturador llama window.__anim.seek(t) para fijar el instante exacto de cada
 // fotograma, así el render es determinista y no depende de la velocidad del CPU.
-// window.__anim.motionWindows() devuelve los intervalos [inicio, fin] con movimiento,
+// window.__anim.motionWindows() devuelve los intervalos [inicio, fin, fps?] con movimiento,
 // para capturar fotogramas solo ahí y rellenar los tramos quietos con una sola imagen.
+// fps es opcional: los movimientos lentos (cuenta regresiva) se capturan a menos fotogramas.
 
 export interface SceneTimeline {
   /** Segundo (desde el inicio de la escena) en que aparece cada elemento data-reveal. */
@@ -27,10 +28,10 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
   var EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
   var anims = [];
 
-  function add(el, keyframes, delayMs, durationMs) {
-    var a = el.animate(keyframes, { delay: delayMs, duration: durationMs, fill: 'both', easing: EASE });
+  function add(el, keyframes, delayMs, durationMs, opts) {
+    var a = el.animate(keyframes, { delay: delayMs, duration: durationMs, fill: 'both', easing: (opts && opts.easing) || EASE });
     a.pause();
-    anims.push({ a: a, start: delayMs / 1000, end: (delayMs + durationMs) / 1000 });
+    anims.push({ a: a, start: delayMs / 1000, end: (delayMs + durationMs) / 1000, fps: opts && opts.fps });
   }
 
   var header = document.querySelector('.header');
@@ -81,7 +82,9 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
     var to = timeline.revealTimes[idx + 1];
     if (typeof from !== 'number' || typeof to !== 'number' || to - from < 1.5) return;
     var len = Number(el.getAttribute('stroke-dasharray')) || 440;
-    add(el, [{ strokeDashoffset: 0 }, { strokeDashoffset: len }], Math.round((from + 0.8) * 1000), Math.round((to - from - 1) * 1000));
+    // Vaciado lineal y lento: 4 fps de captura bastan (antes era el tramo más caro del render)
+    add(el, [{ strokeDashoffset: 0 }, { strokeDashoffset: len }], Math.round((from + 0.8) * 1000), Math.round((to - from - 1) * 1000),
+      { easing: 'linear', fps: 4 });
   });
 
   // Detalles que solo aparecen (sin desplazamiento), p. ej. puntas de flecha tras dibujar el trazo
@@ -98,14 +101,7 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
       anims.forEach(function (x) { x.a.currentTime = ms; });
     },
     motionWindows: function () {
-      var w = anims.map(function (x) { return [x.start, x.end]; }).sort(function (p, q) { return p[0] - q[0]; });
-      var merged = [];
-      w.forEach(function (p) {
-        var last = merged[merged.length - 1];
-        if (last && p[0] <= last[1]) last[1] = Math.max(last[1], p[1]);
-        else merged.push([p[0], p[1]]);
-      });
-      return merged;
+      return anims.map(function (x) { return x.fps ? [x.start, x.end, x.fps] : [x.start, x.end]; });
     },
   };
   window.__anim.seek(0);

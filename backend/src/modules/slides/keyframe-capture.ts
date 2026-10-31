@@ -17,34 +17,43 @@ export interface KeyframeCaptureResult {
 interface Sample {
   time: number;
   hold: number;
+  still?: boolean;
 }
 
-/** Calcula en qué instantes capturar y cuánto dura cada imagen. */
-export function planKeyframes(windows: Array<[number, number]>, durationSeconds: number, fps: number): Sample[] {
-  const step = 1 / fps;
-  const samples: Sample[] = [];
-  let cursor = 0;
+/** Intervalo con movimiento; el tercer valor (opcional) limita los fps de captura en ese tramo. */
+export type MotionWindow = [number, number] | [number, number, number];
 
+/**
+ * Calcula en qué instantes capturar y cuánto dura cada imagen. Cada tramo entre dos bordes de
+ * ventana se captura al mayor ritmo de las ventanas que lo cubren (o con una sola imagen si
+ * ninguna lo cubre).
+ */
+export function planKeyframes(windows: MotionWindow[], durationSeconds: number, fps: number): Sample[] {
   const clipped = windows
-    .map(([s, e]) => [Math.max(0, s), Math.min(durationSeconds, e)] as [number, number])
-    .filter(([s, e]) => e > s);
+    .map(([s, e, r]) => ({ start: Math.max(0, s), end: Math.min(durationSeconds, e), rate: Math.min(r ?? fps, fps) }))
+    .filter((w) => w.end > w.start && w.rate > 0);
 
-  for (const [start, end] of clipped) {
-    if (start > cursor) {
-      // Tramo quieto antes del movimiento: una imagen sostenida
-      samples.push({ time: cursor, hold: start - cursor });
-      cursor = start;
+  const bounds = Array.from(new Set([0, durationSeconds, ...clipped.flatMap((w) => [w.start, w.end])]))
+    .sort((a, b) => a - b);
+
+  const samples: Sample[] = [];
+  for (let i = 0; i + 1 < bounds.length; i++) {
+    const [a, b] = [bounds[i], bounds[i + 1]];
+    const mid = (a + b) / 2;
+    const rate = Math.max(0, ...clipped.filter((w) => w.start <= mid && mid < w.end).map((w) => w.rate));
+    if (rate === 0) {
+      // Tramo quieto: una imagen sostenida (se une a la anterior si también era quieta)
+      const last = samples[samples.length - 1];
+      if (last?.still) last.hold += b - a;
+      else samples.push({ time: a, hold: b - a, still: true });
+      continue;
     }
-    for (let t = Math.max(cursor, start); t < end; t += step) {
-      samples.push({ time: t, hold: Math.min(step, durationSeconds - t) });
-      cursor = t + step;
+    const step = 1 / rate;
+    for (let t = a; t < b - 1e-9; t += step) {
+      samples.push({ time: t, hold: Math.min(step, b - t) });
     }
   }
-
-  if (cursor < durationSeconds) {
-    samples.push({ time: cursor, hold: durationSeconds - cursor });
-  }
-  return samples.filter((s) => s.hold > 0.0005);
+  return samples.filter((s) => s.hold > 0.0005).map(({ time, hold }) => ({ time, hold }));
 }
 
 export async function captureKeyframes(
@@ -57,7 +66,7 @@ export async function captureKeyframes(
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
   const windows = await page.evaluate(
-    () => (window as unknown as { __anim?: { motionWindows(): Array<[number, number]> } }).__anim?.motionWindows() ?? [],
+    () => (window as unknown as { __anim?: { motionWindows(): MotionWindow[] } }).__anim?.motionWindows() ?? [],
   );
   const samples = planKeyframes(windows, durationSeconds, fps);
 
