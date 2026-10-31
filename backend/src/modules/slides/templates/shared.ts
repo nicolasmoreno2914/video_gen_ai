@@ -15,7 +15,7 @@ export function highlighted(text: string, highlights: string[], _accentColor: st
   let out = escape(text);
   for (const word of highlights) {
     const re = new RegExp(`(${escapeRe(word)})`, 'gi');
-    out = out.replace(re, `<mark style="background:#FFE500;padding:2px 8px;border-radius:4px;">$1</mark>`);
+    out = out.replace(re, `<mark>$1</mark>`);
   }
   return out;
 }

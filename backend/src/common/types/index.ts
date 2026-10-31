@@ -14,6 +14,7 @@ export type SceneType =
   | 'example'
   | 'comparison'
   | 'application'
+  | 'practice'
   | 'summary'
   | 'conclusion';
 
@@ -31,7 +32,8 @@ export type LayoutType =
   | 'icon_cards'
   | 'cycle_diagram'
   | 'concept_map'
-  | 'timeline';
+  | 'timeline'
+  | 'practice_question';
 
 export type TransitionType = 'fade' | 'slide' | 'zoom' | 'dissolve';
 
@@ -137,6 +139,8 @@ export interface RenderResult {
   durationSeconds: number;
   /** Uso de transcripción (subtítulos) para registrar su costo. */
   stt?: { model: string; audioSeconds: number; calls: number };
+  /** Subtítulos WebVTT del video completo (siempre se generan). */
+  subtitlesPath?: string;
 }
 
 export const STEP_LABELS: Record<string, string> = {

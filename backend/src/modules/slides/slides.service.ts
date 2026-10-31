@@ -15,7 +15,7 @@ import {
 import {
   buildBigStatEditorialTemplate, buildComparisonEditorialTemplate, buildConclusionEditorialTemplate,
   buildCoverTemplate, buildLevelsEditorialTemplate, buildQuestionEditorialTemplate, buildSplitTemplate,
-  buildStepsEditorialTemplate, buildSummaryEditorialTemplate,
+  buildPracticeTemplate, buildStepsEditorialTemplate, buildSummaryEditorialTemplate,
 } from './templates/layouts.template';
 import { SceneTimeline } from './templates/animation';
 import { captureKeyframes } from './keyframe-capture';
@@ -223,6 +223,7 @@ export class SlidesService {
         case 'cycle_diagram':      return buildCycleTemplate(data);
         case 'concept_map':        return buildConceptMapTemplate(data);
         case 'timeline':           return buildTimelineTemplate(data);
+        case 'practice_question':  return buildPracticeTemplate(data);
       }
     }
 

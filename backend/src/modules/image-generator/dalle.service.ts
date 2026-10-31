@@ -16,7 +16,8 @@ const RETIRED_IMAGE_MODELS = new Set(['dall-e-2', 'dall-e-3', 'gpt-image-1']);
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1-mini';
 const SUPPORTED_SIZES = new Set(['1024x1024', '1536x1024', '1024x1536']);
 
-const NO_TEXT = 'No text, no labels, no letters, no numbers, no watermark.';
+const NO_TEXT = 'Centered main subject with comfortable margins, nothing important cut off at the edges. ' +
+  'No text, no labels, no letters, no numbers, no watermark.';
 
 type ImageFamily = 'illustration' | 'realistic';
 

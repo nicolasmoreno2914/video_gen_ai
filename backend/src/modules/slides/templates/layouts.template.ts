@@ -14,7 +14,7 @@ export function buildSplitTemplate(data: SlideTemplateData, imageFirst = false):
   const { brand, scene, imageBase64 } = data;
   const items = sceneItems(data, 5);
   const highlights = scene.highlight_words ?? [];
-  const fontSize = labelSize(items.map((i) => i.text), 38, 26);
+  const fontSize = labelSize(items.map((i) => i.text), 42, 32);
   const imageW = imageFirst ? 980 : 840;
 
   const rows = items.map((it, i) => `
@@ -30,17 +30,16 @@ export function buildSplitTemplate(data: SlideTemplateData, imageFirst = false):
 .row { display:flex; align-items:center; gap:26px; background:#fff; border-radius:24px; padding:22px 30px;
   box-shadow:0 12px 36px ${alpha(brand.primaryColor, 0.08)}; border:1px solid ${alpha(brand.primaryColor, 0.05)}; }
 .row-text { font-weight:600; line-height:1.3; color:#1B1E24; }
-.row-text mark { background:#FFE500; padding:0 8px; border-radius:6px; }
 .photo { width:${imageW}px; height:640px; flex-shrink:0; border-radius:36px; overflow:hidden;
   box-shadow:0 30px 70px ${alpha(brand.primaryColor, 0.22)}; }
-.photo img { width:100%; height:100%; object-fit:cover; display:block; }`;
+.photo img { width:100%; height:100%; object-fit:cover; object-position:center 35%; display:block; }`;
 
   const body = `<div class="split">
     <div class="rows">${rows}</div>
     <div class="photo" data-anim="image"><img src="data:image/png;base64,${imageBase64}" alt=""></div>
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Concepto clave'), title: scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, ''), title: scene.title ?? '', css, body, timeline: data.timeline });
 }
 
 // ─── Pasos (process_steps) ───────────────────────────────────────────────────
@@ -49,11 +48,11 @@ export function buildStepsEditorialTemplate(data: SlideTemplateData): string {
   const { brand } = data;
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 1);
-  const horizontal = n <= 4;
-  const fontSize = labelSize(items.map((i) => i.text), horizontal ? 36 : 38, 28);
+  const horizontal = n <= 5;
+  const fontSize = labelSize(items.map((i) => i.text), horizontal ? 40 : 42, 32);
 
   if (horizontal) {
-    const cardW = Math.min(400, Math.floor((1700 - (n - 1) * 40) / n));
+    const cardW = Math.min(400, Math.floor((1700 - (n - 1) * 36) / n));
     const totalW = n * cardW + (n - 1) * 40;
     const x0 = (1920 - totalW) / 2;
     const lineY = 150;
@@ -78,7 +77,7 @@ export function buildStepsEditorialTemplate(data: SlideTemplateData): string {
 .badge { width:104px; height:104px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor}); color:#fff; font-family:'Nunito',sans-serif;
   font-weight:900; font-size:46px; box-shadow:0 14px 34px ${alpha(brand.primaryColor, 0.28)}; border:6px solid #fff; }
-.step-card { width:100%; min-height:300px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
+.step-card { width:100%; min-height:240px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
   align-items:center; text-align:center; gap:22px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; }
 .step-text { font-weight:700; line-height:1.3; color:#1B1E24; }`;
     return editorialPage({
@@ -125,7 +124,7 @@ export function buildComparisonEditorialTemplate(data: SlideTemplateData): strin
   const labelA = parts.length === 2 ? parts[0].trim() : 'A';
   const labelB = parts.length === 2 ? parts[1].trim() : 'B';
   const few = Math.max(left.length, right.length) <= 2;
-  const fontSize = labelSize(items.map((i) => i.text), few ? 40 : 32, 24);
+  const fontSize = labelSize(items.map((i) => i.text), few ? 46 : 38, 30);
 
   const column = (list: typeof items, offset: number, color: string, label: string, side: 'a' | 'b'): string => `
     <div class="col col-${side}">
@@ -140,8 +139,8 @@ export function buildComparisonEditorialTemplate(data: SlideTemplateData): strin
     </div>`;
 
   const css = `
-.cmpwrap { position:absolute; left:110px; right:110px; top:10px; bottom:40px; display:flex; gap:150px; align-items:stretch; }
-.col { flex:1; display:flex; flex-direction:column; background:#fff; border-radius:32px; overflow:hidden;
+.cmpwrap { position:absolute; left:110px; right:110px; top:0; bottom:0; display:flex; gap:150px; align-items:center; }
+.col { flex:1; display:flex; flex-direction:column; background:#fff; border-radius:32px; overflow:hidden; min-height:380px;
   box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; }
 .col-head { color:#fff; font-family:'Nunito',sans-serif; font-weight:900; font-size:${labelA.length + labelB.length > 30 ? 34 : 42}px;
   padding:30px 44px; }
@@ -167,7 +166,7 @@ export function buildSummaryEditorialTemplate(data: SlideTemplateData): string {
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 1);
   const cols = n <= 3 ? 1 : 2;
-  const fontSize = labelSize(items.map((i) => i.text), cols === 1 ? 40 : 34, 26);
+  const fontSize = labelSize(items.map((i) => i.text), cols === 1 ? 44 : 38, 30);
   const check = iconSvg('circle-check', 44, '#fff', 2.4);
 
   const cards = items.map((it, i) => `
@@ -234,7 +233,7 @@ export function buildCoverTemplate(data: SlideTemplateData): string {
 .cover-orb { position:absolute; right:150px; top:190px; width:560px; height:560px; border-radius:50%; display:flex; align-items:center;
   justify-content:center; background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor});
   box-shadow:0 40px 100px ${alpha(brand.primaryColor, 0.35)}; }
-.cover-text { position:absolute; left:110px; top:0; bottom:84px; width:${hasImage ? 980 : 1040}px; display:flex; flex-direction:column;
+.cover-text { position:absolute; left:110px; top:0; bottom:170px; width:${hasImage ? 980 : 1040}px; display:flex; flex-direction:column;
   justify-content:center; gap:30px; z-index:1; }
 .kicker { display:inline-flex; align-self:flex-start; align-items:center; gap:12px; padding:12px 26px; border-radius:40px;
   background:${alpha(brand.secondaryColor, 0.14)}; color:${brand.primaryColor}; font-weight:700; font-size:24px; letter-spacing:2px; text-transform:uppercase; }
@@ -285,7 +284,7 @@ export function buildQuestionEditorialTemplate(data: SlideTemplateData): string 
       </div>
       ${hasImage ? `<div class="qimg" data-anim="image"><img src="data:image/png;base64,${imageBase64}" alt=""></div>` : ''}
     </div>`;
-  return editorialPage({ brand, eyebrow: '', title: '', css: `${css}\n.stage { top:0; bottom:84px; }`, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: '', title: '', css: `${css}\n.stage { top:0; bottom:170px; }`, body, timeline: data.timeline });
 }
 
 // ─── Dato clave (big_stat): on_screen_text[0] = "87% de los adultos…" ─────────
@@ -300,7 +299,7 @@ export function buildBigStatEditorialTemplate(data: SlideTemplateData): string {
   const len = value.replace(/\s/g, '').length;
   const numSize = len <= 3 ? 300 : len <= 5 ? 240 : len <= 7 ? 190 : 140;
   const rest = items.slice(1);
-  const fontSize = labelSize(rest.map((r) => r.text), 32, 24);
+  const fontSize = labelSize(rest.map((r) => r.text), 36, 30);
 
   const css = `
 .statwrap { position:absolute; left:110px; right:110px; top:0; bottom:40px; display:flex; align-items:center; gap:90px; }
@@ -311,8 +310,22 @@ export function buildBigStatEditorialTemplate(data: SlideTemplateData): string {
 .facts { flex:1; display:flex; flex-direction:column; gap:22px; }
 .fact { display:flex; align-items:center; gap:22px; background:#fff; border-radius:24px; padding:24px 30px;
   box-shadow:0 12px 36px ${alpha(brand.primaryColor, 0.08)}; }
-.fact-text { font-weight:600; line-height:1.3; color:#1B1E24; }`;
+.fact-text { font-weight:600; line-height:1.3; color:#1B1E24; }
+.donut, .stat-icon { flex:0 0 auto; width:460px; height:460px; display:flex; align-items:center; justify-content:center; }
+.stat-icon { border-radius:50%; background:${alpha(brand.secondaryColor, 0.12)}; }`;
 
+  const pct = /%$/.test(value) ? Math.min(100, parseFloat(value.replace(',', '.'))) : NaN;
+  const R = 190;
+  const C = 2 * Math.PI * R;
+  const visual = !rest.length
+    ? (Number.isFinite(pct)
+      ? `<div class="donut" data-anim="image"><svg width="460" height="460" viewBox="0 0 460 460">
+          <circle cx="230" cy="230" r="${R}" fill="none" stroke="${alpha(brand.secondaryColor, 0.15)}" stroke-width="44"/>
+          <circle data-draw="1" cx="230" cy="230" r="${R}" fill="none" stroke="${brand.secondaryColor}" stroke-width="44"
+            stroke-linecap="round" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 230 230)"/>
+        </svg></div>`
+      : `<div class="stat-icon" data-anim="image">${iconSvg(items[0]?.icon ?? 'chart-bar', 220, brand.primaryColor, 1.4)}</div>`)
+    : '';
   const body = `<div class="statwrap">
     <div class="stat" data-reveal="1">
       <div class="stat-num">${escape(value)}</div>
@@ -322,7 +335,7 @@ export function buildBigStatEditorialTemplate(data: SlideTemplateData): string {
       <div class="fact" data-reveal="${i + 2}">
         ${iconChip(it.icon, i + 1, 64, brand.primaryColor, alpha(brand.secondaryColor, 0.16))}
         <div class="fact-text" style="font-size:${fontSize}px">${escape(it.text)}</div>
-      </div>`).join('')}</div>` : ''}
+      </div>`).join('')}</div>` : visual}
   </div>`;
   return editorialPage({ brand, eyebrow: eyebrow(data, 'Dato clave'), title: scene.title ?? '', css, body, timeline: data.timeline });
 }
@@ -335,7 +348,7 @@ export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
   const n = Math.max(items.length, 1);
   const stepW = Math.floor(1700 / n) - 14;
   const stepH = Math.min(110, Math.floor(560 / n));
-  const fontSize = labelSize(items.map((i) => i.text), n <= 4 ? 32 : 28, 22);
+  const fontSize = labelSize(items.map((i) => i.text), n <= 4 ? 36 : 32, 26);
 
   const steps = items.map((it, i) => {
     const h = 150 + stepH * i;
@@ -356,4 +369,43 @@ export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
   font-family:'Nunito',sans-serif; font-weight:900; font-size:34px; }
 .lvl-text { font-weight:800; line-height:1.2; }`;
   return editorialPage({ brand, eyebrow: eyebrow(data, 'Niveles'), title: data.scene.title ?? '', css, body: steps, timeline: data.timeline });
+}
+
+// ─── Práctica (practice_question): pregunta → cuenta regresiva → respuesta ────
+
+export function buildPracticeTemplate(data: SlideTemplateData): string {
+  const { brand, scene } = data;
+  const [question, answer] = sceneItems(data, 2);
+  const r = 70;
+  const circ = 2 * Math.PI * r;
+
+  const css = `
+.practice { position:absolute; left:110px; right:110px; top:0; bottom:0; display:flex; flex-direction:column; justify-content:center; gap:40px; }
+.q-card { display:flex; align-items:center; gap:48px; background:#fff; border-radius:32px; padding:44px 52px;
+  box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; border-left:10px solid ${brand.secondaryColor}; }
+.q-text { flex:1; font-family:'Nunito',sans-serif; font-weight:900; font-size:${(question?.text.length ?? 0) > 70 ? 46 : 54}px;
+  line-height:1.15; color:${brand.primaryColor}; }
+.timer { position:relative; width:170px; height:170px; flex-shrink:0; }
+.timer > svg { position:absolute; inset:0; transform:rotate(-90deg); }
+.timer-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.a-card { display:flex; align-items:center; gap:28px; background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor});
+  color:#fff; border-radius:28px; padding:34px 46px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.25)}; }
+.a-label { font-weight:800; font-size:24px; letter-spacing:3px; text-transform:uppercase; opacity:0.85; white-space:nowrap; }
+.a-text { font-size:48px; font-weight:800; line-height:1.2; }`;
+
+  const body = `<div class="practice">
+    <div class="q-card" data-reveal="1">
+      <div class="q-text">${escape(question?.text ?? scene.title ?? '')}</div>
+      <div class="timer">
+        <svg width="170" height="170" viewBox="0 0 170 170">
+          <circle cx="85" cy="85" r="${r}" fill="none" stroke="${alpha(brand.secondaryColor, 0.18)}" stroke-width="12"/>
+          <circle data-countdown="1" cx="85" cy="85" r="${r}" fill="none" stroke="${brand.secondaryColor}" stroke-width="12"
+            stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-label">${iconSvg('timer', 64, brand.primaryColor, 2)}</div>
+      </div>
+    </div>
+    ${answer ? `<div class="a-card" data-reveal="2"><div class="a-label">Respuesta</div><div class="a-text">${escape(answer.text)}</div></div>` : ''}
+  </div>`;
+  return editorialPage({ brand, eyebrow: 'Ponte a prueba', title: scene.title ?? '', css, body, timeline: data.timeline });
 }

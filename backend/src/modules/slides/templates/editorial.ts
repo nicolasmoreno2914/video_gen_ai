@@ -16,7 +16,9 @@ export function alpha(hex: string, a: number): string {
 export function editorialCSS(brand: BrandData): string {
   const p = brand.primaryColor;
   const s = brand.secondaryColor;
-  return `* { margin:0; padding:0; box-sizing:border-box; }
+  return `mark { background:transparent; background-image:linear-gradient(transparent 55%, ${alpha(s, 0.45)} 55%);
+  background-repeat:no-repeat; background-size:100% 100%; padding:0 0.08em; color:inherit; }
+* { margin:0; padding:0; box-sizing:border-box; }
 body {
   width:1920px; height:1080px; overflow:hidden; position:relative;
   background:#F6F7F9; font-family:'Inter',sans-serif; color:#14161A;
@@ -32,11 +34,11 @@ body {
   font-size:22px; letter-spacing:3px; text-transform:uppercase; color:${s}; }
 .eyebrow::before { content:''; width:44px; height:5px; border-radius:3px; background:${s}; }
 .scene-title { font-family:'Nunito',sans-serif; font-weight:900; color:${p}; line-height:1.05; letter-spacing:-0.5px; }
-.stage { position:absolute; z-index:1; left:0; right:0; top:230px; bottom:84px; }
+.stage { position:absolute; z-index:1; left:0; right:0; top:230px; bottom:170px; }
 .footer { position:absolute; z-index:2; left:110px; right:110px; bottom:28px; display:flex; justify-content:flex-end; }
 .watermark { display:flex; align-items:center; gap:10px; opacity:0.85; }
 .watermark img { max-height:48px; object-fit:contain; }
-.watermark-name { font-size:16px; font-weight:600; color:#7A808A; }`;
+.watermark-name { font-size:20px; font-weight:600; color:#7A808A; }`;
 }
 
 function titleSize(title: string): number {

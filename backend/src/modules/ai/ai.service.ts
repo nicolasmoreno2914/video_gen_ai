@@ -74,9 +74,31 @@ BLOQUE 4 — APLICACIÓN (1–3 escenas)
   → application (cómo se aplica en la vida real)
   → example (caso concreto, situación real, historia breve)
 
+BLOQUE 4B — PRÁCTICA (1 o 2 escenas, OBLIGATORIO)
+  → practice: escena con layout_type "practice_question" y requires_ai_image false.
+     • Una pregunta de APLICACIÓN (no de memoria literal) sobre lo explicado, idealmente usando el ejemplo ancla.
+     • on_screen_text: exactamente 2 elementos: [pregunta corta (máx 14 palabras), respuesta corta (máx 14 palabras)].
+     • Narración: plantea la pregunta, luego "Piénsalo un momento. Tres, dos, uno." y después
+       "La respuesta: …" con una explicación breve de por qué.
+     • reveal_cues: [frase literal donde empieza la pregunta, "La respuesta"].
+     • Ubicación: una después del bloque de desarrollo y, si hay dos, la otra antes del resumen.
+
 BLOQUE 5 — CIERRE (2 escenas, obligatorias)
   → summary (resumen de ideas clave, máx 4 bullets con checkmarks)
   → conclusion (reflexión final, invitación a la acción o pregunta de cierre)
+
+════════════════════════════════════
+EJEMPLO ANCLA Y EXACTITUD — OBLIGATORIO
+════════════════════════════════════
+- Elige UN ejemplo concreto y cotidiano en el gancho (escena 1) y retómalo en al menos 3 escenas
+  posteriores para aplicar cada concepto nuevo ("Volvamos a tu teléfono al despertar: …").
+- Cifras, fechas, nombres propios y rangos: EXACTAMENTE como en el capítulo. No redondees
+  ("más de doscientos" ✗ → "doscientos cincuenta y cuatro" ✓) y usa la misma cifra en la narración
+  y en el texto en pantalla. No inventes datos, ejemplos ni atribuciones que no estén en el capítulo.
+- Si hay un mito, la escena de comparación se titula "Mito vs Realidad" (primera mitad = mito).
+- El texto en pantalla debe resumir lo que dice la narración de esa escena: si la narración enumera
+  N elementos, la pantalla muestra los N.
+- Español neutro sin regionalismos ("comer algo" y no "picar algo"; "andar en bicicleta").
 
 ════════════════════════════════════
 CÓMO ESCRIBIR on_screen_text SEGÚN TIPO
@@ -104,6 +126,7 @@ El on_screen_text determina el LAYOUT VISUAL. Escríbelo acorde:
 • cycle_diagram → 3–6 etapas de 1–3 palabras c/u, en el orden del ciclo
 • concept_map → 3–6 componentes o factores, máx 6 palabras c/u. highlight_words[0] = el concepto central (1–2 palabras)
 • timeline → 3–6 hitos con formato "FECHA: hecho" (ej. "1969: Nace ARPANET"), en orden cronológico
+• practice_question → [pregunta, respuesta]
 
 ════════════════════════════════════
 ESTILO DE NARRACIÓN — ESCRIBIR PARA EL OÍDO
@@ -122,7 +145,10 @@ Reglas:
   nunca "los elementos son: a, b, c".
 - Escribe los números, siglas y símbolos como se pronuncian: "el treinta y cinco por ciento",
   "la O-M-S", "más de mil personas".
-- Transiciones naturales entre escenas: "Ahora que sabes esto…", "Pero hay algo más…".
+- Cada escena (salvo la primera) empieza con un conector breve que la une a la anterior
+  ("Ahora que conoces el ciclo, …", "Pero ¿quién descubrió esto?").
+- No uses puntos suspensivos ni comillas en la narración: usa coma o punto.
+- No repitas el mismo verbo dentro de una frase.
 
 NO usar: lenguaje de libro de texto o de artículo académico, frases largas con subordinadas,
 voz pasiva ("es considerado", "se lleva a cabo"), muletillas como "cabe destacar" o
@@ -266,6 +292,7 @@ REGLA FIJA por layout_type (NO se puede cambiar):
 • cycle_diagram      → requires_ai_image: FALSE (siempre)
 • concept_map        → requires_ai_image: FALSE (siempre)
 • timeline           → requires_ai_image: FALSE (siempre)
+• practice_question  → requires_ai_image: FALSE (siempre)
 
 REGLA CONDICIONAL:
 • cover              → requires_ai_image: TRUE (portada, siempre)
@@ -382,9 +409,9 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
   "scenes": [
     {
       "scene_order": 1,
-      "scene_type": "hook|context|explanation|process|comparison|application|example|summary|conclusion",
+      "scene_type": "hook|context|explanation|process|comparison|application|example|practice|summary|conclusion",
       "hook_type": "hook_question|hook_cover|hook_story|hook_problem|hook_stat|hook_contrast|hook_myth|hook_decision|hook_scenario|hook_visual_metaphor|null",
-      "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection|icon_cards|cycle_diagram|concept_map|timeline",
+      "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection|icon_cards|cycle_diagram|concept_map|timeline|practice_question",
       "requires_ai_image": true,
       "learning_goal": "Qué aprende el estudiante en esta escena (una oración)",
       "title": "Título corto (máx 50 chars)",
@@ -459,8 +486,9 @@ ${job.content_txt}`;
       { role: 'user', content: userPrompt },
     ], 'generate_script', job.institution_id);
 
+    // Revisión crítica contra la fuente (cifras, omisiones, coherencia pantalla-voz, cues)
+    const finalScript = await this.reviewScript(job, script);
     // La duración la decide el contenido (sin relleno); solo se avisa si supera el tope
-    const finalScript = script;
     this.logDuration(job.id, finalScript);
 
     await this.videosService['videoJobRepo'].update(job.id, {
@@ -473,6 +501,39 @@ ${job.content_txt}`;
     );
 
     return finalScript;
+  }
+
+  /**
+   * Segunda pasada: un revisor compara el guion con el capítulo y devuelve el guion corregido
+   * (mismo formato). Si falla o devuelve algo inválido, se conserva el guion original.
+   */
+  private async reviewScript(job: VideoJob, script: GeneratedScript): Promise<GeneratedScript> {
+    const reviewer = `Eres un revisor editorial de guiones de video educativo. Recibes el CAPÍTULO FUENTE y un GUION en JSON.
+Devuelve el MISMO JSON (mismos campos, mismo número y orden de escenas, mismos layout_type) corrigiendo SOLO lo necesario:
+1. Cifras, fechas, rangos y nombres propios deben coincidir EXACTAMENTE con la fuente, en narración y en pantalla.
+2. Si falta un dato clave de la fuente (cifras, promedios, advertencias prácticas, nombres de autores o estudios), intégralo
+   en la escena más pertinente sin alargarla más de 20 palabras.
+3. Elimina afirmaciones, ejemplos o atribuciones que NO estén en la fuente.
+4. on_screen_text debe reflejar lo que dice la narración de esa escena (misma cantidad de elementos enumerados).
+5. reveal_cues: una por elemento de on_screen_text, copiada LITERALMENTE de la narración y en el orden en que se dicen,
+   apuntando al momento en que se menciona ESE elemento.
+6. Gramática y ortografía correctas; español neutro sin regionalismos.
+7. En comparaciones de mito, el título es "Mito vs Realidad".
+8. Debe existir al menos una escena practice_question con [pregunta, respuesta] en pantalla.
+Responde SOLO con el JSON completo corregido.`;
+    try {
+      const reviewed = await this.callGptWithRetry(job.id, [
+        { role: 'system', content: reviewer },
+        { role: 'user', content: `CAPÍTULO FUENTE:\n${job.content_txt}\n\nGUION:\n${JSON.stringify(script)}` },
+      ], 'review_script', job.institution_id);
+      if (reviewed.scenes.length < script.scenes.length - 1) throw new Error('el revisor eliminó escenas');
+      this.logger.log(`[AiService] [${job.id}] Revisión crítica aplicada (${reviewed.scenes.length} escenas)`);
+      return reviewed;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`[AiService] [${job.id}] Revisión crítica omitida: ${msg}`);
+      return script;
+    }
   }
 
   private async callGptWithRetry(
@@ -601,7 +662,7 @@ ${job.content_txt}`;
     const CSS_ONLY_LAYOUTS = new Set([
       'process_steps', 'comparison', 'hierarchy_diagram',
       'summary_checklist', 'big_stat', 'guiding_question',
-      'icon_cards', 'cycle_diagram', 'concept_map', 'timeline',
+      'icon_cards', 'cycle_diagram', 'concept_map', 'timeline', 'practice_question',
     ]);
     // These layouts always get AI images and do NOT count against the cap
     const ALWAYS_IMAGE_LAYOUTS = new Set(['cover', 'conclusion_reflection']);

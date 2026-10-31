@@ -17,11 +17,18 @@ export function sceneItems(data: SlideTemplateData, max: number): Array<{ text: 
   const raw = data.scene.on_screen_text ?? [];
   const texts = (Array.isArray(raw) ? raw : [String(raw)]).slice(0, max);
   const icons = data.scene.icons ?? [];
-  return texts.map((text, i) => ({ text, icon: icons[i] ?? null }));
+  // Si la mayoría tiene icono, los que faltan usan uno neutro (antes salía un "1" suelto)
+  const withIcon = texts.filter((_, i) => icons[i]).length;
+  const fill = withIcon * 2 >= texts.length ? 'sparkles' : null;
+  return texts.map((text, i) => ({ text, icon: icons[i] ?? (withIcon ? fill : null) }));
 }
 
+// Gancho, resumen y cierre usan la etiqueta de su momento; el resto, la del tipo de diapositiva
+// (así no se repite "Concepto clave" en medio video).
+const MOMENT_TYPES = new Set(['hook', 'summary', 'conclusion']);
 export function eyebrow(data: SlideTemplateData, fallback: string): string {
-  return EYEBROWS[data.scene.scene_type ?? ''] ?? fallback;
+  const type = data.scene.scene_type ?? '';
+  return MOMENT_TYPES.has(type) ? EYEBROWS[type] : fallback || EYEBROWS[type] || 'Concepto clave';
 }
 
 export function labelSize(texts: string[], max: number, min: number): number {
@@ -46,7 +53,7 @@ export function buildIconCardsTemplate(data: SlideTemplateData): string {
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 1);
   const cols = n <= 3 ? n : n === 4 ? 2 : 3;
-  const fontSize = labelSize(items.map((i) => i.text), n <= 3 ? 40 : 34, 26);
+  const fontSize = labelSize(items.map((i) => i.text), n <= 3 ? 46 : 40, 32);
   const vertical = n <= 3;
 
   const cards = items.map((it, i) => `
@@ -60,8 +67,8 @@ export function buildIconCardsTemplate(data: SlideTemplateData): string {
   grid-template-columns:repeat(${cols}, 1fr); gap:36px; align-content:center; }
 .card { background:#fff; border-radius:28px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}, 0 2px 6px rgba(0,0,0,0.04);
   border:1px solid ${alpha(brand.primaryColor, 0.06)}; display:flex; gap:28px; }
-.card.v { flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:48px 44px; min-height:420px; }
-.card.h { flex-direction:row; align-items:center; padding:36px 40px; min-height:${n <= 4 ? 220 : 190}px; }
+.card.v { flex-direction:column; align-items:flex-start; justify-content:center; padding:48px 44px; min-height:300px; }
+.card.h { flex-direction:row; align-items:center; padding:32px 40px; }
 .card-text { font-weight:600; line-height:1.3; color:#1B1E24; }`;
 
   return editorialPage({
@@ -77,10 +84,11 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 3);
   const cx = 960, cy = 395, rx = 470, ry = 268, node = 128;
-  const fontSize = labelSize(items.map((i) => i.text), 30, 22);
+  const fontSize = labelSize(items.map((i) => i.text), 36, 28);
   const angle = (i: number): number => -Math.PI / 2 + (2 * Math.PI * i) / n;
   const pt = (a: number): [number, number] => [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
-  const gap = Math.min(0.42, (Math.PI / n) * 0.62);
+  // Las flechas casi tocan los nodos (antes empezaban ~70 px lejos)
+  const gap = Math.min(0.3, (Math.PI / n) * 0.36);
 
   const arcs = items.map((_, i) => {
     const [x1, y1] = pt(angle(i) + gap);
@@ -127,7 +135,7 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
     ${nodes}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'El ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline });
 }
 
 // ─── Mapa de conceptos (concepto central + 2–6 ramas) ────────────────────────
@@ -142,7 +150,7 @@ export function buildConceptMapTemplate(data: SlideTemplateData): string {
   const cx = 960, cy = 383;
   const left = items.filter((_, i) => i % 2 === 0);
   const right = items.filter((_, i) => i % 2 === 1);
-  const fontSize = labelSize(items.map((i) => i.text), 30, 22);
+  const fontSize = labelSize(items.map((i) => i.text), 36, 28);
   const cardW = 500, cardH = 132;
 
   const place = (col: typeof items, side: 'l' | 'r'): Array<{ x: number; y: number; it: (typeof items)[number]; idx: number }> => {
@@ -199,14 +207,17 @@ export function buildTimelineTemplate(data: SlideTemplateData): string {
   const { brand } = data;
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 1);
-  const x0 = 200, x1 = 1720, ly = 383;
+  const ly = 383;
+  const boxW0 = n <= 3 ? 420 : n === 4 ? 360 : 300;
+  // Las etiquetas (centradas en cada hito) no deben salirse de los márgenes de 110 px
+  const x0 = 110 + boxW0 / 2, x1 = 1920 - 110 - boxW0 / 2;
   const step = n === 1 ? 0 : (x1 - x0) / (n - 1);
   const parsed = items.map((it) => {
     const m = it.text.match(/^\s*([^:]{1,24}):\s*(.+)$/);
     return { ...it, date: m ? m[1].trim() : '', label: m ? m[2].trim() : it.text };
   });
-  const fontSize = labelSize(parsed.map((p) => p.label), 28, 21);
-  const boxW = Math.min(360, Math.max(260, step - 30));
+  const fontSize = labelSize(parsed.map((p) => p.label), 34, 26);
+  const boxW = boxW0;
 
   const segments = parsed.slice(1).map((_, i) => {
     const xa = x0 + step * i + 60, xb = x0 + step * (i + 1) - 60;
@@ -236,7 +247,7 @@ export function buildTimelineTemplate(data: SlideTemplateData): string {
 .ev { position:absolute; text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; }
 .ev.up { bottom:${766 - ly + 80}px; }
 .ev.down { top:${ly + 80}px; }
-.date { font-family:'Nunito',sans-serif; font-weight:900; font-size:34px; color:${brand.secondaryColor}; }
+.date { font-family:'Nunito',sans-serif; font-weight:900; font-size:46px; color:${brand.secondaryColor}; }
 .ev-text { font-weight:600; line-height:1.3; color:#1B1E24; }`;
 
   const body = `<div class="tl">

@@ -57,7 +57,7 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
     ], delay, 550);
     // Resaltado: el amarillo se "enciende" justo después de que aparece el bullet
     el.querySelectorAll('mark').forEach(function (mark) {
-      add(mark, [{ backgroundColor: 'rgba(255,229,0,0)' }, { backgroundColor: 'rgba(255,229,0,1)' }], delay + 350, 400);
+      add(mark, [{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], delay + 350, 450);
     });
   });
 
@@ -70,6 +70,16 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
     var len = el.getTotalLength();
     el.style.strokeDasharray = len + ' ' + len;
     add(el, [{ strokeDashoffset: len }, { strokeDashoffset: 0 }], Math.max(0, Math.round(t * 1000) - 250), 600);
+  });
+
+  // Cuenta regresiva: el anillo se vacía entre la pregunta (elemento N) y la respuesta (N+1)
+  document.querySelectorAll('[data-countdown]').forEach(function (el) {
+    var idx = Number(el.getAttribute('data-countdown')) - 1;
+    var from = timeline.revealTimes[idx];
+    var to = timeline.revealTimes[idx + 1];
+    if (typeof from !== 'number' || typeof to !== 'number' || to - from < 1.5) return;
+    var len = Number(el.getAttribute('stroke-dasharray')) || 440;
+    add(el, [{ strokeDashoffset: 0 }, { strokeDashoffset: len }], Math.round((from + 0.8) * 1000), Math.round((to - from - 1) * 1000));
   });
 
   // Detalles que solo aparecen (sin desplazamiento), p. ej. puntas de flecha tras dibujar el trazo

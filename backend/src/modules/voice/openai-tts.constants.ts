@@ -14,7 +14,9 @@ export const DEFAULT_OPENAI_TTS_INSTRUCTIONS =
   'Habla en español latinoamericano neutro, sin acento de España. Eres un docente cercano y ' +
   'entusiasta explicando a estudiantes adultos. Ritmo pausado y claro, unas 140 palabras por ' +
   'minuto. Haz una pausa breve después de cada idea clave y enfatiza las palabras importantes. ' +
-  'Tono cálido y conversacional, nunca robótico ni de locutor de noticias.';
+  'Tono cálido y conversacional, nunca robótico ni de locutor de noticias. Pronuncia los nombres ' +
+  'propios extranjeros de forma natural para un hispanohablante. Haz una pausa breve después de los ' +
+  'dos puntos y de cada pregunta, y baja un poco la velocidad al dar cifras o pasos.';
 
 export function ttsModelSupportsInstructions(model: string): boolean {
   return model.startsWith('gpt-4o-mini-tts');

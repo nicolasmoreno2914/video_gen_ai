@@ -61,6 +61,7 @@ export interface AppConfig {
     defaultVisualStyle: string;
     enableZoomEffect: boolean;
     animatedSlides: boolean;
+    subtitlesMode: 'burned' | 'sidecar';
   };
   rateLimit: {
     defaultDailyVideoLimit: number;
@@ -141,6 +142,9 @@ export default (): AppConfig => ({
     enableZoomEffect: process.env.ENABLE_ZOOM_EFFECT === 'true',
     // Slides animados sincronizados con la voz (captura por fotogramas clave)
     animatedSlides: process.env.ANIMATED_SLIDES === 'true',
+    // burned: subtítulos quemados en el video; sidecar: solo el archivo subtitles.vtt (sin texto
+    // redundante en pantalla; el reproductor o el LMS los muestra si el estudiante los activa)
+    subtitlesMode: process.env.SUBTITLES_MODE === 'sidecar' ? 'sidecar' : 'burned',
   },
   rateLimit: {
     defaultDailyVideoLimit: parseInt(process.env.DEFAULT_DAILY_VIDEO_LIMIT ?? '10', 10),
