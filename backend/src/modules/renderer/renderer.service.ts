@@ -9,6 +9,8 @@ import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { RenderResult } from '../../common/types';
+import { SlidesService } from '../slides/slides.service';
+import { buildSubtitleCues } from './subtitles';
 
 interface SrtEntry {
   index: number;
@@ -24,6 +26,16 @@ interface SttWord {
   type: 'word' | 'spacing';
 }
 
+// Pausa al final de cada escena: corta dentro de un mismo bloque, más larga al cambiar de bloque
+const PAUSE_SAME_BLOCK = 0.5;
+const PAUSE_NEW_BLOCK = 0.9;
+const PAUSE_END = 1.5;
+const BLOCKS: Record<string, string> = {
+  hook: 'intro', context: 'intro', explanation: 'core', process: 'core', comparison: 'core',
+  application: 'apply', example: 'apply', practice: 'apply', summary: 'close', conclusion: 'close',
+};
+const PROGRESS_BAR_HEIGHT = 6;
+
 @Injectable()
 export class RendererService {
   private readonly logger = new Logger(RendererService.name);
@@ -33,6 +45,8 @@ export class RendererService {
   // pLimit(3): paralleliza escenas sin saturar CPU del VPS
   private readonly renderLimit = pLimit(3);
   private readonly sttLimit = pLimit(4);
+  private readonly sttModel = 'whisper-1';
+  private readonly subtitlesMode: 'burned' | 'sidecar';
 
   constructor(private readonly configService: ConfigService<AppConfig>) {
     const storage = this.configService.get<AppConfig['storage']>('storage')!;
@@ -40,6 +54,7 @@ export class RendererService {
     const openaiCfg = this.configService.get<AppConfig['openai']>('openai')!;
     this.basePath = storage.basePath;
     this.fps = video.fps;
+    this.subtitlesMode = video.subtitlesMode ?? 'burned';
     this.openai = new OpenAI({ apiKey: openaiCfg.apiKey });
   }
 
@@ -52,41 +67,53 @@ export class RendererService {
     fs.mkdirSync(scenesDir, { recursive: true });
     fs.mkdirSync(outputDir, { recursive: true });
 
-    // Paso 1: renderizar todas las escenas en paralelo (pLimit 3)
-    const sceneVideoEntries = await Promise.all(
-      scenes.map((scene) =>
-        this.renderLimit(async () => {
-          const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir);
-          this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
-          return { scene, sceneVideoPath };
-        }),
-      ),
-    );
+    // Línea de tiempo global (cada escena + pausa) para la barra de progreso y el VTT
+    const starts: number[] = [];
+    const pauses: number[] = [];
+    let total = 0;
+    scenes.forEach((scene, i) => {
+      const next = scenes[i + 1];
+      // Al final del video, 1,5 s para que la pregunta de cierre no quede cortada
+      const pause = !next ? PAUSE_END
+        : BLOCKS[next.scene_type ?? ''] !== BLOCKS[scene.scene_type ?? ''] ? PAUSE_NEW_BLOCK : PAUSE_SAME_BLOCK;
+      starts.push(total);
+      pauses.push(pause);
+      total += (scene.duration_seconds ?? scene.estimated_duration_seconds ?? 30) + pause;
+    });
+    const brand = { primary: job.brand_primary_color || '#003366', secondary: job.brand_secondary_color || '#00AEEF' };
 
-    // Paso 2: quemar subtítulos en paralelo (STT + burn, pLimit 3)
-    const srtSceneVideos = await Promise.all(
-      sceneVideoEntries.map(({ scene, sceneVideoPath }) =>
+    // Una sola codificación por escena: slide (animado o fijo) + voz + subtítulos + barra de progreso
+    const stt = { model: this.sttModel, audioSeconds: 0, calls: 0 };
+    const sceneSubs: SrtEntry[][] = new Array(scenes.length);
+    const sceneVideos = await Promise.all(
+      scenes.map((scene, i) =>
         this.renderLimit(async () => {
-          const subtitledPath = path.join(scenesDir, `scene_${scene.scene_order}_sub.mp4`);
-          await this.burnSceneSubtitles(scene, sceneVideoPath, subtitledPath, jobDir);
-          return subtitledPath;
+          const { srtPath, entries } = await this.writeSceneSubtitles(scene, jobDir, stt);
+          sceneSubs[i] = entries;
+          const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir, {
+            srtPath, start: starts[i], total, brand, pause: pauses[i],
+          });
+          this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
+          return sceneVideoPath;
         }),
       ),
     );
 
     const outputPath = path.join(outputDir, 'final.mp4');
-    await this.concatenateScenes(srtSceneVideos, outputPath);
+    await this.concatenateScenes(sceneVideos, outputPath);
 
     const durationSeconds = await this.getVideoDuration(outputPath);
 
     // Validate before delivering — throws if video is not playable
     await this.validateFinalVideo(outputPath, job.id);
 
-    const sceneVideos = sceneVideoEntries.map(e => e.sceneVideoPath);
-    this.cleanupTempFiles(jobDir, sceneVideos, srtSceneVideos);
+    this.cleanupTempFiles(jobDir, sceneVideos, []);
+
+    const subtitlesPath = path.join(outputDir, 'subtitles.vtt');
+    fs.writeFileSync(subtitlesPath, this.buildVtt(sceneSubs, starts), 'utf8');
 
     this.logger.log(`[RendererService] [${job.id}] Video final: ${outputPath} (${durationSeconds.toFixed(1)}s)`);
-    return { outputPath, durationSeconds };
+    return { outputPath, durationSeconds, stt, subtitlesPath };
   }
 
   async renderDryRun(job: VideoJob, scenes: VideoScene[]): Promise<RenderResult> {
@@ -175,11 +202,18 @@ export class RendererService {
     });
   }
 
-  private renderScene(jobId: string, scene: VideoScene, scenesDir: string): Promise<string> {
+  private renderScene(
+    jobId: string,
+    scene: VideoScene,
+    scenesDir: string,
+    opts: { srtPath: string; start: number; total: number; pause: number; brand: { primary: string; secondary: string } },
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const slidePath = scene.slide_png_url;
       const audioPath = scene.audio_url;
-      const duration = scene.duration_seconds ?? scene.estimated_duration_seconds ?? 30;
+      const speech = scene.duration_seconds ?? scene.estimated_duration_seconds ?? 30;
+      // Pausa breve al final de cada escena: el estudiante respira entre ideas
+      const duration = speech + opts.pause;
       const outputPath = path.join(scenesDir, `scene_${scene.scene_order}.mp4`);
 
       if (!slidePath || !fs.existsSync(slidePath)) {
@@ -191,21 +225,39 @@ export class RendererService {
         return;
       }
 
-      const fadeOut = Math.max(0, duration - 0.4);
+      const fadeOut = Math.max(0, duration - 0.35);
+      const framesList = SlidesService.framesListPath(slidePath, scene.scene_order);
+      const animated = fs.existsSync(framesList);
+      const escapedSrt = opts.srtPath.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
+      const bar = opts.brand.secondary.replace('#', '0x');
 
       ffmpeg()
-        .input(slidePath).inputOptions(['-loop 1'])
+        .input(animated ? framesList : slidePath)
+        .inputOptions(animated ? ['-f concat', '-safe 0'] : ['-loop 1'])
         .input(audioPath)
         .complexFilter([
-          `[0:v]scale=1920:1080:flags=lanczos,` +
-          `fade=t=in:st=0:d=0.4:color=white,` +
-          `fade=t=out:st=${fadeOut.toFixed(3)}:d=0.4:color=white[v]`,
-          `[1:a]aresample=44100,afade=t=in:st=0:d=0.2,afade=t=out:st=${Math.max(0, duration - 0.2).toFixed(3)}:d=0.2[a]`,
+          // fps=: el demuxer concat entrega solo los fotogramas clave; el filtro rellena los tramos
+          // quietos y tpad sostiene el último durante la pausa. Los JPEG son de rango completo
+          // (yuvj420p): se pasan a yuv420p de rango TV, el formato que exigen los reproductores.
+          `[0:v]${animated ? `fps=${this.fps},` : ''}scale=1920:1080:flags=lanczos` +
+          `${animated ? ':out_range=tv' : ''},format=yuv420p,` +
+          `tpad=stop_mode=clone:stop_duration=${opts.pause}` +
+          (this.subtitlesMode === 'burned'
+            ? `,subtitles='${escapedSrt}':force_style='${this.subtitleStyle(opts.brand.primary)}'[base]`
+            : '[base]'),
+          // Barra de progreso del video completo (abajo, color de la marca)
+          `color=c=${bar}:s=1920x${PROGRESS_BAR_HEIGHT}:r=${this.fps}[bar]`,
+          `[base][bar]overlay=x='-W+W*(${opts.start.toFixed(3)}+t)/${opts.total.toFixed(3)}':y=H-${PROGRESS_BAR_HEIGHT}:shortest=1,` +
+          `fade=t=in:st=0:d=0.35:color=white,fade=t=out:st=${fadeOut.toFixed(3)}:d=0.35:color=white[v]`,
+          `[1:a]aresample=48000,apad=pad_dur=${opts.pause},` +
+          `afade=t=in:st=0:d=0.15,afade=t=out:st=${Math.max(0, duration - 0.25).toFixed(3)}:d=0.25[a]`,
         ])
         .outputOptions([
           '-map [v]', '-map [a]',
-          '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',
-          '-c:a aac', '-b:a 128k', '-ar 44100', '-ac 2',
+          // Calidad: crf 18 evita bandas en los degradados; stillimage favorece contenido tipo slide
+          // crf 16 + GOP de 2 s: margen para la recodificación de YouTube sin bandas en los degradados
+          '-c:v libx264', '-preset veryfast', '-tune stillimage', '-crf 16', '-g 60', '-profile:v high', '-level 4.1',
+          '-c:a aac', '-b:a 160k', '-ar 48000', '-ac 2',
           '-pix_fmt yuv420p',
           `-r ${this.fps}`,
           `-t ${duration.toFixed(3)}`,
@@ -215,31 +267,49 @@ export class RendererService {
           this.logger.error(`[RendererService] [${jobId}] Escena ${scene.scene_order} error: ${err.message}`);
           reject(err);
         })
-        .on('end', () => resolve(outputPath))
+        .on('end', () => {
+          fs.rmSync(opts.srtPath, { force: true });
+          resolve(outputPath);
+        })
         .run();
     });
   }
 
+  /** Estilo ASS: caja con el color primario de la marca semitransparente, texto blanco. */
+  private subtitleStyle(primaryHex: string): string {
+    const c = primaryHex.replace('#', '');
+    const bgr = /^[0-9a-fA-F]{6}$/.test(c) ? `${c.slice(4, 6)}${c.slice(2, 4)}${c.slice(0, 2)}` : '1A1A1A';
+    return `FontName=Arial,FontSize=14,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H30${bgr},` +
+      `BackColour=&H30${bgr},BorderStyle=3,Outline=6,Shadow=0,Alignment=2,MarginV=12`;
+  }
+
   // ─── STT: transcribir audio con OpenAI Whisper ───────────────────────────
 
-  private async transcribeAudio(audioPath: string): Promise<SttWord[] | null> {
+  // Devuelve null solo si la llamada falló (no se factura); words vacío si no hubo texto.
+  private async transcribeAudio(audioPath: string): Promise<{ words: SttWord[]; billedSeconds: number } | null> {
     try {
       const response = await this.openai.audio.transcriptions.create({
         file: fs.createReadStream(audioPath) as unknown as File,
-        model: 'whisper-1',
+        model: this.sttModel,
         response_format: 'verbose_json',
         timestamp_granularities: ['word'],
       });
 
-      const words = (response as unknown as { words?: Array<{ word: string; start: number; end: number }> }).words;
-      if (!words || words.length === 0) return null;
+      const verbose = response as unknown as {
+        duration?: number;
+        words?: Array<{ word: string; start: number; end: number }>;
+      };
+      const billedSeconds = Number(verbose.duration) || 0;
 
-      return words.map(w => ({
-        text: w.word,
-        start: w.start,
-        end: w.end,
-        type: 'word' as const,
-      }));
+      return {
+        billedSeconds,
+        words: (verbose.words ?? []).map(w => ({
+          text: w.word,
+          start: w.start,
+          end: w.end,
+          type: 'word' as const,
+        })),
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`[RendererService] STT Whisper falló (usando fallback): ${msg}`);
@@ -324,18 +394,32 @@ export class RendererService {
 
   // ─── Quemar subtítulos por escena (STT + fallback) ───────────────────────
 
-  private async burnSceneSubtitles(
+  /** Escribe el .srt de la escena y devuelve su ruta (se quema en renderScene, en la misma codificación). */
+  private async writeSceneSubtitles(
     scene: VideoScene,
-    inputPath: string,
-    outputPath: string,
     jobDir: string,
-  ): Promise<string> {
+    sttUsage: { audioSeconds: number; calls: number },
+  ): Promise<{ srtPath: string; entries: SrtEntry[] }> {
     let entries: SrtEntry[];
 
-    // Intentar STT real si hay audio (Whisper — parallelizado via sttLimit)
-    if (scene.audio_url && fs.existsSync(scene.audio_url)) {
+    // Texto del guion alineado con los tiempos de Whisper (ortografía y puntuación correctas)
+    if (scene.word_timings?.length && scene.narration) {
+      entries = buildSubtitleCues(scene.narration, scene.word_timings).map((c, k) => ({
+        index: k + 1,
+        startMs: Math.round(c.start * 1000),
+        endMs: Math.round(c.end * 1000),
+        text: c.text,
+      }));
+    } else if (scene.word_timings?.length) {
+      entries = this.groupSttWordsIntoSrt(scene.word_timings.map(w => ({ ...w, type: 'word' as const })));
+    } else if (scene.audio_url && fs.existsSync(scene.audio_url)) {
       this.logger.log(`[RendererService] Transcribiendo escena ${scene.scene_order} con Whisper`);
-      const words = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
+      const stt = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
+      if (stt) {
+        sttUsage.audioSeconds += stt.billedSeconds || (scene.duration_seconds ?? 0);
+        sttUsage.calls += 1;
+      }
+      const words = stt?.words ?? null;
       if (words && words.length > 0) {
         entries = this.groupSttWordsIntoSrt(words);
         this.logger.log(`[RendererService] STT OK escena ${scene.scene_order}: ${entries.length} bloques`);
@@ -353,33 +437,18 @@ export class RendererService {
 
     const srtPath = path.join(jobDir, 'scenes', `scene_${scene.scene_order}_temp.srt`);
     fs.writeFileSync(srtPath, srtContent, 'utf8');
+    return { srtPath, entries };
+  }
 
-    return new Promise((resolve, reject) => {
-      const escapedSrt = srtPath.replace(/:/g, '\\:').replace(/'/g, "\\'");
-
-      ffmpeg(inputPath)
-        .videoFilters(
-          `subtitles='${escapedSrt}':force_style=` +
-          `'FontName=Arial,FontSize=15,` +
-          `PrimaryColour=&H00FFFFFF,` +
-          `OutlineColour=&H66000000,` +
-          `BackColour=&H40000000,` +
-          `Outline=1,Shadow=0,Alignment=2,MarginV=30,Bold=0'`,
-        )
-        .outputOptions([
-          '-c:v libx264', '-preset ultrafast', '-crf 23', '-profile:v high', '-level 4.1',
-          '-c:a aac', '-b:a 128k', '-ar 44100', '-ac 2',
-          '-pix_fmt yuv420p',
-          `-r ${this.fps}`,
-        ])
-        .output(outputPath)
-        .on('error', (err: Error) => reject(err))
-        .on('end', () => {
-          fs.rmSync(srtPath, { force: true });
-          resolve(outputPath);
-        })
-        .run();
-    });
+  /** WebVTT del video completo: los tiempos de cada escena se desplazan a su inicio global. */
+  private buildVtt(sceneSubs: SrtEntry[][], starts: number[]): string {
+    const fmt = (ms: number): string => this.formatSrtTime(ms).replace(',', '.');
+    const cues = sceneSubs.flatMap((entries, i) => (entries ?? []).map((e) => {
+      const off = Math.round(starts[i] * 1000);
+      const limit = starts[i + 1] != null ? Math.round(starts[i + 1] * 1000) - 20 : Infinity;
+      return `${fmt(e.startMs + off)} --> ${fmt(Math.min(e.endMs + off, limit))}\n${e.text}`;
+    }));
+    return `WEBVTT\n\n${cues.join('\n\n')}\n`;
   }
 
   private concatenateScenes(scenePaths: string[], outputPath: string): Promise<void> {
@@ -391,7 +460,10 @@ export class RendererService {
       ffmpeg()
         .input(concatListPath).inputOptions(['-f concat', '-safe 0'])
         .outputOptions([
-          '-c copy',
+          // Video sin recodificar; el audio se normaliza a -16 LUFS (estándar e-learning)
+          '-c:v copy',
+          '-af loudnorm=I=-16:TP=-1.5:LRA=11',
+          '-c:a aac', '-b:a 160k', '-ar 48000',
           '-movflags +faststart',
         ])
         .output(outputPath)

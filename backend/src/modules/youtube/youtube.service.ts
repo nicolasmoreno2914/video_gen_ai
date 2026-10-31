@@ -14,6 +14,9 @@ export interface YoutubeUploadResult {
   embedUrl: string;
 }
 
+
+/** Aviso de transparencia: las imágenes y la voz del video están generadas con IA. */
+export const AI_DISCLOSURE = 'Imágenes y voz generadas con inteligencia artificial.';
 @Injectable()
 export class YouTubeService {
   private readonly logger = new Logger(YouTubeService.name);
@@ -72,8 +75,8 @@ export class YouTubeService {
 
     const title = job.youtube_title ?? job.title;
     const description =
-      job.youtube_description ??
-      `Video educativo generado por Video Engine IA\nTítulo: ${job.title}`;
+      (job.youtube_description ?? `Video educativo generado por Video Engine IA\nTítulo: ${job.title}`) +
+      `\n\n${AI_DISCLOSURE}`;
     const privacyStatus = job.youtube_privacy ?? 'unlisted';
 
     this.logger.log(`[YouTubeService] [${job.id}] Subiendo a YouTube: "${title}"`);

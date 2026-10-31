@@ -1,6 +1,6 @@
 # Video Engine IA
 
-Genera videos educativos animados a partir de texto de capítulos. Procesa el contenido con GPT-4o, crea ilustraciones con DALL-E 3, sintetiza voz con ElevenLabs, renderiza diapositivas HTML con Puppeteer y ensambla el video final con FFmpeg.
+Genera videos educativos animados a partir de texto de capítulos. Procesa el contenido con GPT-4o, crea ilustraciones con DALL-E 3, sintetiza voz con OpenAI TTS, renderiza diapositivas HTML con Puppeteer y ensambla el video final con FFmpeg.
 
 ---
 
@@ -47,7 +47,7 @@ Genera videos educativos animados a partir de texto de capítulos. Procesa el co
                      ┌──────────────────┼──────────────────┐
                      ▼                  ▼                   ▼
               ┌────────────┐   ┌─────────────┐   ┌──────────────┐
-              │  OpenAI    │   │ ElevenLabs  │   │  YouTube     │
+              │  OpenAI    │   │ OpenAI TTS  │   │  YouTube     │
               │  GPT-4o    │   │    TTS      │   │  Data API v3 │
               │  DALL-E 3  │   └─────────────┘   └──────────────┘
               └────────────┘
@@ -62,7 +62,7 @@ INPUT: texto del capítulo
 [1] analyzing        — GPT-4o genera guión JSON (16-24 escenas)
 [2] generating_images — DALL-E 3, 2 en paralelo, con FALLBACK_PROMPTS
 [3] generating_slides — Puppeteer HTML→PNG, 1920×1080, 2 en paralelo
-[4] generating_audio  — ElevenLabs TTS, 3 en paralelo, con ffprobe duración
+[4] generating_audio  — OpenAI TTS, 3 en paralelo, con ffprobe duración
 [5] rendering_scenes  — FFmpeg: imagen + audio + subtítulos por escena
 [6] concatenating     — concat demuxer → video_final_sin_subtitulos.mp4
 [7] adding_subtitles  — SRT completo quemado con ffmpeg
@@ -80,7 +80,7 @@ OUTPUT: /tmp/video-engine/jobs/{id}/output/final.mp4
 ## Requisitos previos
 
 - Docker Engine ≥ 24 y Docker Compose v2
-- Claves de API: OpenAI, ElevenLabs
+- Claves de API: OpenAI
 - (Opcional) Credenciales OAuth2 de YouTube
 
 ---
@@ -114,10 +114,6 @@ API_SECRET=tu_clave_secreta_aqui
 
 # OpenAI
 OPENAI_API_KEY=sk-...
-
-# ElevenLabs
-ELEVENLABS_API_KEY=tu_clave_elevenlabs
-ELEVENLABS_DEFAULT_VOICE_ID=21m00Tcm4TlvDq8ikWAM  # Rachel (por defecto)
 
 # YouTube (opcional)
 YOUTUBE_CLIENT_ID=
@@ -297,7 +293,7 @@ source.addEventListener('failed', (e) => {
   "event": "video.failed",
   "job_id": "550e8400-...",
   "status": "failed",
-  "error_message": "ElevenLabs API returned 429",
+  "error_message": "OpenAI TTS API returned 429",
   "failed_at_step": "generating_audio",
   "timestamp": "2024-01-15T10:30:00.000Z"
 }
@@ -349,10 +345,11 @@ El sistema retoma desde el último paso completado (checkpoint recovery).
 |----------|-------------|-----------------|
 | GPT-4o | ~3000 tokens entrada + ~2000 salida | $0.05 |
 | DALL-E 3 | 20 imágenes 1792×1024 | $0.80 |
-| ElevenLabs | ~4000 caracteres TTS | $0.06 |
+| OpenAI TTS | ~4000 caracteres TTS | $0.06 |
 | **Total** | | **~$0.91 / video** |
 
-> Nota: precios de referencia a enero 2024. Verificar tarifas actuales en cada proveedor.
+> Nota: precios de referencia a enero 2024. Las tarifas vigentes están en
+> `backend/src/modules/costs/cost-config.ts` y el costo real por video en el dashboard de costos.
 
 ---
 
@@ -481,7 +478,7 @@ video-engine-ia/
 │           ├── renderer/        # FFmpeg scene rendering
 │           ├── slides/          # Puppeteer HTML→PNG
 │           ├── videos/          # Video CRUD + SSE + cleanup
-│           ├── voice/           # ElevenLabs TTS
+│           ├── voice/           # OpenAI TTS
 │           ├── webhook/         # Outbound webhooks
 │           └── youtube/         # OAuth2 + upload
 └── frontend/

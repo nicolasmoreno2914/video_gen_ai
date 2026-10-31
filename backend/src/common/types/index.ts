@@ -14,6 +14,7 @@ export type SceneType =
   | 'example'
   | 'comparison'
   | 'application'
+  | 'practice'
   | 'summary'
   | 'conclusion';
 
@@ -27,7 +28,12 @@ export type LayoutType =
   | 'comparison'
   | 'real_example'
   | 'summary_checklist'
-  | 'conclusion_reflection';
+  | 'conclusion_reflection'
+  | 'icon_cards'
+  | 'cycle_diagram'
+  | 'concept_map'
+  | 'timeline'
+  | 'practice_question';
 
 export type TransitionType = 'fade' | 'slide' | 'zoom' | 'dissolve';
 
@@ -35,7 +41,7 @@ export type VisualStyle = 'notebooklm' | 'whiteboard' | 'sketch';
 
 export type YoutubePrivacy = 'public' | 'unlisted' | 'private';
 
-export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'openai_tts' | 'elevenlabs' | 'youtube' | 'internal';
+export type ApiProvider = 'openai_chat' | 'openai_dalle' | 'openai_tts' | 'openai_stt' | 'elevenlabs' | 'youtube' | 'internal';
 
 export interface GeneratedScene {
   scene_order: number;
@@ -49,6 +55,18 @@ export interface GeneratedScene {
   visual_direction: string;
   image_prompt: string | null;
   highlight_words: string[];
+  /** Frase literal de la narración donde se menciona cada on_screen_text (mismo índice). */
+  reveal_cues?: Array<string | null>;
+  /** Icono Lucide por elemento de on_screen_text (lista cerrada de slides/templates/icons.ts). */
+  icons?: Array<string | null>;
+  image_precision?: 'high' | 'normal';
+  image_style?: 'atlas' | 'photo' | null;
+  /** Qué debe verse correcto en una imagen de precisión alta (lo verifica un modelo de visión). */
+  image_check?: string | null;
+  /** Índice del learning_objective que desarrolla la escena. */
+  objective?: number;
+  /** Párrafos del capítulo (1-based) que cubre la escena: se usa para validar la cobertura. */
+  source_paragraphs?: number[];
   transition: TransitionType;
   estimated_duration_seconds: number;
 }
@@ -58,6 +76,9 @@ export interface GeneratedScript {
   estimated_duration_minutes: number;
   total_narration_characters: number;
   guiding_question: string;
+  learning_objectives?: string[];
+  /** Estilo de imagen del video, elegido por el guion según el tema. */
+  visual_family?: 'illustration' | 'realistic';
   scenes: GeneratedScene[];
 }
 
@@ -121,6 +142,10 @@ export interface VideoFailedEvent {
 export interface RenderResult {
   outputPath: string;
   durationSeconds: number;
+  /** Uso de transcripción (subtítulos) para registrar su costo. */
+  stt?: { model: string; audioSeconds: number; calls: number };
+  /** Subtítulos WebVTT del video completo (siempre se generan). */
+  subtitlesPath?: string;
 }
 
 export const STEP_LABELS: Record<string, string> = {

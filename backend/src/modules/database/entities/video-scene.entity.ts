@@ -67,6 +67,30 @@ export class VideoScene {
   @Column({ type: 'int', nullable: true })
   estimated_duration_seconds!: number | null;
 
+  /** Tiempos por palabra de la narración (Whisper), en segundos desde el inicio del audio de la escena. */
+  @Column({ type: 'jsonb', nullable: true })
+  word_timings!: Array<{ text: string; start: number; end: number }> | null;
+
+  /** Frase de la narración que marca cuándo aparece cada on_screen_text (mismo índice). */
+  @Column({ type: 'jsonb', nullable: true })
+  reveal_cues!: Array<string | null> | null;
+
+  /** Icono Lucide por cada on_screen_text (mismo índice), de la lista cerrada de templates/icons.ts. */
+  @Column({ type: 'jsonb', nullable: true })
+  icons!: Array<string | null> | null;
+
+  /** 'high' → modelo de imagen preciso + verificación con visión. */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  image_precision!: string | null;
+
+  /** Solo en videos realistas: 'atlas' (estructuras) o 'photo' (personas, procedimientos). */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  image_style!: string | null;
+
+  /** Qué debe verse correcto en la imagen; lo verifica un modelo de visión. */
+  @Column({ type: 'text', nullable: true })
+  image_check!: string | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

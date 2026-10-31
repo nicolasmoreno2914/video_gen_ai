@@ -9,16 +9,17 @@ import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { getVideoTheme, VideoTheme } from './theme';
-import { buildTitleTemplate } from './templates/title.template';
-import { buildContentTemplate } from './templates/content.template';
-import { buildStepsTemplate } from './templates/steps.template';
-import { buildSummaryTemplate } from './templates/summary.template';
-import { buildConclusionTemplate } from './templates/conclusion.template';
-import { buildQuestionTemplate } from './templates/question.template';
-import { buildBigStatTemplate } from './templates/big-stat.template';
-import { buildComparisonTemplate } from './templates/comparison.template';
-import { buildLevelsTemplate } from './templates/levels.template';
-import { buildExampleCardTemplate } from './templates/example-card.template';
+import {
+  buildConceptMapTemplate, buildCycleTemplate, buildIconCardsTemplate, buildTimelineTemplate,
+} from './templates/diagrams.template';
+import {
+  buildBigStatEditorialTemplate, buildComparisonEditorialTemplate, buildConclusionEditorialTemplate,
+  buildCoverTemplate, buildLevelsEditorialTemplate, buildQuestionEditorialTemplate, buildSplitTemplate,
+  buildPracticeTemplate, buildStepsEditorialTemplate, buildSummaryEditorialTemplate,
+} from './templates/layouts.template';
+import { SceneTimeline } from './templates/animation';
+import { captureKeyframes } from './keyframe-capture';
+import { computeRevealTimes } from './reveal-timing';
 
 export interface BrandData {
   primaryColor: string;
@@ -32,6 +33,8 @@ export interface SlideTemplateData {
   brand: BrandData;
   imageBase64: string | null;
   requiresAiImage: boolean;
+  /** Si está presente, la plantilla incluye el runtime de animación (captura por fotogramas). */
+  timeline?: SceneTimeline | null;
 }
 
 const HIERARCHY_KEYWORDS = [
@@ -66,6 +69,9 @@ export class SlidesService {
   private readonly basePath: string;
   private readonly executablePath: string;
   private readonly limit = pLimit(3);
+  private readonly animated: boolean;
+  private readonly subtitlesMode: 'burned' | 'sidecar';
+  private readonly fps: number;
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,
@@ -75,6 +81,20 @@ export class SlidesService {
       this.configService.get<AppConfig['storage']>('storage')?.basePath ?? '/tmp/video-engine';
     this.executablePath =
       process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium';
+    const video = this.configService.get<AppConfig['video']>('video');
+    this.animated = video?.animatedSlides ?? false;
+    this.subtitlesMode = video?.subtitlesMode ?? 'burned';
+    this.fps = video?.fps ?? 30;
+  }
+
+  /** true si los slides de este job se renderizan animados (requiere audio, no aplica a dry-run). */
+  isAnimated(job: VideoJob): boolean {
+    return this.animated && !job.dry_run;
+  }
+
+  /** Lista de fotogramas (demuxer concat de FFmpeg) de una escena animada, si existe. */
+  static framesListPath(slidePngPath: string, sceneOrder: number): string {
+    return path.join(path.dirname(slidePngPath), `scene_${sceneOrder}`, 'frames.txt');
   }
 
   async renderAllSlides(job: VideoJob, scenes: VideoScene[]): Promise<void> {
@@ -132,13 +152,46 @@ export class SlidesService {
       );
     }
 
-    const html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage }, theme);
+    const duration = scene.duration_seconds ?? 0;
+    const animate = this.isAnimated(job) && duration > 0;
+    const timeline: SceneTimeline | null = animate
+      ? { revealTimes: computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
+      : null;
+    // Práctica: la respuesta (último elemento) aparece solo al terminar el silencio para pensar
+    if (timeline && scene.layout_type === 'practice_question' && scene.word_timings?.length) {
+      const w = scene.word_timings;
+      let gapEnd = -1;
+      for (let i = 1; i < w.length; i++) if (w[i].start - w[i - 1].end >= 3) gapEnd = w[i].start;
+      const last = timeline.revealTimes.length - 1;
+      if (gapEnd > 0 && last >= 0) timeline.revealTimes[last] = Math.max(timeline.revealTimes[last], gapEnd - 0.1);
+    }
+
+    let html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
+    // Con subtítulos aparte (VTT) no hace falta reservar la franja inferior para ellos
+    if (this.subtitlesMode === 'sidecar') html = html.replace('</head>', '<style>.stage{bottom:96px !important}</style></head>');
 
     const page = await browser.newPage();
     try {
       await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-      // domcontentloaded: suficiente para HTML local — evita el timeout de networkidle0
-      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      // 'load' espera la hoja de Google Fonts; luego se esperan las fuentes (máx. 5 s).
+      // Con 'domcontentloaded' la captura salía con la fuente de respaldo del sistema.
+      await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
+      await page.evaluate(() =>
+        Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 5000))]).then(() => undefined),
+      );
+      if (timeline) {
+        const framesDir = path.dirname(SlidesService.framesListPath(outputPath, scene.scene_order));
+        fs.rmSync(framesDir, { recursive: true, force: true });
+        const { frameCount } = await captureKeyframes(page, framesDir, duration, this.fps);
+        // Estado final como PNG: thumbnail, dry-run y respaldo si falta la lista de fotogramas
+        await page.evaluate((t: number) => {
+          (window as unknown as { __anim?: { seek(t: number): void } }).__anim?.seek(t);
+        }, duration);
+        this.logger.log(
+          `[SlidesService] [${job.id}] Slide ${scene.scene_order} animado: ${frameCount} fotogramas, ` +
+          `apariciones en ${timeline.revealTimes.map((t) => t.toFixed(1)).join('/')}s`,
+        );
+      }
       await page.screenshot({ path: outputPath, type: 'png' });
 
       await this.videosService.updateScene(scene.id, { slide_png_url: outputPath });
@@ -149,26 +202,40 @@ export class SlidesService {
     }
   }
 
+  private sceneTexts(scene: VideoScene): string[] {
+    const rawTexts = scene.on_screen_text ?? [];
+    return Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
+  }
+
   buildSlideHTML(data: SlideTemplateData, theme: VideoTheme): string {
     const { scene } = data;
     const layout = scene.layout_type ?? null;
-    const rawTexts = scene.on_screen_text ?? [];
-    const texts = Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
+    const texts = this.sceneTexts(scene);
     const title = scene.title ?? '';
+
+    const hasImage = data.requiresAiImage && !!data.imageBase64;
+    // Imagen + ideas si hay imagen; si no (por diseño o porque falló), tarjetas con iconos
+    const split = (imageFirst = false): string =>
+      hasImage ? buildSplitTemplate(data, imageFirst) : buildIconCardsTemplate(data);
 
     // layout_type es el criterio principal
     if (layout) {
       switch (layout) {
-        case 'cover':              return buildTitleTemplate(data, theme);
-        case 'guiding_question':   return buildQuestionTemplate(data, theme);
-        case 'big_stat':           return buildBigStatTemplate(data, theme);
-        case 'content_split':      return buildContentTemplate(data, theme);
-        case 'hierarchy_diagram':  return buildLevelsTemplate(data, theme);
-        case 'process_steps':      return buildStepsTemplate(data, theme);
-        case 'comparison':         return buildComparisonTemplate(data, theme);
-        case 'real_example':       return buildExampleCardTemplate(data, theme);
-        case 'summary_checklist':  return buildSummaryTemplate(data, theme);
-        case 'conclusion_reflection': return buildConclusionTemplate(data, theme);
+        case 'cover':              return buildCoverTemplate(data);
+        case 'guiding_question':   return buildQuestionEditorialTemplate(data);
+        case 'big_stat':           return buildBigStatEditorialTemplate(data);
+        case 'content_split':      return split();
+        case 'hierarchy_diagram':  return buildLevelsEditorialTemplate(data);
+        case 'process_steps':      return buildStepsEditorialTemplate(data);
+        case 'comparison':         return buildComparisonEditorialTemplate(data);
+        case 'real_example':       return split(true);
+        case 'summary_checklist':  return buildSummaryEditorialTemplate(data);
+        case 'conclusion_reflection': return buildConclusionEditorialTemplate(data);
+        case 'icon_cards':         return buildIconCardsTemplate(data);
+        case 'cycle_diagram':      return buildCycleTemplate(data);
+        case 'concept_map':        return buildConceptMapTemplate(data);
+        case 'timeline':           return buildTimelineTemplate(data);
+        case 'practice_question':  return buildPracticeTemplate(data);
       }
     }
 
@@ -177,23 +244,19 @@ export class SlidesService {
     switch (type) {
       case 'hook':
         return isQuestion(title, texts)
-          ? buildQuestionTemplate(data, theme)
-          : buildTitleTemplate(data, theme);
+          ? buildQuestionEditorialTemplate(data)
+          : buildCoverTemplate(data);
       case 'context':
-        return hasKeyStats(texts)
-          ? buildBigStatTemplate(data, theme)
-          : buildContentTemplate(data, theme);
+        return hasKeyStats(texts) ? buildBigStatEditorialTemplate(data) : split();
       case 'explanation':
-        return isHierarchical(texts)
-          ? buildLevelsTemplate(data, theme)
-          : buildContentTemplate(data, theme);
-      case 'process':      return buildStepsTemplate(data, theme);
-      case 'comparison':   return buildComparisonTemplate(data, theme);
+        return isHierarchical(texts) ? buildLevelsEditorialTemplate(data) : split();
+      case 'process':      return buildStepsEditorialTemplate(data);
+      case 'comparison':   return buildComparisonEditorialTemplate(data);
       case 'application':
-      case 'example':      return buildExampleCardTemplate(data, theme);
-      case 'summary':      return buildSummaryTemplate(data, theme);
-      case 'conclusion':   return buildConclusionTemplate(data, theme);
-      default:             return buildContentTemplate(data, theme);
+      case 'example':      return split(true);
+      case 'summary':      return buildSummaryEditorialTemplate(data);
+      case 'conclusion':   return buildConclusionEditorialTemplate(data);
+      default:             return split();
     }
   }
 

@@ -55,7 +55,7 @@ Nginx :443 (SSL, reverse proxy)
                        ├─▶ videogen-redis :6379 (Docker)
                        │
                        └─▶ Supabase (PostgreSQL externo)
-                       └─▶ OpenAI / ElevenLabs / Puppeteer (externos)
+                       └─▶ OpenAI / Puppeteer (externos)
 
 Almacenamiento local:
   /var/www/video-engine/storage/   ← volumen Docker bind-mount
@@ -923,11 +923,6 @@ OPENAI_MODEL=gpt-4o
 OPENAI_IMAGE_MODEL=dall-e-3
 OPENAI_IMAGE_SIZE=1792x1024
 OPENAI_IMAGE_QUALITY=standard
-
-# ── ElevenLabs ───────────────────────────────────────────────────────────────
-ELEVENLABS_API_KEY=sk_...
-ELEVENLABS_DEFAULT_VOICE_ID=dQ0C8BEdKF2odmELvNee
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 
 # ── Almacenamiento temporal de videos ────────────────────────────────────────
 STORAGE_DRIVER=local

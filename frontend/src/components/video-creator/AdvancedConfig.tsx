@@ -3,11 +3,10 @@ import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
 
 interface AdvancedConfigProps {
   targetMinutes: number;
-  voiceId: string;
   onChange: (field: string, value: string | number) => void;
 }
 
-export function AdvancedConfig({ targetMinutes, voiceId, onChange }: AdvancedConfigProps) {
+export function AdvancedConfig({ targetMinutes, onChange }: AdvancedConfigProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -46,19 +45,6 @@ export function AdvancedConfig({ targetMinutes, voiceId, onChange }: AdvancedCon
               <span>5 min</span>
               <span>15 min</span>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-inter font-medium text-gray-700 mb-1">
-              Voice ID de ElevenLabs <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <input
-              type="text"
-              value={voiceId}
-              onChange={(e) => onChange('voiceId', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-inter font-mono"
-              placeholder="Usa la voz configurada por defecto"
-            />
           </div>
         </div>
       )}

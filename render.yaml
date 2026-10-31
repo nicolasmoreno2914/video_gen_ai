@@ -41,8 +41,6 @@ services:
       # REDIS_URL
       # OPENAI_API_KEY
       # OPENAI_MODEL
-      # ELEVENLABS_API_KEY
-      # ELEVENLABS_DEFAULT_VOICE_ID
       # ── R2 vars (production only — leave unset for local driver) ──────────
       # R2_ACCOUNT_ID
       # R2_ACCESS_KEY_ID
@@ -82,9 +80,6 @@ services:
       # OPENAI_IMAGE_MODEL
       # OPENAI_IMAGE_SIZE
       # OPENAI_IMAGE_QUALITY
-      # ELEVENLABS_API_KEY
-      # ELEVENLABS_DEFAULT_VOICE_ID
-      # ELEVENLABS_MODEL_ID
       # R2_ACCOUNT_ID
       # R2_ACCESS_KEY_ID
       # R2_SECRET_ACCESS_KEY

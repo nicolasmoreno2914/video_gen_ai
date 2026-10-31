@@ -2,24 +2,50 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { AppConfig } from '../../config/configuration';
-import { GeneratedScript, GeneratedScene } from '../../common/types';
+import { GeneratedScript, GeneratedScene, LayoutType } from '../../common/types';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
+import { priceChat } from '../costs/cost-config';
+import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 
-const SCRIPT_MINIMUMS = {
-  scenes: 18,
-  words: 1200,
-  chars: 8500,
-  estimatedSeconds: 480,
-} as const;
+const VALID_LAYOUTS = new Set<LayoutType>([
+  'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
+  'real_example', 'summary_checklist', 'conclusion_reflection', 'icon_cards', 'cycle_diagram', 'concept_map',
+  'timeline', 'practice_question',
+]);
+const LAYOUT_ALIASES: Record<string, LayoutType> = {
+  steps: 'process_steps', process: 'process_steps', summary: 'summary_checklist', summary_bullets: 'summary_checklist',
+  checklist: 'summary_checklist', conclusion: 'conclusion_reflection', question: 'guiding_question',
+  practice: 'practice_question', quiz: 'practice_question', cycle: 'cycle_diagram', map: 'concept_map',
+  mind_map: 'concept_map', cards: 'icon_cards', example: 'real_example', stat: 'big_stat', levels: 'hierarchy_diagram',
+};
+const LAYOUT_BY_SCENE: Record<string, LayoutType> = {
+  hook: 'content_split', context: 'content_split', explanation: 'icon_cards', process: 'process_steps',
+  comparison: 'comparison', application: 'real_example', example: 'real_example', practice: 'practice_question',
+  summary: 'summary_checklist', conclusion: 'conclusion_reflection',
+};
 
-interface ScriptMetrics {
-  scenes: number;
-  words: number;
-  chars: number;
-  estimatedSeconds: number;
+/** Convierte un layout_type desconocido al válido más cercano (alias o, si no, según el tipo de escena). */
+function normalizeLayout(layout: string, sceneType: string): LayoutType {
+  if (VALID_LAYOUTS.has(layout as LayoutType)) return layout as LayoutType;
+  return LAYOUT_ALIASES[layout] ?? LAYOUT_BY_SCENE[sceneType] ?? 'content_split';
 }
+
+/** Párrafos del capítulo (separados por línea en blanco). */
+function sourceParagraphs(content: string): string[] {
+  return content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+}
+
+function numberedParagraphs(content: string): string {
+  return sourceParagraphs(content).map((p, i) => `[${i + 1}] ${p}`).join('\n\n');
+}
+
+// Duración según el contenido, con tope (decisión de producto 2026-10-31)
+const MAX_VIDEO_SECONDS = 420;
+// Velocidad real medida con la voz cedar + pausas (≈130 ppm efectivas, no 140)
+const WORDS_PER_MINUTE = 130;
+const MAX_NARRATION_WORDS = Math.round((MAX_VIDEO_SECONDS / 60) * WORDS_PER_MINUTE * 0.95);
 
 const SYSTEM_PROMPT = `Eres un experto mundial en storytelling educativo, instructional design, guionización pedagógica, microlearning y creación de videos educativos tipo NotebookLM Video Overview.
 
@@ -31,13 +57,12 @@ Escribir como un docente experto explicando visualmente paso a paso.
 ════════════════════════════════════
 DURACIÓN Y LONGITUD — OBLIGATORIO
 ════════════════════════════════════
-- Video de ENTRE 7 Y 9 MINUTOS de duración real
-- Narración total: MÍNIMO 8.500 caracteres, preferiblemente 10.000–13.000
-- Total de escenas: MÍNIMO 18, ideal entre 20 y 26
-- Cada escena: 30–45 segundos, UNA sola idea educativa
-- Suma de estimated_duration_seconds: entre 480 y 650
-- Narración por escena: MÍNIMO 110 palabras, ideal 130–160 palabras, máximo 180 palabras
-- NO generar escenas con menos de 110 palabras de narración, salvo que sea imposible por la extensión del contenido
+- La duración la decide el CONTENIDO: cubre todo lo importante del capítulo, sin relleno ni repeticiones.
+- TOPE: máximo 7 minutos de video (unas 950 palabras de narración en total). Si el capítulo es largo,
+  prioriza lo esencial y sintetiza; nunca superes el tope.
+- Cada escena: UNA sola idea, 25–45 segundos, entre 60 y 110 palabras de narración.
+- Número de escenas: el que el contenido necesite (normalmente entre 8 y 16).
+- estimated_duration_seconds: palabras de la narración ÷ 140 × 60.
 
 ════════════════════════════════════
 SECUENCIA PEDAGÓGICA OBLIGATORIA
@@ -82,9 +107,62 @@ BLOQUE 4 — APLICACIÓN (1–3 escenas)
   → application (cómo se aplica en la vida real)
   → example (caso concreto, situación real, historia breve)
 
+BLOQUE 4B — PRÁCTICA (2 escenas, OBLIGATORIO)
+  → practice: escena con layout_type "practice_question" y requires_ai_image false.
+     • Una pregunta de APLICACIÓN (no de memoria literal) sobre lo explicado, idealmente usando el ejemplo ancla.
+     • on_screen_text: exactamente 3 elementos: [escenario breve (máx 12 palabras, la situación concreta),
+       pregunta corta (máx 12 palabras), respuesta corta (máx 14 palabras)].
+     • Narración: plantea la pregunta (frase corta, sin gerundios colgados), luego "Piénsalo un momento." seguido EXACTAMENTE de [PAUSA]
+       (el sistema inserta 4 segundos de silencio real) y después "La respuesta: …" con una
+       explicación breve de por qué. No digas "tres, dos, uno".
+     • reveal_cues: [frase literal donde se plantea el escenario, frase literal de la pregunta, "La respuesta"].
+     • Solo pregunta por algo que YA se explicó en una escena anterior.
+     • Ubicación: una a mitad del video (tras el concepto central) y otra antes del resumen.
+     • Al menos una pregunta de TRANSFERENCIA: aplicar el método a una situación NUEVA (no vista antes).
+     • Una práctica por cada objetivo principal (p. ej. una sobre cómo se forma y otra sobre cómo cambiar).
+     • Colócala justo después del concepto que practica.
+     • La pregunta NO puede contener la respuesta ni repetir literalmente frases ya dichas.
+
 BLOQUE 5 — CIERRE (2 escenas, obligatorias)
   → summary (resumen de ideas clave, máx 4 bullets con checkmarks)
   → conclusion (reflexión final, invitación a la acción o pregunta de cierre)
+
+════════════════════════════════════
+OBJETIVOS DE APRENDIZAJE — OBLIGATORIO
+════════════════════════════════════
+- Antes de escribir, define 2–4 learning_objectives a partir del TÍTULO y de las secciones del
+  capítulo (si el título dice "cómo se forman y cómo cambiarlos", ambas partes son objetivos).
+- Cada objetivo debe tener al menos una escena que lo desarrolle (campo "objective" = índice 0-based).
+  Ningún objetivo puede quedar sin escena, aunque haya que acortar otras.
+- Prioriza lo accionable (pasos, métodos, ejemplos aplicados) sobre la historia. Si la historia no es
+  un objetivo, resúmela en 1–2 frases dentro de otra escena (no crees una escena solo de fechas).
+  Cada cifra se explica una sola vez (el resumen puede repetirla).
+- No repitas la misma lista en dos escenas (p. ej. "factores" y "pasos" con los mismos elementos):
+  fusiónalas en una sola escena. Máximo 3 ideas nuevas por escena.
+- image_prompt debe mostrar la ACCIÓN clave que dice la narración (p. ej. "holding a smartphone with
+  the screen glowing"), no una escena genérica.
+- Las tarjetas de ideas llevan concepto + microejemplo de la fuente: "Identidad: soy alguien que se mueve".
+- El texto en pantalla usa SOLO palabras que la narración dice en esa escena (no añadas "siempre",
+  "la mayoría", ejemplos o ideas que la voz no menciona).
+- En la escena del concepto central (ciclo), aplica el ejemplo ancla en cada etapa:
+  on_screen_text como "Señal: suena la alarma".
+
+════════════════════════════════════
+EJEMPLO ANCLA Y EXACTITUD — OBLIGATORIO
+════════════════════════════════════
+- Elige UN ejemplo concreto y cotidiano en el gancho (escena 1) y retómalo en al menos 3 escenas
+  posteriores para aplicar cada concepto nuevo ("Volvamos a tu teléfono al despertar: …").
+- Cifras, fechas, nombres propios y rangos: EXACTAMENTE como en el capítulo. No redondees
+  ("más de doscientos" ✗ → "doscientos cincuenta y cuatro" ✓) y usa la misma cifra en la narración
+  y en el texto en pantalla. No inventes datos, ejemplos ni atribuciones que no estén en el capítulo.
+- Si hay un mito, la escena de comparación se titula "Mito vs Realidad" (primera mitad = mito).
+- El texto en pantalla debe resumir lo que dice la narración de esa escena: si la narración enumera
+  N elementos, la pantalla muestra los N.
+- Español neutro latinoamericano: "comer algo" (no "picar"), "manejar" (no "conducir"),
+  "tenis" (no "zapatillas"), "andar en bicicleta".
+- Ninguna escena supera 110 palabras: si hay más contenido, divídela en dos escenas.
+- El resumen usa EXACTAMENTE los términos y listas completas de las escenas anteriores (si los
+  factores son cuatro, nombra los cuatro) y no mezcla "crear" con "cambiar".
 
 ════════════════════════════════════
 CÓMO ESCRIBIR on_screen_text SEGÚN TIPO
@@ -108,15 +186,37 @@ El on_screen_text determina el LAYOUT VISUAL. Escríbelo acorde:
 • example → 2–3 bullets que describan el caso. Pueden ser más narrativos.
 • summary → Exactamente 3–4 bullets de conclusión, empezando cada uno con el concepto clave
 • conclusion → 1–3 frases reflexivas o preguntas de cierre
+• icon_cards → 2–6 ideas paralelas, máx 8 palabras c/u
+• cycle_diagram → 3–6 etapas de 1–3 palabras c/u, en el orden del ciclo
+• concept_map → 3–6 componentes o factores, máx 6 palabras c/u. highlight_words[0] = el concepto central (1–2 palabras)
+• timeline → 3–6 hitos con formato "FECHA: hecho" (ej. "1969: Nace ARPANET"), en orden cronológico
+• practice_question → [escenario, pregunta, respuesta]
 
 ════════════════════════════════════
-ESTILO DE NARRACIÓN
+ESTILO DE NARRACIÓN — ESCRIBIR PARA EL OÍDO
 ════════════════════════════════════
-Voz: humana, cercana, educativa, profesional sin ser rígida.
-Suena como: "un docente moderno explicando de manera visual y amigable"
+La narración se ESCUCHA, no se lee. Escríbela como habla un docente cercano frente a su clase,
+en español latinoamericano neutro (tú, no vos ni vosotros).
 
-Usa: frases medianas, lenguaje accesible, transiciones suaves, preguntas al estudiante.
-NO usar: tono robótico, texto de libro de texto, exceso de formalidad.
+Reglas:
+- Frases cortas: la mayoría de menos de 20 palabras. Una idea por frase.
+- Háblale directo al estudiante: "imagina que…", "¿te ha pasado que…?", "fíjate en esto".
+- Usa la puntuación para marcar pausas: punto para pausas claras, coma para pausas breves,
+  puntos suspensivos (…) antes de una idea importante. Nunca frases encadenadas con muchas comas.
+- Ejemplos concretos y cotidianos antes que definiciones abstractas.
+- Repite la idea clave al cerrar la escena con otras palabras ("En resumen: …", "O sea: …").
+- Las enumeraciones se dicen como habla una persona: "Primero… Después… Y al final…",
+  nunca "los elementos son: a, b, c".
+- Escribe los números, siglas y símbolos como se pronuncian: "el treinta y cinco por ciento",
+  "la O-M-S", "más de mil personas".
+- Cada escena (salvo la primera) empieza con un conector breve que la une a la anterior
+  ("Ahora que conoces el ciclo, …", "Pero ¿quién descubrió esto?").
+- No uses puntos suspensivos ni comillas en la narración: usa coma o punto.
+- No repitas el mismo verbo dentro de una frase.
+
+NO usar: lenguaje de libro de texto o de artículo académico, frases largas con subordinadas,
+voz pasiva ("es considerado", "se lleva a cabo"), muletillas como "cabe destacar" o
+"es importante mencionar", ni paréntesis o listas con viñetas dentro de la narración.
 
 ════════════════════════════════════
 HOOK_TYPE — VARIEDAD DE APERTURA (OBLIGATORIO)
@@ -204,7 +304,9 @@ IMPORTANTE:
 REGLAS VISUALES
 ════════════════════════════════════
 - on_screen_text: MUY POCO texto. La narración explica, la pantalla apoya.
-- image_prompt: SIEMPRE en inglés, fondo blanco, estilo doodle educativo, sin texto en imagen.
+- image_prompt: SIEMPRE en inglés. Describe SOLO el contenido de la imagen (qué se ve, quién, dónde,
+  qué hace), con detalles concretos y correctos. NO describas el estilo artístico ni los colores:
+  el estilo se añade automáticamente según visual_family. Nunca pidas texto, etiquetas ni números en la imagen.
   VARIEDAD DE COMPOSICIÓN — alterna entre estos tipos para que las escenas no sean monótonas:
   • wide_establishing: panorámica amplia con múltiples elementos del concepto en contexto
   • close_up_detail: primer plano de un objeto o mecanismo clave, detalle técnico
@@ -216,6 +318,23 @@ REGLAS VISUALES
   • visual_metaphor: metáfora visual abstracta que representa el concepto de forma creativa
   No repitas el mismo tipo de composición en dos escenas consecutivas.
 - highlight_words: 1–3 palabras que se resaltarán en amarillo en pantalla.
+- icons: para CADA elemento de on_screen_text (mismo orden y cantidad) elige el icono que mejor
+  lo represente, SOLO de esta lista (si ninguno encaja, null):
+  ${ICON_NAMES.join(', ')}
+- visual_family (nivel video): "realistic" si el tema es salud, medicina, anatomía, biología,
+  ciencias naturales u oficios técnicos/prácticos; "illustration" para todo lo demás.
+- image_precision (por escena con imagen): "high" si la imagen debe ser técnicamente exacta
+  (anatomía, procedimientos clínicos o de seguridad, técnica correcta, máquinas, mapas); si no, "normal".
+- image_style (solo si visual_family es "realistic"): "atlas" para estructuras (órganos, células,
+  piezas, máquinas) y "photo" para personas en situaciones o procedimientos. En "illustration": null.
+- image_check (solo si image_precision es "high"): lista breve en español de lo que DEBE verse
+  correcto en la imagen, verificable a simple vista SIN texto ni etiquetas (forma, posición, color) (ej. "manos entrelazadas en el centro del pecho;
+  brazos rectos; hombros sobre las manos"). Si no aplica: null.
+- reveal_cues: los elementos de on_screen_text aparecen en pantalla en el momento en que la voz
+  los menciona. Para CADA elemento de on_screen_text (mismo orden y misma cantidad) copia una
+  frase LITERAL de 3 a 6 palabras de la narración donde empieza a hablarse de ese elemento.
+  Debe aparecer tal cual en la narración y en orden creciente. Si un elemento no se menciona
+  explícitamente, usa null.
 
 ════════════════════════════════════
 REQUIRES_AI_IMAGE — CAMPO OBLIGATORIO
@@ -233,6 +352,11 @@ REGLA FIJA por layout_type (NO se puede cambiar):
 • summary_checklist  → requires_ai_image: FALSE (siempre)
 • big_stat           → requires_ai_image: FALSE (siempre)
 • guiding_question   → requires_ai_image: FALSE (siempre)
+• icon_cards         → requires_ai_image: FALSE (siempre)
+• cycle_diagram      → requires_ai_image: FALSE (siempre)
+• concept_map        → requires_ai_image: FALSE (siempre)
+• timeline           → requires_ai_image: FALSE (siempre)
+• practice_question  → requires_ai_image: FALSE (siempre)
 
 REGLA CONDICIONAL:
 • cover              → requires_ai_image: TRUE (portada, siempre)
@@ -241,7 +365,7 @@ REGLA CONDICIONAL:
 • content_split      → requires_ai_image: TRUE si la imagen ayuda a entender el concepto visual; FALSE si no aporta
 
 Si requires_ai_image: false → image_prompt puede ser null o string vacío.
-Si requires_ai_image: true → image_prompt debe ser específico, en inglés, estilo doodle educativo.
+Si requires_ai_image: true → image_prompt debe ser específico y en inglés (solo contenido, sin estilo).
 
 ════════════════════════════════════
 LAYOUT_TYPE — CAMPO OBLIGATORIO
@@ -298,12 +422,36 @@ Valores posibles y cuándo usarlos:
   → SOLO para escenas de tipo conclusion.
   → on_screen_text: 1–3 frases reflexivas o pregunta de cierre.
 
+• "icon_cards"
+  → Tarjetas grandes con un icono por idea. Sin imagen IA.
+  → Para explicaciones con 2–6 ideas paralelas que no necesitan una ilustración.
+
+• "cycle_diagram"
+  → Diagrama circular con flechas entre etapas que se repiten (ciclo del agua, ciclo de mejora, PDCA).
+
+• "concept_map"
+  → Concepto central con 3–6 ramas (componentes, factores, causas, tipos).
+
+• "timeline"
+  → Línea de tiempo con 3–6 hitos fechados, para historia, evolución o cronologías.
+
+DIAGRAMAS — OBLIGATORIO: los diagramas animados explican mejor que una lista de texto.
+- Cada video debe tener AL MENOS 3 escenas con icon_cards, cycle_diagram, concept_map o timeline.
+- Si el contenido menciona fechas o una evolución histórica → timeline (siempre).
+- Si hay un concepto con partes, causas, factores o tipos → concept_map.
+- Si hay etapas que se repiten → cycle_diagram.
+- Prefiere icon_cards a content_split cuando la escena no necesita una ilustración.
+- No repitas el mismo layout_type en dos escenas seguidas.
+
 REGLA DE ASIGNACIÓN:
 - hook → el layout_type lo determina el hook_type elegido (ver sección HOOK_TYPE).
 - context (context_stat, con cifra impactante) → "big_stat"
 - context (context_narrative / context_problem / context_scenario) → "content_split"
 - explanation con niveles/jerarquía/categorías → "hierarchy_diagram"
-- explanation general → "content_split"
+- explanation general → "content_split" si una ilustración ayuda; si no, "icon_cards"
+- explanation con concepto central y componentes/causas/tipos → "concept_map"
+- explanation o context con fechas o evolución histórica → "timeline"
+- process cíclico (las etapas se repiten) → "cycle_diagram"
 - process → "process_steps"
 - comparison → "comparison"
 - application → "real_example"
@@ -321,20 +469,29 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
   "estimated_duration_minutes": 0,
   "total_narration_characters": 0,
   "guiding_question": "La pregunta pedagógica central del capítulo",
+  "learning_objectives": ["El estudiante podrá …", "…"],
+  "visual_family": "illustration|realistic",
   "scenes": [
     {
       "scene_order": 1,
-      "scene_type": "hook|context|explanation|process|comparison|application|example|summary|conclusion",
+      "scene_type": "hook|context|explanation|process|comparison|application|example|practice|summary|conclusion",
       "hook_type": "hook_question|hook_cover|hook_story|hook_problem|hook_stat|hook_contrast|hook_myth|hook_decision|hook_scenario|hook_visual_metaphor|null",
-      "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection",
+      "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection|icon_cards|cycle_diagram|concept_map|timeline|practice_question",
       "requires_ai_image": true,
       "learning_goal": "Qué aprende el estudiante en esta escena (una oración)",
+      "objective": 0,
+      "source_paragraphs": [3, 4],
       "title": "Título corto (máx 50 chars)",
-      "narration": "Texto completo para voz IA. MÍNIMO 110 palabras, ideal 130–160 palabras, máximo 180 palabras.",
+      "narration": "Texto completo para voz IA, escrito para el oído. Entre 60 y 110 palabras.",
       "on_screen_text": ["Bullet o item 1", "Bullet o item 2"],
       "visual_direction": "Descripción de cómo debe verse esta escena",
-      "image_prompt": "DALL-E prompt in English: [composition_type] — educational doodle illustration of [specific concept], white background, hand-drawn style, black ink lines, minimal color accents, no text in image, clean educational sketch",
+      "image_prompt": "[composition_type] — concrete English description of what the image shows (content only, no style)",
+      "image_precision": "high|normal",
+      "image_style": "atlas|photo|null",
+      "image_check": "qué debe verse correcto, o null",
+      "icons": ["bell", "footprints"],
       "highlight_words": ["palabra1", "palabra2"],
+      "reveal_cues": ["Primero, necesitas una señal", "Después, la rutina"],
       "transition": "fade|slide|zoom|dissolve",
       "estimated_duration_seconds": 30
     }
@@ -345,12 +502,12 @@ REGLAS FINALES:
 - layout_type es OBLIGATORIO en cada escena. Nunca omitirlo.
 - requires_ai_image es OBLIGATORIO en cada escena. Nunca omitirlo.
 - hook_type es OBLIGATORIO en escenas con scene_type "hook". Para todas las demás: hook_type: null.
-- Si layout_type es process_steps, comparison, hierarchy_diagram, summary_checklist, big_stat o guiding_question → requires_ai_image DEBE ser false.
+- Si layout_type es process_steps, comparison, hierarchy_diagram, summary_checklist, big_stat, guiding_question, icon_cards, cycle_diagram, concept_map o timeline → requires_ai_image DEBE ser false.
 - El total de escenas con requires_ai_image: true NO debe superar 12 (cover y conclusion_reflection no cuentan para ese límite).
 - Si requires_ai_image: false → image_prompt puede ser null.
 - on_screen_text: estructurarlo según lo que pide cada layout_type y hook_type (ver secciones anteriores).
-- La suma de estimated_duration_seconds debe estar entre 480 y 650.
-- Cada escena debe tener estimated_duration_seconds entre 30 y 45.
+- La suma de estimated_duration_seconds NO debe superar 420 (7 minutos).
+- Cada escena debe tener estimated_duration_seconds entre 25 y 45.
 - El orden de scene_type en el array DEBE respetar la secuencia pedagógica obligatoria.
 - NO usar hook_stat por defecto. Solo si el dato es realmente el argumento más poderoso del capítulo.
 - NO repetir el mismo hook_type en dos capítulos consecutivos del mismo curso.
@@ -374,13 +531,22 @@ export class AiService {
   async generateScript(job: VideoJob): Promise<GeneratedScript> {
     this.logger.log(`[AiService] [${job.id}] Generando guion con ${this.model}`);
 
+    // Objetivo de longitud según el capítulo: sin él, el modelo resume de más (escenas de ~35 palabras)
+    const sourceWords = job.content_txt.split(/\s+/).filter(Boolean).length;
+    const targetWords = Math.round(Math.max(450, Math.min(MAX_NARRATION_WORDS, sourceWords)) * 0.92);
+    const targetScenes = Math.max(6, Math.round(targetWords / 85));
     const userPrompt = `Título del capítulo: ${job.title}
-Duración objetivo: ${job.target_duration_minutes} minutos
+LONGITUD OBLIGATORIA: la narración total DEBE tener entre ${targetWords - 80} y ${targetWords + 30} palabras
+(≈ ${(targetWords / WORDS_PER_MINUTE).toFixed(1)} minutos), repartidas en unas ${targetScenes} escenas.
+Cada escena: MÍNIMO 60 y máximo 110 palabras de narración (excepto el gancho inicial, mínimo 35).
+Cubre TODAS las ideas, datos, fechas y ejemplos importantes del capítulo: desarrolla cada idea con
+explicación y un ejemplo concreto, sin relleno ni repeticiones. Antes de responder, cuenta las palabras.
 Idioma de narración: español
 Estilo visual del video: ${job.visual_style}
 
-Texto del capítulo:
-${job.content_txt}`;
+Texto del capítulo (párrafos numerados; cada escena indica en "source_paragraphs" los que cubre,
+y TODO párrafo con contenido debe quedar cubierto por al menos una escena):
+${numberedParagraphs(job.content_txt)}`;
 
     // Initial generation with up to 3 attempts
     const script = await this.callGptWithRetry(job.id, [
@@ -388,8 +554,10 @@ ${job.content_txt}`;
       { role: 'user', content: userPrompt },
     ], 'generate_script', job.institution_id);
 
-    // Duration validation and pedagogical expansion
-    const finalScript = await this.ensureMinimumDuration(job, script);
+    // Revisión crítica contra la fuente (cifras, omisiones, coherencia pantalla-voz, cues)
+    const finalScript = await this.reviewScript(job, script);
+    // La duración la decide el contenido (sin relleno); solo se avisa si supera el tope
+    this.logDuration(job.id, finalScript);
 
     await this.videosService['videoJobRepo'].update(job.id, {
       generated_script: finalScript as unknown as object,
@@ -403,117 +571,153 @@ ${job.content_txt}`;
     return finalScript;
   }
 
-  private async ensureMinimumDuration(job: VideoJob, script: GeneratedScript): Promise<GeneratedScript> {
-    const metrics = this.computeMetrics(script);
-    this.logMetrics(job.id, metrics, 'inicial');
-
-    if (this.meetsMinimums(metrics)) {
+  /**
+   * Segunda pasada: un revisor compara el guion con el capítulo y devuelve el guion corregido
+   * (mismo formato). Si falla o devuelve algo inválido, se conserva el guion original.
+   */
+  private async reviewScript(job: VideoJob, script: GeneratedScript): Promise<GeneratedScript> {
+    const reviewer = `Eres un revisor editorial de guiones de video educativo. Recibes el CAPÍTULO FUENTE y un GUION en JSON.
+Devuelve el MISMO JSON (mismos campos, mismo número y orden de escenas, mismos layout_type) corrigiendo SOLO lo necesario:
+1. Cifras, fechas, rangos y nombres propios deben coincidir EXACTAMENTE con la fuente, en narración y en pantalla.
+2. Si falta un dato clave de la fuente (cifras, promedios, advertencias prácticas, nombres de autores o estudios), intégralo
+   en la escena más pertinente sin alargarla más de 20 palabras.
+3. Elimina afirmaciones, ejemplos o atribuciones que NO estén en la fuente.
+4. on_screen_text debe reflejar lo que dice la narración de esa escena (misma cantidad de elementos enumerados).
+5. reveal_cues: una por elemento de on_screen_text, copiada LITERALMENTE de la narración y en el orden en que se dicen,
+   apuntando al momento en que se menciona ESE elemento.
+6. Gramática y ortografía correctas; español neutro sin regionalismos.
+7. En comparaciones de mito, el título es "Mito vs Realidad".
+8. Deben existir 2 escenas practice_question con [escenario, pregunta, respuesta] y "[PAUSA]" en la narración,
+   y cada una debe preguntar algo ya explicado antes.
+13. Ninguna escena supera 110 palabras (divide si hace falta). El resumen repite los términos y listas
+    completas de las escenas (mismos 4 factores, mismo orden del ciclo).
+9. COBERTURA: cada sección del capítulo con contenido práctico (métodos, pasos, cómo cambiar algo) y cada
+   learning_objective deben tener al menos una escena. Si falta una, REEMPLAZA o acorta escenas de menor
+   valor (historia, repeticiones) para incluirla; no la omitas.
+10. Cada palabra con contenido del texto en pantalla debe decirse en la narración de esa escena.
+11. Sin cuantificadores que la fuente no use ("la mayoría", "siempre", "estudios" si es uno solo).
+12. No alargues el guion: la narración total no puede superar ${MAX_NARRATION_WORDS} palabras.
+Responde SOLO con el JSON completo corregido.`;
+    try {
+      const reviewed = await this.callGptWithRetry(job.id, [
+        { role: 'system', content: reviewer },
+        { role: 'user', content: `CAPÍTULO FUENTE (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
+      ], 'review_script', job.institution_id);
+      if (reviewed.scenes.length < script.scenes.length - 2) throw new Error('el revisor eliminó escenas');
+      // Cobertura por párrafos: si el revisor dejó párrafos sin escena, una pasada dirigida los integra
+      const missing = this.missingParagraphs(job.content_txt, reviewed);
+      if (missing.length) {
+        this.logger.warn(`[AiService] [${job.id}] Párrafos sin cubrir: ${missing.map((m) => m + 1).join(', ')} — corrigiendo`);
+        const paragraphs = sourceParagraphs(job.content_txt);
+        const fixed = await this.callGptWithRetry(job.id, [
+          { role: 'system', content: reviewer },
+          { role: 'user', content: `FALTAN estos párrafos del capítulo, que tienen contenido importante. Intégralos (reemplaza o ` +
+            `acorta escenas de menor valor, sin pasar de ${MAX_NARRATION_WORDS} palabras en total) y márcalos en source_paragraphs:\n` +
+            missing.map((m) => `[${m + 1}] ${paragraphs[m]}`).join('\n') +
+            `\n\nCAPÍTULO COMPLETO:\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(reviewed)}` },
+        ], 'coverage_fix', job.institution_id);
+        if (fixed.scenes.length >= reviewed.scenes.length - 2) Object.assign(reviewed, fixed);
+        const still = this.missingParagraphs(job.content_txt, reviewed);
+        if (still.length) this.logger.warn(`[AiService] [${job.id}] Siguen sin cubrir: ${still.map((m) => m + 1).join(', ')}`);
+      }
+      await this.enforceLength(job, reviewed, reviewer);
+      this.logCoverage(job.id, reviewed);
+      this.stripUnsupportedYears(job, reviewed);
+      this.logger.log(`[AiService] [${job.id}] Revisión crítica aplicada (${reviewed.scenes.length} escenas)`);
+      return reviewed;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`[AiService] [${job.id}] Revisión crítica omitida: ${msg}`);
       return script;
     }
-
-    this.logger.warn(
-      `[AiService] [${job.id}] Guion NO cumple mínimos — intentando expansión pedagógica`,
-    );
-
-    // Up to 2 expansion attempts
-    let current = script;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const currentMetrics = this.computeMetrics(current);
-      const expansionMessages = this.buildExpansionMessages(job, current, currentMetrics);
-
-      try {
-        const expanded = await this.callGptWithRetry(
-          job.id,
-          expansionMessages,
-          `expand_script_attempt_${attempt}`,
-          job.institution_id,
-        );
-
-        const expandedMetrics = this.computeMetrics(expanded);
-        this.logMetrics(job.id, expandedMetrics, `expansión ${attempt}`);
-
-        if (this.meetsMinimums(expandedMetrics)) {
-          this.logger.log(`[AiService] [${job.id}] Expansión ${attempt} exitosa — mínimos alcanzados`);
-          return expanded;
-        }
-
-        current = expanded;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`[AiService] [${job.id}] Expansión ${attempt} fallida: ${msg}`);
-        break;
-      }
-    }
-
-    // Warn but don't block — return best effort
-    const finalMetrics = this.computeMetrics(current);
-    this.logger.warn(
-      `[AiService] [${job.id}] No se alcanzaron los mínimos tras expansión. ` +
-      `Escenas: ${finalMetrics.scenes}/${SCRIPT_MINIMUMS.scenes}, ` +
-      `Chars: ${finalMetrics.chars}/${SCRIPT_MINIMUMS.chars}. Continuando con guion actual.`,
-    );
-    return current;
   }
 
-  private buildExpansionMessages(
-    job: VideoJob,
-    script: GeneratedScript,
-    metrics: ScriptMetrics,
-  ): Array<{ role: 'system' | 'user'; content: string }> {
-    const sceneSummary = script.scenes
-      .map(s => `  Escena ${s.scene_order} [${s.scene_type}/${s.layout_type}]: "${s.title}"`)
-      .join('\n');
+  /**
+   * Quita del texto en pantalla los años (4 cifras) que no aparecen en la fuente: el modelo a veces
+   * "completa" referencias con años inventados ("Universidad de Duke, 2006").
+   */
+  private stripUnsupportedYears(job: VideoJob, script: GeneratedScript): void {
+    const known = new Set(job.content_txt.match(/\b\d{4}\b/g) ?? []);
+    for (const s of script.scenes) {
+      s.on_screen_text = (s.on_screen_text ?? []).map((t) => {
+        const fixed = String(t).replace(/,?\s*\b(\d{4})\b/g, (m, y) => (known.has(y) ? m : ''));
+        if (fixed !== t) this.logger.warn(`[AiService] [${job.id}] Año no respaldado quitado de escena ${s.scene_order}: "${t}"`);
+        return fixed.trim();
+      });
+    }
+  }
 
-    const needed = {
-      scenes: Math.max(0, SCRIPT_MINIMUMS.scenes - metrics.scenes),
-      chars: Math.max(0, SCRIPT_MINIMUMS.chars - metrics.chars),
-      seconds: Math.max(0, SCRIPT_MINIMUMS.estimatedSeconds - metrics.estimatedSeconds),
-    };
+  /**
+   * El modelo no respeta siempre los límites del prompt: si alguna escena pasa de 120 palabras o el
+   * total supera el tope, una pasada dirigida divide/acorta esas escenas. Se acepta solo si no
+   * empeora la cobertura de párrafos.
+   */
+  private async enforceLength(job: VideoJob, script: GeneratedScript, reviewer: string): Promise<void> {
+    const words = (s: GeneratedScene): number => (s.narration ?? '').replace(/\[PAUSA\]/g, ' ').split(/\s+/).filter(Boolean).length;
+    const total = script.scenes.reduce((a, s) => a + words(s), 0);
+    const long = script.scenes.filter((s) => words(s) > 120);
+    if (!long.length && total <= MAX_NARRATION_WORDS) return;
+    this.logger.warn(
+      `[AiService] [${job.id}] Longitud: ${total} palabras; escenas largas: ${long.map((s) => `${s.scene_order} (${words(s)})`).join(', ') || 'ninguna'} — ajustando`,
+    );
+    try {
+      const fixed = await this.callGptWithRetry(job.id, [
+        { role: 'system', content: reviewer },
+        { role: 'user', content: `AJUSTA LA LONGITUD: el total debe quedar entre ${MAX_NARRATION_WORDS - 120} y ${MAX_NARRATION_WORDS} palabras ` +
+          `de narración y NINGUNA escena puede superar 110 palabras. ` +
+          (long.length ? `Divide en dos o acorta las escenas ${long.map((s) => s.scene_order).join(', ')} (la historia se resume; ` +
+            `lo práctico se conserva). ` : '') +
+          `Recorta primero lo que no sea práctico. Mantén source_paragraphs actualizados y no elimines la cobertura de ningún párrafo.\n` +
+          // Un presupuesto por escena se cumple mucho mejor que un total abstracto
+          `PRESUPUESTO DE PALABRAS POR ESCENA (no lo superes): ` +
+          script.scenes.map((s) => `escena ${s.scene_order}: ${Math.max(35, Math.min(110, Math.floor(words(s) * (MAX_NARRATION_WORDS - 40) / total)))}`).join('; ') +
+          `\n\nCAPÍTULO (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
+      ], 'length_fix', job.institution_id);
+      const before = this.missingParagraphs(job.content_txt, script).length;
+      const after = this.missingParagraphs(job.content_txt, fixed).length;
+      const newTotal = fixed.scenes.reduce((a, s) => a + words(s), 0);
+      if (after <= before && newTotal <= total) {
+        Object.assign(script, fixed);
+        this.logger.log(`[AiService] [${job.id}] Longitud ajustada: ${newTotal} palabras, ${fixed.scenes.length} escenas`);
+      } else {
+        this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud descartado (cobertura ${before}→${after}, ${total}→${newTotal} palabras)`);
+      }
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud omitido: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
-    const userPrompt = `El guion generado es demasiado corto para un video educativo de 7 minutos. Necesita expansión pedagógica OBLIGATORIA.
+  /**
+   * Párrafos del capítulo (≥ 40 palabras) sin una escena explicativa. No basta con que el modelo lo
+   * declare en source_paragraphs: la narración de las escenas no-práctica debe contener al menos
+   * el 30 % de las palabras DISTINTIVAS del párrafo (las que no aparecen en ningún otro párrafo).
+   */
+  private missingParagraphs(content: string, script: GeneratedScript): number[] {
+    const paragraphs = sourceParagraphs(content);
+    const explain = script.scenes.filter((s) => s.layout_type !== 'practice_question' && s.scene_type !== 'practice');
+    const declared = new Set(explain.flatMap((s) => (s.source_paragraphs ?? []).map((n) => Number(n) - 1)));
+    const stem = (w: string): string => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zñ]/g, '').slice(0, 6);
+    const words = (t: string): Set<string> => new Set(t.split(/\s+/).map(stem).filter((w) => w.length >= 5));
+    const perParagraph = paragraphs.map(words);
+    const narration = words(explain.map((s) => s.narration ?? '').join(' '));
+    return paragraphs
+      .map((p, i) => {
+        const distinctive = [...perParagraph[i]].filter((w) => perParagraph.every((o, j) => j === i || !o.has(w)));
+        const hit = distinctive.filter((w) => narration.has(w)).length;
+        const lexical = distinctive.length < 5 || hit / distinctive.length >= 0.3;
+        return { i, words: p.split(/\s+/).length, ok: declared.has(i) && lexical };
+      })
+      .filter((x) => x.words >= 40 && !x.ok)
+      .map((x) => x.i);
+  }
 
-MÉTRICAS ACTUALES (insuficientes):
-- Escenas: ${metrics.scenes} (mínimo requerido: ${SCRIPT_MINIMUMS.scenes})
-- Palabras narradas: ${metrics.words} (mínimo requerido: ${SCRIPT_MINIMUMS.words})
-- Caracteres de narración: ${metrics.chars} (mínimo requerido: ${SCRIPT_MINIMUMS.chars})
-- Duración estimada: ${Math.floor(metrics.estimatedSeconds / 60)}:${String(metrics.estimatedSeconds % 60).padStart(2, '0')} min (mínimo requerido: 8:00 min)
-
-NECESITAS AGREGAR AL MENOS:
-- ${needed.scenes} escenas adicionales
-- ${needed.chars} caracteres adicionales de narración
-
-GUION ACTUAL (estructura para referencia):
-${sceneSummary}
-
-GUION ACTUAL (JSON completo — expandir desde aquí):
-${JSON.stringify(script, null, 0)}
-
-INSTRUCCIONES DE EXPANSIÓN PEDAGÓGICA OBLIGATORIA:
-1. Devuelve el guion COMPLETO en JSON — las escenas originales MÁS las nuevas escenas intercaladas
-2. Las nuevas escenas deben ir principalmente en el BLOQUE DE DESARROLLO (explanation, process, comparison)
-3. Estrategias pedagógicas para expandir (usar las que apliquen al contenido):
-   - Profundizar en un sub-concepto que se mencionó brevemente
-   - Agregar un ejemplo concreto o caso real del contexto educativo
-   - Incluir una analogía o metáfora que facilite la comprensión
-   - Explicar una aplicación práctica del concepto en la vida real
-   - Agregar una escena de proceso si hay pasos o procedimientos implícitos
-   - Agregar una escena de comparación si hay dos enfoques o conceptos contrastables
-   - Conectar el tema con conocimientos previos del estudiante
-4. NUNCA inventar información que no esté en el contenido original
-5. NUNCA rellenar con frases vacías, repeticiones o conclusiones anticipadas
-6. Cada narración nueva: MÍNIMO 120 palabras, ideal 130–160 palabras
-7. Cada escena nueva: estimated_duration_seconds entre 30 y 45
-8. Asigna layout_type y requires_ai_image correctos a cada nueva escena
-9. Renumera scene_order en orden consecutivo en el array final
-
-Contenido educativo original (extrae profundidad adicional de aquí):
-Título: ${job.title}
-${job.content_txt}`;
-
-    return [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
-    ];
+  /** Avisa si algún objetivo de aprendizaje quedó sin escena. */
+  private logCoverage(jobId: string, script: GeneratedScript): void {
+    const objectives = script.learning_objectives ?? [];
+    const covered = new Set(script.scenes.map((s) => s.objective).filter((o) => typeof o === 'number'));
+    const missing = objectives.filter((_, i) => !covered.has(i));
+    if (missing.length) this.logger.warn(`[AiService] [${jobId}] Objetivos sin escena: ${missing.join(' | ')}`);
+    else if (objectives.length) this.logger.log(`[AiService] [${jobId}] ${objectives.length} objetivos cubiertos`);
   }
 
   private async callGptWithRetry(
@@ -539,6 +743,8 @@ ${job.content_txt}`;
 
         const inputTokens = response.usage?.prompt_tokens ?? 0;
         const outputTokens = response.usage?.completion_tokens ?? 0;
+        const modelName = response.model ?? this.model;
+        const price = priceChat(modelName, inputTokens, outputTokens);
         await this.videosService.logApiUsage({
           videoJobId: jobId,
           institutionId: institutionId ?? null,
@@ -546,10 +752,10 @@ ${job.content_txt}`;
           operation,
           inputUnits: inputTokens,
           outputUnits: outputTokens,
-          estimatedCost: this.estimateChatCost(inputTokens, outputTokens),
-          modelName: this.model,
+          estimatedCost: price.cost,
+          modelName,
           unitType: 'tokens',
-          metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
+          metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens, pricing: price.pricing },
         });
 
         return script;
@@ -565,37 +771,13 @@ ${job.content_txt}`;
     );
   }
 
-  private computeMetrics(script: GeneratedScript): ScriptMetrics {
-    const chars = script.scenes.reduce((sum, s) => sum + (s.narration?.length ?? 0), 0);
-    const words = script.scenes.reduce(
-      (sum, s) => sum + (s.narration?.split(/\s+/).filter(Boolean).length ?? 0),
-      0,
-    );
-    const estimatedSeconds = script.scenes.reduce(
-      (sum, s) => sum + (s.estimated_duration_seconds ?? 0),
-      0,
-    );
-    return { scenes: script.scenes.length, words, chars, estimatedSeconds };
-  }
-
-  private meetsMinimums(metrics: ScriptMetrics): boolean {
-    return (
-      metrics.scenes >= SCRIPT_MINIMUMS.scenes &&
-      metrics.words >= SCRIPT_MINIMUMS.words &&
-      metrics.chars >= SCRIPT_MINIMUMS.chars &&
-      metrics.estimatedSeconds >= SCRIPT_MINIMUMS.estimatedSeconds
-    );
-  }
-
-  private logMetrics(jobId: string, metrics: ScriptMetrics, label: string): void {
-    const mins = Math.floor(metrics.estimatedSeconds / 60);
-    const secs = metrics.estimatedSeconds % 60;
-    const ok = this.meetsMinimums(metrics) ? '✓' : '✗';
-    this.logger.log(
-      `[AiService] [${jobId}] Métricas ${label} ${ok}: ` +
-      `${metrics.scenes} escenas, ${metrics.words} palabras, ` +
-      `${metrics.chars} chars, ${mins}:${String(secs).padStart(2, '0')} min estimados`,
-    );
+  private logDuration(jobId: string, script: GeneratedScript): void {
+    const words = script.scenes.reduce((sum, s) => sum + (s.narration?.split(/\s+/).filter(Boolean).length ?? 0), 0);
+    const seconds = Math.round((words / WORDS_PER_MINUTE) * 60);
+    const label = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    const msg = `[AiService] [${jobId}] ${script.scenes.length} escenas, ${words} palabras, ~${label} min estimados`;
+    if (seconds > MAX_VIDEO_SECONDS) this.logger.warn(`${msg} — supera el tope de ${MAX_VIDEO_SECONDS / 60} min`);
+    else this.logger.log(msg);
   }
 
   private parseAndValidateScript(raw: string, jobId: string): GeneratedScript {
@@ -615,14 +797,19 @@ ${job.content_txt}`;
       throw new Error('El guion generado no tiene campo video_title');
     }
 
-    if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 8) {
+    if (!Array.isArray(parsed.scenes) || parsed.scenes.length < 5) {
       throw new Error(
-        `El guion tiene ${parsed.scenes?.length ?? 0} escenas pero se requieren al menos 8`,
+        `El guion tiene ${parsed.scenes?.length ?? 0} escenas pero se requieren al menos 5`,
       );
     }
 
+    // Tipos de diapositiva desconocidos (el modelo a veces inventa "steps", "summary_bullets"…)
+    parsed.scenes = parsed.scenes.map((s) => ({ ...s, layout_type: normalizeLayout(s.layout_type as string, s.scene_type as string) }));
     // Enforce requires_ai_image rules
     parsed.scenes = this.enforceAiImageRules(parsed.scenes, jobId);
+    const family = parsed.visual_family === 'realistic' ? 'realistic' : 'illustration';
+    parsed.visual_family = family;
+    parsed.scenes = parsed.scenes.map((s) => this.sanitizeVisualFields(s, family));
 
     parsed.total_narration_characters = parsed.scenes.reduce(
       (sum: number, s: GeneratedScene) => sum + (s.narration?.length ?? 0),
@@ -637,10 +824,31 @@ ${job.content_txt}`;
     return parsed;
   }
 
+  /** Normaliza los campos visuales del LLM: iconos de la lista cerrada y valores válidos. */
+  private sanitizeVisualFields(s: GeneratedScene, family: 'illustration' | 'realistic'): GeneratedScene {
+    const count = Array.isArray(s.on_screen_text) ? s.on_screen_text.length : 0;
+    const icons = Array.isArray(s.icons) ? s.icons : [];
+    const precise = s.image_precision === 'high';
+    // Hitos con fecha ("1969: …") siempre se muestran como línea de tiempo
+    const texts = Array.isArray(s.on_screen_text) ? s.on_screen_text : [];
+    const dated = texts.length >= 3 && texts.every((t) => /^\s*\d{3,4}\s*[:–-]/.test(String(t)));
+    const layout = dated && s.layout_type !== 'timeline' ? 'timeline' : s.layout_type;
+    return {
+      ...s,
+      layout_type: layout,
+      requires_ai_image: layout === 'timeline' ? false : s.requires_ai_image,
+      icons: Array.from({ length: count }, (_, i) => (isValidIcon(icons[i]) ? icons[i] : null)),
+      image_precision: precise ? 'high' : 'normal',
+      image_style: family === 'realistic' ? (s.image_style === 'atlas' ? 'atlas' : 'photo') : null,
+      image_check: precise && typeof s.image_check === 'string' && s.image_check.trim() ? s.image_check.trim() : null,
+    };
+  }
+
   private enforceAiImageRules(scenes: GeneratedScene[], jobId: string): GeneratedScene[] {
     const CSS_ONLY_LAYOUTS = new Set([
       'process_steps', 'comparison', 'hierarchy_diagram',
       'summary_checklist', 'big_stat', 'guiding_question',
+      'icon_cards', 'cycle_diagram', 'concept_map', 'timeline', 'practice_question',
     ]);
     // These layouts always get AI images and do NOT count against the cap
     const ALWAYS_IMAGE_LAYOUTS = new Set(['cover', 'conclusion_reflection']);
@@ -698,120 +906,6 @@ ${job.content_txt}`;
     );
 
     return scenes;
-  }
-
-  async expandSceneNarrationsForDuration(params: {
-    job: VideoJob;
-    scenesToExpand: VideoScene[];
-    missingSeconds: number;
-    sourceContent: string;
-  }): Promise<Array<{ scene_order: number; narration: string }>> {
-    const { job, scenesToExpand, missingSeconds, sourceContent } = params;
-    const additionalWords = Math.ceil(missingSeconds * 2.4);
-
-    const sceneSummary = scenesToExpand.map(s => {
-      const wordCount = (s.narration ?? '').split(/\s+/).filter(Boolean).length;
-      return `  Escena ${s.scene_order} [${s.scene_type}] "${s.title}": ${wordCount} palabras, ${(s.duration_seconds ?? 0).toFixed(1)}s real`;
-    }).join('\n');
-
-    const prompt = `Necesitamos expandir las narraciones de estas escenas para alcanzar 7 minutos de video real.
-
-FALTAN: ${Math.round(missingSeconds)} segundos (~${additionalWords} palabras adicionales en total)
-
-ESCENAS A EXPANDIR:
-${sceneSummary}
-
-CONTENIDO EDUCATIVO ORIGINAL (extraer profundidad adicional):
-Título: ${job.title}
-${sourceContent}
-
-INSTRUCCIONES:
-1. Expande SOLO las escenas listadas arriba
-2. Cada narración expandida debe ser MÁS LARGA que la original
-3. Máximo 200 palabras por escena
-4. Distribuye el aumento proporcional a cuánto falta en cada escena
-5. NUNCA inventar información — extraer del contenido original
-6. Mantener el tono educativo, conversacional y profesional
-7. Agregar ejemplos, analogías, explicaciones adicionales, contexto real
-8. NO repetir frases ya existentes — SOLO agregar contenido nuevo al final o entre ideas
-
-Responde EXCLUSIVAMENTE con JSON válido, sin markdown:
-{
-  "expanded_scenes": [
-    { "scene_order": N, "narration": "narración completa y expandida aquí" }
-  ]
-}`;
-
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await this.client.chat.completions.create({
-          model: this.model,
-          messages: [
-            { role: 'system', content: 'Eres un experto en guionización educativa. Expandes narraciones de video para alcanzar la duración objetivo. Responde solo con JSON válido.' },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.6,
-          max_tokens: 8000,
-          response_format: { type: 'json_object' },
-        });
-
-        const raw = response.choices[0]?.message?.content ?? '';
-        const parsed = JSON.parse(raw) as { expanded_scenes: Array<{ scene_order: number; narration: string }> };
-
-        if (!Array.isArray(parsed.expanded_scenes)) {
-          throw new Error('Respuesta GPT no contiene expanded_scenes array');
-        }
-
-        const validSceneOrders = new Set(scenesToExpand.map(s => s.scene_order));
-
-        const validated = parsed.expanded_scenes.filter(e => {
-          if (!validSceneOrders.has(e.scene_order)) return false;
-          if (typeof e.narration !== 'string' || e.narration.trim().length < 50) return false;
-          const words = e.narration.split(/\s+/).filter(Boolean).length;
-          if (words > 200) {
-            e.narration = e.narration.split(/\s+/).slice(0, 200).join(' ');
-          }
-          const original = scenesToExpand.find(s => s.scene_order === e.scene_order);
-          const originalLen = original?.narration?.length ?? 0;
-          if (e.narration.length <= originalLen) return false;
-          return true;
-        });
-
-        const expIn = response.usage?.prompt_tokens ?? 0;
-        const expOut = response.usage?.completion_tokens ?? 0;
-        await this.videosService.logApiUsage({
-          videoJobId: job.id,
-          institutionId: job.institution_id,
-          provider: 'openai_chat',
-          operation: 'expand_narrations',
-          inputUnits: expIn,
-          outputUnits: expOut,
-          estimatedCost: this.estimateChatCost(expIn, expOut),
-          modelName: this.model,
-          unitType: 'tokens',
-          metadata: { input_tokens: expIn, output_tokens: expOut, total_tokens: expIn + expOut },
-        });
-
-        this.logger.log(
-          `[AiService] [${job.id}] Expansión post-audio: ${validated.length}/${scenesToExpand.length} escenas expandidas`,
-        );
-
-        return validated;
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        this.logger.warn(`[AiService] [${job.id}] expandSceneNarrations intento ${attempt}/2: ${lastError.message}`);
-        if (attempt < 2) await this.sleep(2000);
-      }
-    }
-
-    throw new Error(`expandSceneNarrations falló: ${lastError?.message ?? 'Error desconocido'}`);
-  }
-
-  private estimateChatCost(inputTokens: number, outputTokens: number): number {
-    // GPT-4o pricing: $5/1M input, $15/1M output
-    return (inputTokens / 1_000_000) * 5 + (outputTokens / 1_000_000) * 15;
   }
 
   private sleep(ms: number): Promise<void> {
