@@ -19,6 +19,7 @@ import { buildBigStatTemplate } from './templates/big-stat.template';
 import { buildComparisonTemplate } from './templates/comparison.template';
 import { buildLevelsTemplate } from './templates/levels.template';
 import { buildExampleCardTemplate } from './templates/example-card.template';
+import { SceneTimeline } from './templates/animation';
 
 export interface BrandData {
   primaryColor: string;
@@ -32,6 +33,8 @@ export interface SlideTemplateData {
   brand: BrandData;
   imageBase64: string | null;
   requiresAiImage: boolean;
+  /** Si está presente, la plantilla incluye el runtime de animación (captura por fotogramas). */
+  timeline?: SceneTimeline | null;
 }
 
 const HIERARCHY_KEYWORDS = [

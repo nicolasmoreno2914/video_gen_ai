@@ -4,6 +4,7 @@ import {
   GOOGLE_FONTS, escape, highlighted, bgStyle, footerHtml, headerHtml,
   radiusValue, bulletFontSize, lerpColor, isKeyword, baseSlideCSS,
 } from './shared';
+import { animationRuntime } from './animation';
 
 /**
  * Premium full-width content layout (no image).
@@ -33,7 +34,7 @@ function buildNoImageLayout(
     const kw = isKeyword(b);
 
     return `
-      <div style="
+      <div data-reveal="${i + 1}" style="
         background:white;
         border-left:6px solid ${color};
         border-radius:0 ${radius} ${radius} 0;
@@ -169,6 +170,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   ${bodyContent}
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
   }
@@ -186,7 +188,7 @@ ${footerHtml(brand.logoBase64, brand.institutionName)}
     const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
     const kw = isKeyword(b);
     return `
-      <div style="
+      <div data-reveal="${i + 1}" style="
         background:white;
         border-left:5px solid ${color};
         border-radius:0 ${radius} ${radius} 0;
@@ -214,7 +216,7 @@ ${footerHtml(brand.logoBase64, brand.institutionName)}
   }).join('');
 
   const textCol = `<div class="text-col">${bulletCards}</div>`;
-  const imgCol = `<div class="img-col">
+  const imgCol = `<div class="img-col" data-anim="image">
     ${hasImage
       ? `<img class="scene-image" style="border-radius:${radius}" src="data:image/png;base64,${imageBase64}" alt="scene">`
       : `<div style="width:100%;height:560px;border-radius:${radius};background:linear-gradient(135deg,${brand.primaryColor}20,${brand.secondaryColor}20)"></div>`}
@@ -243,6 +245,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   ${imgLeft ? textCol : imgCol}
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }
