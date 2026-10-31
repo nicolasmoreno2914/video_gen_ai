@@ -602,7 +602,7 @@ Supabase hace backups automáticos (Plan Free: 7 días). Para backups adicionale
 
 ```bash
 # Backup manual de Supabase PostgreSQL
-pg_dump "postgresql://postgres:videogen20266@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" \
+pg_dump "postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" \
   > /var/backups/videogen-db-$(date +%Y%m%d).sql
 ```
 
@@ -623,7 +623,7 @@ Los MP4 en `/var/www/video-engine/storage/` son temporales (TTL 3h). No requiere
 ```bash
 crontab -e
 # Agregar:
-0 3 * * * pg_dump "postgresql://postgres:videogen20266@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" | gzip > /var/backups/videogen-db-$(date +\%Y\%m\%d).sql.gz 2>/dev/null
+0 3 * * * pg_dump "postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" | gzip > /var/backups/videogen-db-$(date +\%Y\%m\%d).sql.gz 2>/dev/null
 0 4 * * * find /var/backups/ -name "*.sql.gz" -mtime +30 -delete
 ```
 
@@ -761,7 +761,7 @@ redis-cli -h 109.123.243.222 -p 6379 -a 'Redis2026&' ping
 
 ```bash
 # Probar conexión desde el VPS
-psql "postgresql://postgres:videogen20266@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" \
+psql "postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres" \
   -c "SELECT 1"
 ```
 
@@ -905,11 +905,11 @@ CORS_ORIGIN=https://video-gen-ai-v1.pages.dev,https://video-gen-ai.pages.dev
 # ── Supabase ─────────────────────────────────────────────────────────────────
 SUPABASE_URL=https://vokytkpwkboevfrllwty.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_X2yfWLBHcmxp9tRIusAXIg_f-geFScq
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_4RPClfsWLykYBrLtEcF1bg_Zth8Wd49
-SUPABASE_JWT_SECRET=VOdg+U2bWYcB9UH475Ohj8YFMFDc6rnxHVhOqyQK1txWdQtj7/sQkuNqd91J48tzjuh7/Iin4osWYsm3h7KPXQ==
+SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SECRET_KEY>
+SUPABASE_JWT_SECRET=<SUPABASE_JWT_SECRET>
 
 # ── Base de datos ─────────────────────────────────────────────────────────────
-DATABASE_URL=postgresql://postgres:videogen20266@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
 # ⚠️  CRÍTICO: Si la contraseña tiene &, codificarla como %26
