@@ -10,18 +10,16 @@ import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { getVideoTheme, VideoTheme } from './theme';
 import { buildTitleTemplate } from './templates/title.template';
-import { buildContentTemplate } from './templates/content.template';
-import { buildStepsTemplate } from './templates/steps.template';
-import { buildSummaryTemplate } from './templates/summary.template';
-import { buildConclusionTemplate } from './templates/conclusion.template';
 import { buildQuestionTemplate } from './templates/question.template';
 import { buildBigStatTemplate } from './templates/big-stat.template';
-import { buildComparisonTemplate } from './templates/comparison.template';
 import { buildLevelsTemplate } from './templates/levels.template';
-import { buildExampleCardTemplate } from './templates/example-card.template';
 import {
   buildConceptMapTemplate, buildCycleTemplate, buildIconCardsTemplate, buildTimelineTemplate,
 } from './templates/diagrams.template';
+import {
+  buildComparisonEditorialTemplate, buildConclusionEditorialTemplate, buildSplitTemplate,
+  buildStepsEditorialTemplate, buildSummaryEditorialTemplate,
+} from './templates/layouts.template';
 import { SceneTimeline } from './templates/animation';
 import { captureKeyframes } from './keyframe-capture';
 import { computeRevealTimes } from './reveal-timing';
@@ -206,24 +204,24 @@ export class SlidesService {
     const texts = this.sceneTexts(scene);
     const title = scene.title ?? '';
 
+    const hasImage = data.requiresAiImage && !!data.imageBase64;
+    // Imagen + ideas si hay imagen; si no (por diseño o porque falló), tarjetas con iconos
+    const split = (imageFirst = false): string =>
+      hasImage ? buildSplitTemplate(data, imageFirst) : buildIconCardsTemplate(data);
+
     // layout_type es el criterio principal
     if (layout) {
       switch (layout) {
         case 'cover':              return buildTitleTemplate(data, theme);
         case 'guiding_question':   return buildQuestionTemplate(data, theme);
         case 'big_stat':           return buildBigStatTemplate(data, theme);
-        case 'content_split':
-          // Sin imagen (por diseño o porque falló), las tarjetas con iconos lucen mucho mejor
-          if (!(data.requiresAiImage && data.imageBase64) && scene.icons?.some(Boolean)) {
-            return buildIconCardsTemplate(data);
-          }
-          return buildContentTemplate(data, theme);
+        case 'content_split':      return split();
         case 'hierarchy_diagram':  return buildLevelsTemplate(data, theme);
-        case 'process_steps':      return buildStepsTemplate(data, theme);
-        case 'comparison':         return buildComparisonTemplate(data, theme);
-        case 'real_example':       return buildExampleCardTemplate(data, theme);
-        case 'summary_checklist':  return buildSummaryTemplate(data, theme);
-        case 'conclusion_reflection': return buildConclusionTemplate(data, theme);
+        case 'process_steps':      return buildStepsEditorialTemplate(data);
+        case 'comparison':         return buildComparisonEditorialTemplate(data);
+        case 'real_example':       return split(true);
+        case 'summary_checklist':  return buildSummaryEditorialTemplate(data);
+        case 'conclusion_reflection': return buildConclusionEditorialTemplate(data);
         case 'icon_cards':         return buildIconCardsTemplate(data);
         case 'cycle_diagram':      return buildCycleTemplate(data);
         case 'concept_map':        return buildConceptMapTemplate(data);
@@ -239,20 +237,16 @@ export class SlidesService {
           ? buildQuestionTemplate(data, theme)
           : buildTitleTemplate(data, theme);
       case 'context':
-        return hasKeyStats(texts)
-          ? buildBigStatTemplate(data, theme)
-          : buildContentTemplate(data, theme);
+        return hasKeyStats(texts) ? buildBigStatTemplate(data, theme) : split();
       case 'explanation':
-        return isHierarchical(texts)
-          ? buildLevelsTemplate(data, theme)
-          : buildContentTemplate(data, theme);
-      case 'process':      return buildStepsTemplate(data, theme);
-      case 'comparison':   return buildComparisonTemplate(data, theme);
+        return isHierarchical(texts) ? buildLevelsTemplate(data, theme) : split();
+      case 'process':      return buildStepsEditorialTemplate(data);
+      case 'comparison':   return buildComparisonEditorialTemplate(data);
       case 'application':
-      case 'example':      return buildExampleCardTemplate(data, theme);
-      case 'summary':      return buildSummaryTemplate(data, theme);
-      case 'conclusion':   return buildConclusionTemplate(data, theme);
-      default:             return buildContentTemplate(data, theme);
+      case 'example':      return split(true);
+      case 'summary':      return buildSummaryEditorialTemplate(data);
+      case 'conclusion':   return buildConclusionEditorialTemplate(data);
+      default:             return split();
     }
   }
 

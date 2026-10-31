@@ -54,8 +54,18 @@ export function editorialPage(opts: {
   css: string;
   body: string;
   timeline?: SceneTimeline | null;
+  /** 'dark': fondo con degradado de la marca y texto blanco (cierre). */
+  variant?: 'light' | 'dark';
 }): string {
-  const { brand, eyebrow, title, css, body, timeline } = opts;
+  const { brand, eyebrow, title, css, body, timeline, variant } = opts;
+  const dark = variant === 'dark'
+    ? `body { background:linear-gradient(135deg, ${brand.primaryColor} 0%, ${brand.primaryColor} 45%, ${brand.secondaryColor} 140%); color:#fff; }
+.bg-dots { background-image:radial-gradient(rgba(255,255,255,0.10) 1.5px, transparent 1.5px); }
+.bg-a { background:radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 70%); }
+.bg-b { background:radial-gradient(circle, ${alpha(brand.secondaryColor, 0.35)} 0%, ${alpha(brand.secondaryColor, 0)} 70%); }
+.eyebrow { color:#fff; opacity:0.85; } .eyebrow::before { background:#fff; }
+.scene-title { color:#fff; } .watermark-name { color:rgba(255,255,255,0.8); }`
+    : '';
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -63,6 +73,7 @@ export function editorialPage(opts: {
 <link href="${GOOGLE_FONTS}" rel="stylesheet">
 <style>
 ${editorialCSS(brand)}
+${dark}
 ${css}
 </style>
 </head>

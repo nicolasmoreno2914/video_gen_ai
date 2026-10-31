@@ -13,18 +13,18 @@ const EYEBROWS: Record<string, string> = {
   conclusion: 'Para cerrar',
 };
 
-function sceneItems(data: SlideTemplateData, max: number): Array<{ text: string; icon: string | null }> {
+export function sceneItems(data: SlideTemplateData, max: number): Array<{ text: string; icon: string | null }> {
   const raw = data.scene.on_screen_text ?? [];
   const texts = (Array.isArray(raw) ? raw : [String(raw)]).slice(0, max);
   const icons = data.scene.icons ?? [];
   return texts.map((text, i) => ({ text, icon: icons[i] ?? null }));
 }
 
-function eyebrow(data: SlideTemplateData, fallback: string): string {
+export function eyebrow(data: SlideTemplateData, fallback: string): string {
   return EYEBROWS[data.scene.scene_type ?? ''] ?? fallback;
 }
 
-function labelSize(texts: string[], max: number, min: number): number {
+export function labelSize(texts: string[], max: number, min: number): number {
   const longest = Math.max(...texts.map((t) => t.length), 1);
   if (longest <= 18) return max;
   if (longest <= 32) return Math.round(max * 0.86);
@@ -33,7 +33,7 @@ function labelSize(texts: string[], max: number, min: number): number {
 }
 
 /** Icono dentro de un chip de color; si no hay icono, el número del elemento. */
-function iconChip(icon: string | null, index: number, size: number, color: string, bg: string): string {
+export function iconChip(icon: string | null, index: number, size: number, color: string, bg: string): string {
   const svg = iconSvg(icon, Math.round(size * 0.5), color, 2.2);
   const inner = svg || `<span style="font-family:'Nunito',sans-serif;font-weight:900;font-size:${Math.round(size * 0.42)}px;color:${color}">${index + 1}</span>`;
   return `<div style="width:${size}px;height:${size}px;min-width:${size}px;border-radius:${Math.round(size * 0.3)}px;background:${bg};display:flex;align-items:center;justify-content:center">${inner}</div>`;
