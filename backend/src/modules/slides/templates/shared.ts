@@ -14,7 +14,8 @@ export function escapeRe(s: string): string {
 export function highlighted(text: string, highlights: string[], _accentColor: string): string {
   let out = escape(text);
   for (const word of highlights) {
-    const re = new RegExp(`(${escapeRe(word)})`, 'gi');
+    // Solo palabras completas: "automatiza" no debe resaltarse dentro de "automatización"
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])(${escapeRe(word)})(?![\\p{L}\\p{N}])`, 'giu');
     out = out.replace(re, `<mark>$1</mark>`);
   }
   return out;

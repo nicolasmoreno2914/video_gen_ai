@@ -96,7 +96,9 @@ function bestWindow(words: string[], keywords: string[], itemKeys: string[], pre
   }
   if (!scores.length) return -1;
   const max = Math.max(...scores.map((s) => s.score));
-  const good = scores.filter((s) => s.score >= Math.max(1, Math.ceil(max * 0.6)));
+  // Con 2+ claves, una coincidencia suelta ("solo", "fácil") no basta para anclar
+  const floor = itemKeys.length >= 2 && max >= 2 ? 2 : 1;
+  const good = scores.filter((s) => s.score >= Math.max(floor, Math.ceil(max * 0.6)));
   const pick = good.find((s) => s.i >= preferAfter) ?? good[0];
   for (let j = pick.i; j < Math.min(words.length, pick.i + WINDOW); j++) {
     if (itemKeys.some((k) => sameWord(words[j], k))) return j;

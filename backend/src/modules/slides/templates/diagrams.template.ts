@@ -15,7 +15,8 @@ const EYEBROWS: Record<string, string> = {
 
 export function sceneItems(data: SlideTemplateData, max: number): Array<{ text: string; icon: string | null }> {
   const raw = data.scene.on_screen_text ?? [];
-  const texts = (Array.isArray(raw) ? raw : [String(raw)]).slice(0, max);
+  // Rangos numéricos con guion no separable ("18‑254") para que no se partan en dos líneas
+  const texts = (Array.isArray(raw) ? raw : [String(raw)]).slice(0, max).map((t) => String(t).replace(/(\d)\s?-\s?(\d)/g, '$1\u2011$2'));
   const icons = data.scene.icons ?? [];
   // Si la mayoría tiene icono, los que faltan usan uno neutro (antes salía un "1" suelto)
   const withIcon = texts.filter((_, i) => icons[i]).length;
@@ -33,10 +34,11 @@ export function eyebrow(data: SlideTemplateData, fallback: string): string {
 
 export function labelSize(texts: string[], max: number, min: number): number {
   const longest = Math.max(...texts.map((t) => t.length), 1);
-  if (longest <= 18) return max;
-  if (longest <= 32) return Math.round(max * 0.86);
-  if (longest <= 50) return Math.round(max * 0.74);
-  return min;
+  const scale = 1.12; // legibilidad en móvil: el cuerpo nunca baja de ~32 px a 1080p
+  if (longest <= 18) return Math.round(max * scale);
+  if (longest <= 32) return Math.round(max * 0.9 * scale);
+  if (longest <= 50) return Math.round(max * 0.8 * scale);
+  return Math.round(Math.max(min, max * 0.7) * scale);
 }
 
 /** Icono dentro de un chip de color; si no hay icono, el número del elemento. */
@@ -83,12 +85,12 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
   const { brand } = data;
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 3);
-  const cx = 960, cy = 395, rx = 470, ry = 268, node = 128;
+  const cx = 960, cy = 383, rx = n <= 4 ? 330 : 380, ry = n <= 4 ? 285 : 300, node = 140;
   const fontSize = labelSize(items.map((i) => i.text), 36, 28);
   const angle = (i: number): number => -Math.PI / 2 + (2 * Math.PI * i) / n;
   const pt = (a: number): [number, number] => [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
   // Las flechas casi tocan los nodos (antes empezaban ~70 px lejos)
-  const gap = Math.min(0.3, (Math.PI / n) * 0.36);
+  const gap = (node / 2 + 16) / Math.min(rx, ry);
 
   const arcs = items.map((_, i) => {
     const [x1, y1] = pt(angle(i) + gap);
@@ -99,7 +101,7 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
     // La punta de flecha va en un trazo aparte de 1° que aparece al terminar de dibujarse el arco
     const [xa, ya] = pt(angle(i + 1) - gap - 0.02);
     return `<path data-draw="${reveal}" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${rx} ${ry} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}"
-      fill="none" stroke="${alpha(brand.secondaryColor, 0.75)}" stroke-width="6" stroke-linecap="round"/>
+      fill="none" stroke="${brand.secondaryColor}" stroke-width="7" stroke-linecap="round"/>
       <path data-fade="${reveal}" d="M ${xa.toFixed(1)} ${ya.toFixed(1)} A ${rx} ${ry} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}"
       fill="none" stroke="${alpha(brand.secondaryColor, 0.75)}" stroke-width="6" marker-end="url(#arrow)"/>`;
   }).join('');
@@ -120,10 +122,10 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
 .disc { width:${node}px; height:${node}px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center;
   box-shadow:0 14px 40px ${alpha(brand.primaryColor, 0.16)}; border:4px solid ${alpha(brand.secondaryColor, 0.35)}; }
 .num { font-family:'Nunito',sans-serif; font-weight:900; font-size:52px; color:${brand.primaryColor}; }
-.label { background:#fff; border-radius:16px; padding:10px 22px; font-weight:700; color:#1B1E24; text-align:center; line-height:1.25;
-  box-shadow:0 6px 20px rgba(0,0,0,0.06); max-width:340px; }
+.label { font-weight:800; color:#1B1E24; text-align:center; line-height:1.2; max-width:340px;
+  text-shadow:0 0 8px #F6F7F9, 0 0 14px #F6F7F9; }
 .hub { position:absolute; left:${cx - 90}px; top:${cy - 90}px; width:180px; height:180px; border-radius:50%;
-  background:${alpha(brand.secondaryColor, 0.10)}; display:flex; align-items:center; justify-content:center; }`;
+  background:${alpha(brand.secondaryColor, 0.14)}; display:flex; align-items:center; justify-content:center; }`;
 
   const body = `<div class="diagram">
     <svg width="1920" height="766" viewBox="0 0 1920 766">
@@ -131,11 +133,11 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
         <path d="M 0 0 L 10 5 L 0 10 z" fill="${alpha(brand.secondaryColor, 0.9)}"/></marker></defs>
       ${arcs}
     </svg>
-    <div class="hub" data-anim="enter">${iconSvg('refresh-cw', 84, alpha(brand.secondaryColor, 0.8), 1.8)}</div>
+    <div class="hub" data-anim="enter">${iconSvg('refresh-cw', 84, brand.primaryColor, 1.8)}</div>
     ${nodes}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'El ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'El ciclo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
 }
 
 // ─── Mapa de conceptos (concepto central + 2–6 ramas) ────────────────────────
@@ -198,7 +200,7 @@ export function buildConceptMapTemplate(data: SlideTemplateData): string {
     ${cards}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Mapa de ideas'), title: scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Mapa de ideas'), title: scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
 }
 
 // ─── Línea de tiempo (3–6 hitos; "1990: evento" separa fecha y texto) ────────
@@ -247,7 +249,7 @@ export function buildTimelineTemplate(data: SlideTemplateData): string {
 .ev { position:absolute; text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; }
 .ev.up { bottom:${766 - ly + 80}px; }
 .ev.down { top:${ly + 80}px; }
-.date { font-family:'Nunito',sans-serif; font-weight:900; font-size:46px; color:${brand.secondaryColor}; }
+.date { font-family:'Nunito',sans-serif; font-weight:900; font-size:56px; color:${brand.secondaryColor}; }
 .ev-text { font-weight:600; line-height:1.3; color:#1B1E24; }`;
 
   const body = `<div class="tl">
@@ -255,5 +257,5 @@ export function buildTimelineTemplate(data: SlideTemplateData): string {
     ${points}
   </div>`;
 
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Línea de tiempo'), title: data.scene.title ?? '', css, body, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Línea de tiempo'), title: data.scene.title ?? '', css, body, timeline: data.timeline, ghost: true });
 }

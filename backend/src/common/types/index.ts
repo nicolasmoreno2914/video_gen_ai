@@ -63,6 +63,10 @@ export interface GeneratedScene {
   image_style?: 'atlas' | 'photo' | null;
   /** Qué debe verse correcto en una imagen de precisión alta (lo verifica un modelo de visión). */
   image_check?: string | null;
+  /** Índice del learning_objective que desarrolla la escena. */
+  objective?: number;
+  /** Párrafos del capítulo (1-based) que cubre la escena: se usa para validar la cobertura. */
+  source_paragraphs?: number[];
   transition: TransitionType;
   estimated_duration_seconds: number;
 }
@@ -72,6 +76,7 @@ export interface GeneratedScript {
   estimated_duration_minutes: number;
   total_narration_characters: number;
   guiding_question: string;
+  learning_objectives?: string[];
   /** Estilo de imagen del video, elegido por el guion según el tema. */
   visual_family?: 'illustration' | 'realistic';
   scenes: GeneratedScene[];

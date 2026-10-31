@@ -77,13 +77,13 @@ export function buildStepsEditorialTemplate(data: SlideTemplateData): string {
 .badge { width:104px; height:104px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor}); color:#fff; font-family:'Nunito',sans-serif;
   font-weight:900; font-size:46px; box-shadow:0 14px 34px ${alpha(brand.primaryColor, 0.28)}; border:6px solid #fff; }
-.step-card { width:100%; min-height:240px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
+.step-card { width:100%; height:300px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
   align-items:center; text-align:center; gap:22px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; }
 .step-text { font-weight:700; line-height:1.3; color:#1B1E24; }`;
     return editorialPage({
       brand, eyebrow: eyebrow(data, 'Paso a paso'), title: data.scene.title ?? '', css,
       body: `<div class="steps"><svg width="1920" height="766" viewBox="0 0 1920 766">${segments}</svg>${cards}</div>`,
-      timeline: data.timeline,
+      timeline: data.timeline, ghost: true,
     });
   }
 
@@ -126,6 +126,9 @@ export function buildComparisonEditorialTemplate(data: SlideTemplateData): strin
   const few = Math.max(left.length, right.length) <= 2;
   const fontSize = labelSize(items.map((i) => i.text), few ? 46 : 38, 30);
 
+  // Un mito se diferencia en un tono cálido; la realidad conserva el color de la marca
+  const isMyth = /^mito/i.test(labelA);
+  const colorA = isMyth ? '#C2513F' : brand.primaryColor;
   const column = (list: typeof items, offset: number, color: string, label: string, side: 'a' | 'b'): string => `
     <div class="col col-${side}">
       <div class="col-head" data-anim="enter" style="background:${color}">${escape(label)}</div>
@@ -143,7 +146,7 @@ export function buildComparisonEditorialTemplate(data: SlideTemplateData): strin
 .col { flex:1; display:flex; flex-direction:column; background:#fff; border-radius:32px; overflow:hidden; min-height:380px;
   box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; }
 .col-head { color:#fff; font-family:'Nunito',sans-serif; font-weight:900; font-size:${labelA.length + labelB.length > 30 ? 34 : 42}px;
-  padding:30px 44px; }
+  padding:30px 44px; min-height:116px; display:flex; align-items:center; }
 .col-body { flex:1; display:flex; flex-direction:column; justify-content:${few ? 'center' : 'flex-start'}; gap:24px; padding:36px 44px; }
 .cmp { display:flex; align-items:center; gap:24px; }
 .cmp-text { font-weight:600; line-height:1.3; color:#1B1E24; }
@@ -152,7 +155,7 @@ export function buildComparisonEditorialTemplate(data: SlideTemplateData): strin
   font-weight:900; font-size:36px; box-shadow:0 14px 34px ${alpha(brand.primaryColor, 0.20)}; z-index:2; }`;
 
   const body = `<div class="cmpwrap">
-    ${column(left, 0, brand.primaryColor, labelA, 'a')}
+    ${column(left, 0, colorA, labelA, 'a')}
     ${column(right, left.length, brand.secondaryColor, labelB, 'b')}
     <div class="vs" data-anim="enter">VS</div>
   </div>`;
@@ -166,7 +169,7 @@ export function buildSummaryEditorialTemplate(data: SlideTemplateData): string {
   const items = sceneItems(data, 6);
   const n = Math.max(items.length, 1);
   const cols = n <= 3 ? 1 : 2;
-  const fontSize = labelSize(items.map((i) => i.text), cols === 1 ? 44 : 38, 30);
+  const fontSize = labelSize(items.map((i) => i.text), cols === 1 ? 46 : 40, 32);
   const check = iconSvg('circle-check', 44, '#fff', 2.4);
 
   const cards = items.map((it, i) => `
@@ -178,7 +181,7 @@ export function buildSummaryEditorialTemplate(data: SlideTemplateData): string {
   const css = `
 .sumgrid { position:absolute; left:${cols === 1 ? 260 : 110}px; right:${cols === 1 ? 260 : 110}px; top:10px; bottom:40px; display:grid;
   grid-template-columns:repeat(${cols}, 1fr); gap:28px 40px; align-content:center; }
-.sum { display:flex; align-items:center; gap:28px; background:#fff; border-radius:26px; padding:30px 36px;
+.sum { display:flex; align-items:center; gap:28px; background:#fff; border-radius:26px; padding:36px 40px; min-height:130px;
   box-shadow:0 14px 40px ${alpha(brand.primaryColor, 0.09)}; }
 .tick { width:76px; height:76px; min-width:76px; border-radius:22px; display:flex; align-items:center; justify-content:center;
   background:linear-gradient(135deg, ${brand.secondaryColor}, ${brand.primaryColor}); }
@@ -368,7 +371,7 @@ export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
 .lvl-icon { width:76px; height:76px; border-radius:22px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center;
   font-family:'Nunito',sans-serif; font-weight:900; font-size:34px; }
 .lvl-text { font-weight:800; line-height:1.2; }`;
-  return editorialPage({ brand, eyebrow: eyebrow(data, 'Niveles'), title: data.scene.title ?? '', css, body: steps, timeline: data.timeline });
+  return editorialPage({ brand, eyebrow: eyebrow(data, 'Niveles'), title: data.scene.title ?? '', css, body: steps, timeline: data.timeline, ghost: true });
 }
 
 // ─── Práctica (practice_question): pregunta → cuenta regresiva → respuesta ────
@@ -376,36 +379,42 @@ export function buildLevelsEditorialTemplate(data: SlideTemplateData): string {
 export function buildPracticeTemplate(data: SlideTemplateData): string {
   const { brand, scene } = data;
   const [question, answer] = sceneItems(data, 2);
-  const r = 70;
+  const r = 92;
   const circ = 2 * Math.PI * r;
 
   const css = `
-.practice { position:absolute; left:110px; right:110px; top:0; bottom:0; display:flex; flex-direction:column; justify-content:center; gap:40px; }
-.q-card { display:flex; align-items:center; gap:48px; background:#fff; border-radius:32px; padding:44px 52px;
+.practice { position:absolute; left:160px; right:160px; top:0; bottom:0; display:flex; flex-direction:column; justify-content:center; gap:44px; }
+.q-card { display:flex; align-items:center; gap:48px; background:#fff; border-radius:36px; padding:64px 64px; min-height:300px;
   box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; border-left:10px solid ${brand.secondaryColor}; }
-.q-text { flex:1; font-family:'Nunito',sans-serif; font-weight:900; font-size:${(question?.text.length ?? 0) > 70 ? 46 : 54}px;
+.q-text { flex:1; font-family:'Nunito',sans-serif; font-weight:900; font-size:${(question?.text.length ?? 0) > 70 ? 54 : 64}px;
   line-height:1.15; color:${brand.primaryColor}; }
-.timer { position:relative; width:170px; height:170px; flex-shrink:0; }
+.timer { position:relative; width:220px; height:220px; flex-shrink:0; }
 .timer > svg { position:absolute; inset:0; transform:rotate(-90deg); }
 .timer-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
 .a-card { display:flex; align-items:center; gap:28px; background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor});
-  color:#fff; border-radius:28px; padding:34px 46px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.25)}; }
+  color:#fff; border-radius:32px; padding:44px 56px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.25)}; }
+.a-slot { position:relative; }
+.a-ghost { display:flex; align-items:center; gap:24px; border:4px dashed ${alpha(brand.primaryColor, 0.25)}; border-radius:32px;
+  padding:44px 56px; font-size:44px; font-weight:700; color:${alpha(brand.primaryColor, 0.45)}; }
+.a-slot .a-card { position:absolute; inset:0; }
 .a-label { font-weight:800; font-size:24px; letter-spacing:3px; text-transform:uppercase; opacity:0.85; white-space:nowrap; }
-.a-text { font-size:48px; font-weight:800; line-height:1.2; }`;
+.a-text { font-size:54px; font-weight:800; line-height:1.2; }`;
 
   const body = `<div class="practice">
-    <div class="q-card" data-reveal="1">
+    <div class="q-card" data-anim="enter">
       <div class="q-text">${escape(question?.text ?? scene.title ?? '')}</div>
       <div class="timer">
-        <svg width="170" height="170" viewBox="0 0 170 170">
-          <circle cx="85" cy="85" r="${r}" fill="none" stroke="${alpha(brand.secondaryColor, 0.18)}" stroke-width="12"/>
-          <circle data-countdown="1" cx="85" cy="85" r="${r}" fill="none" stroke="${brand.secondaryColor}" stroke-width="12"
-            stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="0"/>
+        <svg width="220" height="220" viewBox="0 0 220 220">
+          <circle cx="110" cy="110" r="${r}" fill="none" stroke="${alpha(brand.secondaryColor, 0.18)}" stroke-width="16"/>
+          <circle data-countdown="1" cx="110" cy="110" r="${r}" fill="none" stroke="${brand.secondaryColor}" stroke-width="12"
+            stroke-width="16" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="0"/>
         </svg>
-        <div class="timer-label">${iconSvg('timer', 64, brand.primaryColor, 2)}</div>
+        <div class="timer-label">${iconSvg('timer', 84, brand.primaryColor, 2)}</div>
       </div>
     </div>
-    ${answer ? `<div class="a-card" data-reveal="2"><div class="a-label">Respuesta</div><div class="a-text">${escape(answer.text)}</div></div>` : ''}
+    ${answer ? `<div class="a-slot"><div class="a-ghost">${iconSvg('circle-help', 56, alpha(brand.primaryColor, 0.45), 2)}<span>Tu respuesta…</span></div><div class="a-card" data-reveal="2">${iconSvg('circle-check', 60, '#fff', 2.2)}<div class="a-label">Respuesta</div><div class="a-text">${escape(answer.text)}</div></div></div>` : ''}
   </div>`;
-  return editorialPage({ brand, eyebrow: 'Ponte a prueba', title: scene.title ?? '', css, body, timeline: data.timeline });
+  // El título no repite la pregunta (que ya ocupa la tarjeta principal)
+  const title = scene.title && scene.title.trim() !== (question?.text ?? '').trim() ? scene.title : 'Ponte a prueba';
+  return editorialPage({ brand, eyebrow: 'Práctica', title, css, body, timeline: data.timeline, ghost: false });
 }

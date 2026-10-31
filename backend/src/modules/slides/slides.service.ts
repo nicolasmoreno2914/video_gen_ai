@@ -70,6 +70,7 @@ export class SlidesService {
   private readonly executablePath: string;
   private readonly limit = pLimit(3);
   private readonly animated: boolean;
+  private readonly subtitlesMode: 'burned' | 'sidecar';
   private readonly fps: number;
 
   constructor(
@@ -82,6 +83,7 @@ export class SlidesService {
       process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium';
     const video = this.configService.get<AppConfig['video']>('video');
     this.animated = video?.animatedSlides ?? false;
+    this.subtitlesMode = video?.subtitlesMode ?? 'burned';
     this.fps = video?.fps ?? 30;
   }
 
@@ -156,7 +158,9 @@ export class SlidesService {
       ? { revealTimes: computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
       : null;
 
-    const html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
+    let html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
+    // Con subtítulos aparte (VTT) no hace falta reservar la franja inferior para ellos
+    if (this.subtitlesMode === 'sidecar') html = html.replace('</head>', '<style>.stage{bottom:96px !important}</style></head>');
 
     const page = await browser.newPage();
     try {

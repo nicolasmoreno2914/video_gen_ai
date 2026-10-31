@@ -16,8 +16,7 @@ export function alpha(hex: string, a: number): string {
 export function editorialCSS(brand: BrandData): string {
   const p = brand.primaryColor;
   const s = brand.secondaryColor;
-  return `mark { background:transparent; background-image:linear-gradient(transparent 55%, ${alpha(s, 0.45)} 55%);
-  background-repeat:no-repeat; background-size:100% 100%; padding:0 0.08em; color:inherit; }
+  return `mark { background:none; color:${p}; font-weight:800; padding:0; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   width:1920px; height:1080px; overflow:hidden; position:relative;
@@ -31,22 +30,23 @@ body {
   background-image:radial-gradient(${alpha(p, 0.10)} 1.5px, transparent 1.5px); background-size:36px 36px; }
 .header { position:relative; z-index:2; padding:64px 110px 0 110px; display:flex; flex-direction:column; gap:14px; }
 .eyebrow { display:flex; align-items:center; gap:14px; font-family:'Inter',sans-serif; font-weight:700;
-  font-size:22px; letter-spacing:3px; text-transform:uppercase; color:${s}; }
+  font-size:24px; letter-spacing:3px; text-transform:uppercase; color:${s}; }
 .eyebrow::before { content:''; width:44px; height:5px; border-radius:3px; background:${s}; }
 .scene-title { font-family:'Nunito',sans-serif; font-weight:900; color:${p}; line-height:1.05; letter-spacing:-0.5px; }
 .stage { position:absolute; z-index:1; left:0; right:0; top:230px; bottom:170px; }
 .footer { position:absolute; z-index:2; left:110px; right:110px; bottom:28px; display:flex; justify-content:flex-end; }
-.watermark { display:flex; align-items:center; gap:10px; opacity:0.85; }
+.watermark { display:flex; align-items:center; gap:10px; opacity:0.6; }
+.card-text, .row-text, .branch-text, .step-text, .cmp-text, .sum-text, .fact-text, .ev-text, .q-text, .a-text, .label { text-wrap:balance; }
 .watermark img { max-height:48px; object-fit:contain; }
 .watermark-name { font-size:20px; font-weight:600; color:#7A808A; }`;
 }
 
 function titleSize(title: string): number {
   const n = title.length;
-  if (n <= 28) return 68;
-  if (n <= 42) return 58;
-  if (n <= 60) return 48;
-  return 40;
+  if (n <= 28) return 72;
+  if (n <= 42) return 64;
+  if (n <= 60) return 54;
+  return 46;
 }
 
 export function editorialPage(opts: {
@@ -59,8 +59,12 @@ export function editorialPage(opts: {
   timeline?: SceneTimeline | null;
   /** 'dark': fondo con degradado de la marca y texto blanco (cierre). */
   variant?: 'light' | 'dark';
+  /** Diagramas: el esquema completo se ve atenuado desde el inicio. */
+  ghost?: boolean;
 }): string {
   const { brand, eyebrow, title, css, body, timeline, variant } = opts;
+  // Con varios elementos, el esquema completo se ve atenuado desde el inicio (nunca pantalla vacía)
+  const ghost = opts.ghost ?? (variant !== 'dark' && (body.match(/data-reveal="/g) ?? []).length >= 2);
   const dark = variant === 'dark'
     ? `body { background:linear-gradient(135deg, ${brand.primaryColor} 0%, ${brand.primaryColor} 45%, ${brand.secondaryColor} 140%); color:#fff; }
 .bg-dots { background-image:radial-gradient(rgba(255,255,255,0.10) 1.5px, transparent 1.5px); }
@@ -80,7 +84,7 @@ ${dark}
 ${css}
 </style>
 </head>
-<body>
+<body${ghost ? ' data-ghost' : ''}>
 <div class="bg-dots"></div>
 <div class="bg-blob bg-a"></div>
 <div class="bg-blob bg-b"></div>

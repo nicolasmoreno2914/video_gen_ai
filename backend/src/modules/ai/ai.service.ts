@@ -9,6 +9,15 @@ import { VideosService } from '../videos/videos.service';
 import { priceChat } from '../costs/cost-config';
 import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 
+/** Párrafos del capítulo (separados por línea en blanco). */
+function sourceParagraphs(content: string): string[] {
+  return content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+}
+
+function numberedParagraphs(content: string): string {
+  return sourceParagraphs(content).map((p, i) => `[${i + 1}] ${p}`).join('\n\n');
+}
+
 // Duración según el contenido, con tope (decisión de producto 2026-10-31)
 const MAX_VIDEO_SECONDS = 420;
 const WORDS_PER_MINUTE = 140;
@@ -74,18 +83,43 @@ BLOQUE 4 — APLICACIÓN (1–3 escenas)
   → application (cómo se aplica en la vida real)
   → example (caso concreto, situación real, historia breve)
 
-BLOQUE 4B — PRÁCTICA (1 o 2 escenas, OBLIGATORIO)
+BLOQUE 4B — PRÁCTICA (2 escenas, OBLIGATORIO)
   → practice: escena con layout_type "practice_question" y requires_ai_image false.
      • Una pregunta de APLICACIÓN (no de memoria literal) sobre lo explicado, idealmente usando el ejemplo ancla.
      • on_screen_text: exactamente 2 elementos: [pregunta corta (máx 14 palabras), respuesta corta (máx 14 palabras)].
-     • Narración: plantea la pregunta, luego "Piénsalo un momento. Tres, dos, uno." y después
-       "La respuesta: …" con una explicación breve de por qué.
+     • Narración: plantea la pregunta (frase corta, sin gerundios colgados), luego "Piénsalo un momento." seguido EXACTAMENTE de [PAUSA]
+       (el sistema inserta 4 segundos de silencio real) y después "La respuesta: …" con una
+       explicación breve de por qué. No digas "tres, dos, uno".
      • reveal_cues: [frase literal donde empieza la pregunta, "La respuesta"].
-     • Ubicación: una después del bloque de desarrollo y, si hay dos, la otra antes del resumen.
+     • Ubicación: una a mitad del video (tras el concepto central) y otra antes del resumen.
+     • Al menos una pregunta de TRANSFERENCIA: aplicar el método a una situación NUEVA (no vista antes).
+     • Una práctica por cada objetivo principal (p. ej. una sobre cómo se forma y otra sobre cómo cambiar).
+     • Colócala justo después del concepto que practica.
+     • La pregunta NO puede contener la respuesta ni repetir literalmente frases ya dichas.
 
 BLOQUE 5 — CIERRE (2 escenas, obligatorias)
   → summary (resumen de ideas clave, máx 4 bullets con checkmarks)
   → conclusion (reflexión final, invitación a la acción o pregunta de cierre)
+
+════════════════════════════════════
+OBJETIVOS DE APRENDIZAJE — OBLIGATORIO
+════════════════════════════════════
+- Antes de escribir, define 2–4 learning_objectives a partir del TÍTULO y de las secciones del
+  capítulo (si el título dice "cómo se forman y cómo cambiarlos", ambas partes son objetivos).
+- Cada objetivo debe tener al menos una escena que lo desarrolle (campo "objective" = índice 0-based).
+  Ningún objetivo puede quedar sin escena, aunque haya que acortar otras.
+- Prioriza lo accionable (pasos, métodos, ejemplos aplicados) sobre la historia. Si la historia no es
+  un objetivo, resúmela en 1–2 frases dentro de otra escena (no crees una escena solo de fechas).
+  Cada cifra se explica una sola vez (el resumen puede repetirla).
+- No repitas la misma lista en dos escenas (p. ej. "factores" y "pasos" con los mismos elementos):
+  fusiónalas en una sola escena. Máximo 3 ideas nuevas por escena.
+- image_prompt debe mostrar la ACCIÓN clave que dice la narración (p. ej. "holding a smartphone with
+  the screen glowing"), no una escena genérica.
+- Las tarjetas de ideas llevan concepto + microejemplo de la fuente: "Identidad: soy alguien que se mueve".
+- El texto en pantalla usa SOLO palabras que la narración dice en esa escena (no añadas "siempre",
+  "la mayoría", ejemplos o ideas que la voz no menciona).
+- En la escena del concepto central (ciclo), aplica el ejemplo ancla en cada etapa:
+  on_screen_text como "Señal: suena la alarma".
 
 ════════════════════════════════════
 EJEMPLO ANCLA Y EXACTITUD — OBLIGATORIO
@@ -264,7 +298,7 @@ REGLAS VISUALES
 - image_style (solo si visual_family es "realistic"): "atlas" para estructuras (órganos, células,
   piezas, máquinas) y "photo" para personas en situaciones o procedimientos. En "illustration": null.
 - image_check (solo si image_precision es "high"): lista breve en español de lo que DEBE verse
-  correcto en la imagen, verificable a simple vista (ej. "manos entrelazadas en el centro del pecho;
+  correcto en la imagen, verificable a simple vista SIN texto ni etiquetas (forma, posición, color) (ej. "manos entrelazadas en el centro del pecho;
   brazos rectos; hombros sobre las manos"). Si no aplica: null.
 - reveal_cues: los elementos de on_screen_text aparecen en pantalla en el momento en que la voz
   los menciona. Para CADA elemento de on_screen_text (mismo orden y misma cantidad) copia una
@@ -405,6 +439,7 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
   "estimated_duration_minutes": 0,
   "total_narration_characters": 0,
   "guiding_question": "La pregunta pedagógica central del capítulo",
+  "learning_objectives": ["El estudiante podrá …", "…"],
   "visual_family": "illustration|realistic",
   "scenes": [
     {
@@ -414,6 +449,8 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
       "layout_type": "cover|guiding_question|big_stat|content_split|hierarchy_diagram|process_steps|comparison|real_example|summary_checklist|conclusion_reflection|icon_cards|cycle_diagram|concept_map|timeline|practice_question",
       "requires_ai_image": true,
       "learning_goal": "Qué aprende el estudiante en esta escena (una oración)",
+      "objective": 0,
+      "source_paragraphs": [3, 4],
       "title": "Título corto (máx 50 chars)",
       "narration": "Texto completo para voz IA, escrito para el oído. Entre 60 y 110 palabras.",
       "on_screen_text": ["Bullet o item 1", "Bullet o item 2"],
@@ -466,7 +503,7 @@ export class AiService {
 
     // Objetivo de longitud según el capítulo: sin él, el modelo resume de más (escenas de ~35 palabras)
     const sourceWords = job.content_txt.split(/\s+/).filter(Boolean).length;
-    const targetWords = Math.max(450, Math.min(MAX_NARRATION_WORDS, sourceWords));
+    const targetWords = Math.round(Math.max(450, Math.min(MAX_NARRATION_WORDS, sourceWords)) * 0.92);
     const targetScenes = Math.max(6, Math.round(targetWords / 85));
     const userPrompt = `Título del capítulo: ${job.title}
 LONGITUD OBLIGATORIA: la narración total DEBE tener entre ${targetWords - 80} y ${targetWords + 30} palabras
@@ -477,8 +514,9 @@ explicación y un ejemplo concreto, sin relleno ni repeticiones. Antes de respon
 Idioma de narración: español
 Estilo visual del video: ${job.visual_style}
 
-Texto del capítulo:
-${job.content_txt}`;
+Texto del capítulo (párrafos numerados; cada escena indica en "source_paragraphs" los que cubre,
+y TODO párrafo con contenido debe quedar cubierto por al menos una escena):
+${numberedParagraphs(job.content_txt)}`;
 
     // Initial generation with up to 3 attempts
     const script = await this.callGptWithRetry(job.id, [
@@ -519,14 +557,38 @@ Devuelve el MISMO JSON (mismos campos, mismo número y orden de escenas, mismos 
    apuntando al momento en que se menciona ESE elemento.
 6. Gramática y ortografía correctas; español neutro sin regionalismos.
 7. En comparaciones de mito, el título es "Mito vs Realidad".
-8. Debe existir al menos una escena practice_question con [pregunta, respuesta] en pantalla.
+8. Deben existir 2 escenas practice_question con [pregunta, respuesta] y "[PAUSA]" en la narración.
+9. COBERTURA: cada sección del capítulo con contenido práctico (métodos, pasos, cómo cambiar algo) y cada
+   learning_objective deben tener al menos una escena. Si falta una, REEMPLAZA o acorta escenas de menor
+   valor (historia, repeticiones) para incluirla; no la omitas.
+10. Cada palabra con contenido del texto en pantalla debe decirse en la narración de esa escena.
+11. Sin cuantificadores que la fuente no use ("la mayoría", "siempre", "estudios" si es uno solo).
+12. No alargues el guion: la narración total no puede superar ${MAX_NARRATION_WORDS} palabras.
 Responde SOLO con el JSON completo corregido.`;
     try {
       const reviewed = await this.callGptWithRetry(job.id, [
         { role: 'system', content: reviewer },
-        { role: 'user', content: `CAPÍTULO FUENTE:\n${job.content_txt}\n\nGUION:\n${JSON.stringify(script)}` },
+        { role: 'user', content: `CAPÍTULO FUENTE (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
       ], 'review_script', job.institution_id);
-      if (reviewed.scenes.length < script.scenes.length - 1) throw new Error('el revisor eliminó escenas');
+      if (reviewed.scenes.length < script.scenes.length - 2) throw new Error('el revisor eliminó escenas');
+      // Cobertura por párrafos: si el revisor dejó párrafos sin escena, una pasada dirigida los integra
+      const missing = this.missingParagraphs(job.content_txt, reviewed);
+      if (missing.length) {
+        this.logger.warn(`[AiService] [${job.id}] Párrafos sin cubrir: ${missing.map((m) => m + 1).join(', ')} — corrigiendo`);
+        const paragraphs = sourceParagraphs(job.content_txt);
+        const fixed = await this.callGptWithRetry(job.id, [
+          { role: 'system', content: reviewer },
+          { role: 'user', content: `FALTAN estos párrafos del capítulo, que tienen contenido importante. Intégralos (reemplaza o ` +
+            `acorta escenas de menor valor, sin pasar de ${MAX_NARRATION_WORDS} palabras en total) y márcalos en source_paragraphs:\n` +
+            missing.map((m) => `[${m + 1}] ${paragraphs[m]}`).join('\n') +
+            `\n\nCAPÍTULO COMPLETO:\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(reviewed)}` },
+        ], 'coverage_fix', job.institution_id);
+        if (fixed.scenes.length >= reviewed.scenes.length - 2) Object.assign(reviewed, fixed);
+        const still = this.missingParagraphs(job.content_txt, reviewed);
+        if (still.length) this.logger.warn(`[AiService] [${job.id}] Siguen sin cubrir: ${still.map((m) => m + 1).join(', ')}`);
+      }
+      this.logCoverage(job.id, reviewed);
+      this.stripUnsupportedYears(job, reviewed);
       this.logger.log(`[AiService] [${job.id}] Revisión crítica aplicada (${reviewed.scenes.length} escenas)`);
       return reviewed;
     } catch (err: unknown) {
@@ -534,6 +596,40 @@ Responde SOLO con el JSON completo corregido.`;
       this.logger.warn(`[AiService] [${job.id}] Revisión crítica omitida: ${msg}`);
       return script;
     }
+  }
+
+  /**
+   * Quita del texto en pantalla los años (4 cifras) que no aparecen en la fuente: el modelo a veces
+   * "completa" referencias con años inventados ("Universidad de Duke, 2006").
+   */
+  private stripUnsupportedYears(job: VideoJob, script: GeneratedScript): void {
+    const known = new Set(job.content_txt.match(/\b\d{4}\b/g) ?? []);
+    for (const s of script.scenes) {
+      s.on_screen_text = (s.on_screen_text ?? []).map((t) => {
+        const fixed = String(t).replace(/,?\s*\b(\d{4})\b/g, (m, y) => (known.has(y) ? m : ''));
+        if (fixed !== t) this.logger.warn(`[AiService] [${job.id}] Año no respaldado quitado de escena ${s.scene_order}: "${t}"`);
+        return fixed.trim();
+      });
+    }
+  }
+
+  /** Párrafos del capítulo (≥ 40 palabras) que ninguna escena declara en source_paragraphs. */
+  private missingParagraphs(content: string, script: GeneratedScript): number[] {
+    const paragraphs = sourceParagraphs(content);
+    const covered = new Set(script.scenes.flatMap((s) => (s.source_paragraphs ?? []).map((n) => Number(n) - 1)));
+    return paragraphs
+      .map((p, i) => ({ i, words: p.split(/\s+/).length }))
+      .filter((x) => x.words >= 40 && !covered.has(x.i))
+      .map((x) => x.i);
+  }
+
+  /** Avisa si algún objetivo de aprendizaje quedó sin escena. */
+  private logCoverage(jobId: string, script: GeneratedScript): void {
+    const objectives = script.learning_objectives ?? [];
+    const covered = new Set(script.scenes.map((s) => s.objective).filter((o) => typeof o === 'number'));
+    const missing = objectives.filter((_, i) => !covered.has(i));
+    if (missing.length) this.logger.warn(`[AiService] [${jobId}] Objetivos sin escena: ${missing.join(' | ')}`);
+    else if (objectives.length) this.logger.log(`[AiService] [${jobId}] ${objectives.length} objetivos cubiertos`);
   }
 
   private async callGptWithRetry(

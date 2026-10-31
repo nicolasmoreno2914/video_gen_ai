@@ -108,7 +108,9 @@ export class DalleService {
           this.logger.warn(
             `[DalleService] [${job.id}] Escena ${scene.scene_order} no pasó la verificación (pasada ${pass}/2): ${verdict.problems}`,
           );
-          prompt = `${basePrompt} It is essential that: ${check}. Fix these problems: ${verdict.problems}`;
+          // Las correcciones se piden con forma, posición y color: nunca con rótulos (la imagen va sin texto)
+          prompt = `${basePrompt} It is essential that: ${check}. Fix these problems: ${verdict.problems}. ` +
+            'Show it through shapes, position and color only. Absolutely no text, labels or letters.';
           continue;
         }
       }
@@ -255,7 +257,9 @@ export class DalleService {
             role: 'system',
             content:
               'Revisas imágenes para videos educativos. Evalúas SOLO si la imagen cumple los requisitos ' +
-              'indicados, con rigor técnico. Responde JSON: {"ok": boolean, "problems": "qué está mal, en una frase, o vacío"}.',
+              'indicados, con rigor técnico. La imagen NO debe tener texto ni etiquetas (los nombres van en la ' +
+              'diapositiva): no exijas rótulos; evalúa forma, posición y color, y marca como problema cualquier texto. ' +
+              'Responde JSON: {"ok": boolean, "problems": "qué está mal, en una frase, o vacío"}.',
           },
           {
             role: 'user',

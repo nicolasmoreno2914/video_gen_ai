@@ -442,7 +442,8 @@ export class RendererService {
     const fmt = (ms: number): string => this.formatSrtTime(ms).replace(',', '.');
     const cues = sceneSubs.flatMap((entries, i) => (entries ?? []).map((e) => {
       const off = Math.round(starts[i] * 1000);
-      return `${fmt(e.startMs + off)} --> ${fmt(e.endMs + off)}\n${e.text}`;
+      const limit = starts[i + 1] != null ? Math.round(starts[i + 1] * 1000) - 20 : Infinity;
+      return `${fmt(e.startMs + off)} --> ${fmt(Math.min(e.endMs + off, limit))}\n${e.text}`;
     }));
     return `WEBVTT\n\n${cues.join('\n\n')}\n`;
   }

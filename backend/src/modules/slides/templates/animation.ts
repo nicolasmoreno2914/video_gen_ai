@@ -46,18 +46,20 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
     add(el, [{ opacity: 0, transform: 'translateY(24px)' }, { opacity: 1, transform: 'none' }], 300, 700);
   });
 
+  // En diagramas (body[data-ghost]) el esquema completo se ve atenuado desde el inicio: la pantalla
+  // nunca queda vacía y el estudiante anticipa la estructura; cada parte se ilumina al mencionarse.
+  var ghost = document.body.hasAttribute('data-ghost');
   document.querySelectorAll('[data-reveal]').forEach(function (el) {
     var idx = Number(el.getAttribute('data-reveal')) - 1;
     var t = timeline.revealTimes[idx];
     if (typeof t !== 'number') t = 0.6 + idx * 0.4;
     var delay = Math.round(t * 1000);
-    add(el, [
-      { opacity: 0, transform: 'translateY(28px) scale(0.98)' },
-      { opacity: 1, transform: 'none' },
-    ], delay, 550);
+    add(el, ghost
+      ? [{ opacity: 0.22, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }]
+      : [{ opacity: 0, transform: 'translateY(28px) scale(0.98)' }, { opacity: 1, transform: 'none' }], delay, 550);
     // Resaltado: el amarillo se "enciende" justo después de que aparece el bullet
     el.querySelectorAll('mark').forEach(function (mark) {
-      add(mark, [{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], delay + 350, 450);
+      add(mark, [{ opacity: 0.55 }, { opacity: 1 }], delay + 350, 450);
     });
   });
 
