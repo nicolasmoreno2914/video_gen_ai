@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, radiusValue, bulletFontSize, lerpColor } from './shared';
+import { animationRuntime } from './animation';
 
 export function buildConclusionTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64 } = data;
@@ -22,7 +23,7 @@ export function buildConclusionTemplate(data: SlideTemplateData, theme: VideoThe
     const t = count === 1 ? 0.4 : i / Math.max(count - 1, 1);
     const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
     return `
-      <div style="
+      <div data-reveal="${i + 1}" style="
         background:#f8f9fa;
         border-left:5px solid ${color};
         border-radius:0 12px 12px 0;
@@ -136,7 +137,7 @@ ${imageBase64 ? '<div class="doodle-bg"></div>' : ''}
 <div class="deco-md"></div>
 <div class="deco-sm"></div>
 
-<div class="card">
+<div class="card" data-anim="enter">
   <div class="card-top">
     <div class="reflex-badge">CONCLUSIÓN</div>
     <div class="card-title" style="font-size:${titleSize}px">${escape(scene.title ?? '')}</div>
@@ -147,10 +148,11 @@ ${imageBase64 ? '<div class="doodle-bg"></div>' : ''}
 
 <div class="watermark">
   ${brand.logoBase64
-    ? `<img src="${brand.logoBase64}" alt="logo">`
+    ? `<img data-anim="image" src="${brand.logoBase64}" alt="logo">`
     : `<span class="watermark-name">${escape(brand.institutionName)}</span>`
   }
 </div>
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

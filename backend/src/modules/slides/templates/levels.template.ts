@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, headerHtml, lerpColor, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 export function buildLevelsTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand } = data;
@@ -33,7 +34,7 @@ export function buildLevelsTemplate(data: SlideTemplateData, theme: VideoTheme):
     const textColor = needsWhiteText(color) ? '#fff' : '#1a1a1a';
     const mutedColor = needsWhiteText(color) ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)';
 
-    return `<div style="
+    return `<div data-reveal="${i + 1}" style="
       width:${widthPct}%;
       height:${barHeight}px;
       background:${color};
@@ -121,6 +122,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   <div class="pyramid">${barsHtml}</div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

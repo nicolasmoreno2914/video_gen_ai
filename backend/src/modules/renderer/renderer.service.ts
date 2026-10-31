@@ -9,6 +9,7 @@ import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { RenderResult } from '../../common/types';
+import { SlidesService } from '../slides/slides.service';
 
 interface SrtEntry {
   index: number;
@@ -194,12 +195,17 @@ export class RendererService {
       }
 
       const fadeOut = Math.max(0, duration - 0.4);
+      const framesList = SlidesService.framesListPath(slidePath, scene.scene_order);
+      const animated = fs.existsSync(framesList);
 
       ffmpeg()
-        .input(slidePath).inputOptions(['-loop 1'])
+        .input(animated ? framesList : slidePath)
+        .inputOptions(animated ? ['-f concat', '-safe 0'] : ['-loop 1'])
         .input(audioPath)
         .complexFilter([
-          `[0:v]scale=1920:1080:flags=lanczos,` +
+          // fps=: el demuxer concat entrega solo los fotogramas clave; el filtro rellena
+          // los tramos quietos (con -r de salida el último tramo largo se perdía)
+          `[0:v]${animated ? `fps=${this.fps},` : ''}scale=1920:1080:flags=lanczos,` +
           `fade=t=in:st=0:d=0.4:color=white,` +
           `fade=t=out:st=${fadeOut.toFixed(3)}:d=0.4:color=white[v]`,
           `[1:a]aresample=44100,afade=t=in:st=0:d=0.2,afade=t=out:st=${Math.max(0, duration - 0.2).toFixed(3)}:d=0.2[a]`,
@@ -342,8 +348,10 @@ export class RendererService {
   ): Promise<string> {
     let entries: SrtEntry[];
 
-    // Intentar STT real si hay audio (Whisper — parallelizado via sttLimit)
-    if (scene.audio_url && fs.existsSync(scene.audio_url)) {
+    // Reusar los tiempos de la alineación previa (ya pagada); si no hay, transcribir aquí
+    if (scene.word_timings?.length) {
+      entries = this.groupSttWordsIntoSrt(scene.word_timings.map(w => ({ ...w, type: 'word' as const })));
+    } else if (scene.audio_url && fs.existsSync(scene.audio_url)) {
       this.logger.log(`[RendererService] Transcribiendo escena ${scene.scene_order} con Whisper`);
       const stt = await this.sttLimit(() => this.transcribeAudio(scene.audio_url!));
       if (stt) {

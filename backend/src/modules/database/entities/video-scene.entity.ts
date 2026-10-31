@@ -67,6 +67,14 @@ export class VideoScene {
   @Column({ type: 'int', nullable: true })
   estimated_duration_seconds!: number | null;
 
+  /** Tiempos por palabra de la narración (Whisper), en segundos desde el inicio del audio de la escena. */
+  @Column({ type: 'jsonb', nullable: true })
+  word_timings!: Array<{ text: string; start: number; end: number }> | null;
+
+  /** Frase de la narración que marca cuándo aparece cada on_screen_text (mismo índice). */
+  @Column({ type: 'jsonb', nullable: true })
+  reveal_cues!: Array<string | null> | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

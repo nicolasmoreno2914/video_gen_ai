@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, adaptiveTitleSize, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 import { radiusValue } from '../theme';
 
 export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme): string {
@@ -11,7 +12,7 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
 
   // Right panel: image or decorative rings with question mark
   const rightPanel = imageBase64
-    ? `<img style="max-width:100%;max-height:700px;object-fit:contain;border-radius:${radius};box-shadow:0 8px 40px rgba(0,0,0,0.12)" src="data:image/png;base64,${imageBase64}" alt="scene">`
+    ? `<img data-anim="image" style="max-width:100%;max-height:700px;object-fit:contain;border-radius:${radius};box-shadow:0 8px 40px rgba(0,0,0,0.12)" src="data:image/png;base64,${imageBase64}" alt="scene">`
     : `<div style="position:relative;width:460px;height:460px;display:flex;align-items:center;justify-content:center">
         <!-- Outer ring -->
         <div style="
@@ -145,9 +146,9 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
       </svg>
       PREGUNTA CLAVE
     </div>
-    <div class="question" style="font-size:${questionSize}px">${escape(scene.title ?? '')}</div>
+    <div class="question" data-anim="enter" style="font-size:${questionSize}px">${escape(scene.title ?? '')}</div>
     ${hint
-      ? `<div class="hint-card">
+      ? `<div class="hint-card" data-reveal="1">
           <div class="hint-dot"></div>
           <div class="hint-text">${escape(hint)}</div>
         </div>`
@@ -157,6 +158,7 @@ export function buildQuestionTemplate(data: SlideTemplateData, theme: VideoTheme
 </div>
 <div class="bottom-bar"></div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

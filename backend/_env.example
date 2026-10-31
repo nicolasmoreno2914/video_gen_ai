@@ -119,6 +119,8 @@ DEFAULT_RESOLUTION_HEIGHT=1080
 DEFAULT_TARGET_DURATION_MINUTES=7
 DEFAULT_VISUAL_STYLE=notebooklm
 ENABLE_ZOOM_EFFECT=false
+# Slides animados sincronizados con la voz (captura por fotogramas clave). Default: false
+# ANIMATED_SLIDES=true
 DEFAULT_DAILY_VIDEO_LIMIT=10
 
 # ── Logging ───────────────────────────────────────────────────

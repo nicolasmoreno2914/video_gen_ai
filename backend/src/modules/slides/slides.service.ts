@@ -20,6 +20,8 @@ import { buildComparisonTemplate } from './templates/comparison.template';
 import { buildLevelsTemplate } from './templates/levels.template';
 import { buildExampleCardTemplate } from './templates/example-card.template';
 import { SceneTimeline } from './templates/animation';
+import { captureKeyframes } from './keyframe-capture';
+import { computeRevealTimes } from './reveal-timing';
 
 export interface BrandData {
   primaryColor: string;
@@ -69,6 +71,8 @@ export class SlidesService {
   private readonly basePath: string;
   private readonly executablePath: string;
   private readonly limit = pLimit(3);
+  private readonly animated: boolean;
+  private readonly fps: number;
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,
@@ -78,6 +82,19 @@ export class SlidesService {
       this.configService.get<AppConfig['storage']>('storage')?.basePath ?? '/tmp/video-engine';
     this.executablePath =
       process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium';
+    const video = this.configService.get<AppConfig['video']>('video');
+    this.animated = video?.animatedSlides ?? false;
+    this.fps = video?.fps ?? 30;
+  }
+
+  /** true si los slides de este job se renderizan animados (requiere audio, no aplica a dry-run). */
+  isAnimated(job: VideoJob): boolean {
+    return this.animated && !job.dry_run;
+  }
+
+  /** Lista de fotogramas (demuxer concat de FFmpeg) de una escena animada, si existe. */
+  static framesListPath(slidePngPath: string, sceneOrder: number): string {
+    return path.join(path.dirname(slidePngPath), `scene_${sceneOrder}`, 'frames.txt');
   }
 
   async renderAllSlides(job: VideoJob, scenes: VideoScene[]): Promise<void> {
@@ -135,7 +152,13 @@ export class SlidesService {
       );
     }
 
-    const html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage }, theme);
+    const duration = scene.duration_seconds ?? 0;
+    const animate = this.isAnimated(job) && duration > 0;
+    const timeline: SceneTimeline | null = animate
+      ? { revealTimes: computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
+      : null;
+
+    const html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
 
     const page = await browser.newPage();
     try {
@@ -146,6 +169,19 @@ export class SlidesService {
       await page.evaluate(() =>
         Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 5000))]).then(() => undefined),
       );
+      if (timeline) {
+        const framesDir = path.dirname(SlidesService.framesListPath(outputPath, scene.scene_order));
+        fs.rmSync(framesDir, { recursive: true, force: true });
+        const { frameCount } = await captureKeyframes(page, framesDir, duration, this.fps);
+        // Estado final como PNG: thumbnail, dry-run y respaldo si falta la lista de fotogramas
+        await page.evaluate((t: number) => {
+          (window as unknown as { __anim?: { seek(t: number): void } }).__anim?.seek(t);
+        }, duration);
+        this.logger.log(
+          `[SlidesService] [${job.id}] Slide ${scene.scene_order} animado: ${frameCount} fotogramas, ` +
+          `apariciones en ${timeline.revealTimes.map((t) => t.toFixed(1)).join('/')}s`,
+        );
+      }
       await page.screenshot({ path: outputPath, type: 'png' });
 
       await this.videosService.updateScene(scene.id, { slide_png_url: outputPath });
@@ -156,11 +192,15 @@ export class SlidesService {
     }
   }
 
+  private sceneTexts(scene: VideoScene): string[] {
+    const rawTexts = scene.on_screen_text ?? [];
+    return Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
+  }
+
   buildSlideHTML(data: SlideTemplateData, theme: VideoTheme): string {
     const { scene } = data;
     const layout = scene.layout_type ?? null;
-    const rawTexts = scene.on_screen_text ?? [];
-    const texts = Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
+    const texts = this.sceneTexts(scene);
     const title = scene.title ?? '';
 
     // layout_type es el criterio principal

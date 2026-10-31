@@ -3,6 +3,7 @@
 // Las plantillas marcan los elementos que se animan:
 //   .header                  → entra al inicio de la escena
 //   [data-anim="image"]      → imagen IA, entra poco después del header
+//   [data-anim="enter"]      → texto principal (portada, pregunta, cierre), entra al inicio
 //   [data-reveal="N"]        → elemento N (1-based) aparece en timeline.revealTimes[N-1]
 //
 // Todas las animaciones se crean con la Web Animations API y quedan EN PAUSA:
@@ -37,6 +38,10 @@ export function animationRuntime(timeline?: SceneTimeline | null): string {
 
   document.querySelectorAll('[data-anim="image"]').forEach(function (el) {
     add(el, [{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], 250, 800);
+  });
+
+  document.querySelectorAll('[data-anim="enter"]').forEach(function (el) {
+    add(el, [{ opacity: 0, transform: 'translateY(24px)' }, { opacity: 1, transform: 'none' }], 300, 700);
   });
 
   document.querySelectorAll('[data-reveal]').forEach(function (el) {

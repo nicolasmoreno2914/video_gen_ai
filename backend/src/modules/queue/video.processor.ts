@@ -8,6 +8,7 @@ import { AiService } from '../ai/ai.service';
 import { DalleService } from '../image-generator/dalle.service';
 import { SlidesService } from '../slides/slides.service';
 import { OpenAiTtsService } from '../voice/openai-tts.service';
+import { AudioAlignmentService } from '../voice/audio-alignment.service';
 import { RendererService } from '../renderer/renderer.service';
 import { YouTubeService } from '../youtube/youtube.service';
 import { WebhookService } from '../webhook/webhook.service';
@@ -36,6 +37,7 @@ export class VideoProcessor extends WorkerHost {
     private readonly dalleService: DalleService,
     private readonly slidesService: SlidesService,
     private readonly openAiTtsService: OpenAiTtsService,
+    private readonly audioAlignmentService: AudioAlignmentService,
     private readonly rendererService: RendererService,
     private readonly youTubeService: YouTubeService,
     private readonly webhookService: WebhookService,
@@ -148,6 +150,7 @@ export class VideoProcessor extends WorkerHost {
       visual_direction: s.visual_direction,
       image_prompt: s.image_prompt ?? null,
       highlight_words: s.highlight_words,
+      reveal_cues: Array.isArray(s.reveal_cues) ? s.reveal_cues : null,
       transition: s.transition,
       estimated_duration_seconds: s.estimated_duration_seconds,
     }));
@@ -197,6 +200,10 @@ export class VideoProcessor extends WorkerHost {
 
   private async generateSlides(job: VideoJob): Promise<void> {
     const scenes = await this.videosService.getScenes(job.id);
+    // Slides animados: los tiempos de la voz deciden cuándo aparece cada elemento
+    if (this.slidesService.isAnimated(job)) {
+      await this.audioAlignmentService.alignScenes(job, scenes);
+    }
     await this.slidesService.renderAllSlides(job, scenes);
   }
 

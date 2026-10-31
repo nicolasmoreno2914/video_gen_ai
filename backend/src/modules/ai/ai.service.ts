@@ -231,6 +231,11 @@ REGLAS VISUALES
   • visual_metaphor: metáfora visual abstracta que representa el concepto de forma creativa
   No repitas el mismo tipo de composición en dos escenas consecutivas.
 - highlight_words: 1–3 palabras que se resaltarán en amarillo en pantalla.
+- reveal_cues: los elementos de on_screen_text aparecen en pantalla en el momento en que la voz
+  los menciona. Para CADA elemento de on_screen_text (mismo orden y misma cantidad) copia una
+  frase LITERAL de 3 a 6 palabras de la narración donde empieza a hablarse de ese elemento.
+  Debe aparecer tal cual en la narración y en orden creciente. Si un elemento no se menciona
+  explícitamente, usa null.
 
 ════════════════════════════════════
 REQUIRES_AI_IMAGE — CAMPO OBLIGATORIO
@@ -350,6 +355,7 @@ RESPONDE EXCLUSIVAMENTE con JSON válido puro. Sin markdown. Sin bloques de cód
       "visual_direction": "Descripción de cómo debe verse esta escena",
       "image_prompt": "DALL-E prompt in English: [composition_type] — educational doodle illustration of [specific concept], white background, hand-drawn style, black ink lines, minimal color accents, no text in image, clean educational sketch",
       "highlight_words": ["palabra1", "palabra2"],
+      "reveal_cues": ["Primero, necesitas una señal", "Después, la rutina"],
       "transition": "fade|slide|zoom|dissolve",
       "estimated_duration_seconds": 30
     }

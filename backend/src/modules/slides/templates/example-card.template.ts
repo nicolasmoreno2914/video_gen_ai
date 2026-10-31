@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, headerHtml, bulletFontSize, radiusValue, lerpColor, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 export function buildExampleCardTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64, requiresAiImage } = data;
@@ -18,7 +19,7 @@ export function buildExampleCardTemplate(data: SlideTemplateData, theme: VideoTh
     const t = count === 1 ? 0.4 : i / Math.max(count - 1, 1);
     const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
     return `
-      <div style="
+      <div data-reveal="${i + 1}" style="
         background:rgba(255,255,255,0.92);
         border-left:5px solid ${color};
         border-radius:0 ${radius} ${radius} 0;
@@ -52,7 +53,7 @@ export function buildExampleCardTemplate(data: SlideTemplateData, theme: VideoTh
   // Left visual panel
   const leftPanel = hasImage
     ? `<div style="width:54%;position:relative;overflow:hidden;flex-shrink:0">
-        <img style="width:100%;height:100%;object-fit:cover" src="data:image/png;base64,${imageBase64}" alt="scene">
+        <img data-anim="image" style="width:100%;height:100%;object-fit:cover" src="data:image/png;base64,${imageBase64}" alt="scene">
         <!-- Gradient fade to white on right edge -->
         <div style="position:absolute;inset:0;background:linear-gradient(to right,transparent 55%,white 100%)"></div>
       </div>`
@@ -136,6 +137,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
   </div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

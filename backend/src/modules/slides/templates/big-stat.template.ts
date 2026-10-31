@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, headerHtml, radiusValue, bulletFontSize, lerpColor, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 function statNumberSize(statValue: string): number {
   const len = statValue.replace(/\s/g, '').length;
@@ -29,7 +30,7 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
           const t = i / Math.max(restItems.length - 1, 1);
           const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
           return `
-          <div style="
+          <div data-reveal="${i + 2}" style="
             display:flex; align-items:center; gap:16px;
             background:white;
             border-left:5px solid ${color};
@@ -66,7 +67,7 @@ export function buildBigStatTemplate(data: SlideTemplateData, theme: VideoTheme)
       box-shadow:0 3px 12px ${brand.secondaryColor}50;
     ">DATO CLAVE</div>
 
-    <div style="
+    <div data-reveal="1" style="
       font-size:${numSize}px;
       font-weight:900;
       line-height:0.88;
@@ -142,6 +143,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')
   <div class="deco-col">${decoRings}</div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
   }
@@ -166,10 +168,11 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '')
 <div class="body">
   <div class="stat-col">${statBlock}</div>
   <div class="img-col">
-    <img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
+    <img data-anim="image" class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
   </div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

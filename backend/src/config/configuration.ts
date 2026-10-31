@@ -58,6 +58,7 @@ export interface AppConfig {
     defaultTargetDurationMinutes: number;
     defaultVisualStyle: string;
     enableZoomEffect: boolean;
+    animatedSlides: boolean;
   };
   rateLimit: {
     defaultDailyVideoLimit: number;
@@ -130,6 +131,8 @@ export default (): AppConfig => ({
     defaultTargetDurationMinutes: parseInt(process.env.DEFAULT_TARGET_DURATION_MINUTES ?? '10', 10),
     defaultVisualStyle: process.env.DEFAULT_VISUAL_STYLE ?? 'notebooklm',
     enableZoomEffect: process.env.ENABLE_ZOOM_EFFECT === 'true',
+    // Slides animados sincronizados con la voz (captura por fotogramas clave)
+    animatedSlides: process.env.ANIMATED_SLIDES === 'true',
   },
   rateLimit: {
     defaultDailyVideoLimit: parseInt(process.env.DEFAULT_DAILY_VIDEO_LIMIT ?? '10', 10),

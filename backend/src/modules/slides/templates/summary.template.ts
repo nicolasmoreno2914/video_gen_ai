@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, radiusValue, bulletFontSize, lerpColor, adaptiveTitleSize, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64, requiresAiImage } = data;
@@ -22,7 +23,7 @@ export function buildSummaryTemplate(data: SlideTemplateData, theme: VideoTheme)
     const t = count === 1 ? 0.4 : i / Math.max(count - 1, 1);
     const color = lerpColor(brand.primaryColor, brand.secondaryColor, t);
     return `
-      <div style="
+      <div data-reveal="${i + 1}" style="
         background:white;
         border-left:5px solid ${color};
         border-radius:0 ${radius} ${radius} 0;
@@ -154,6 +155,7 @@ ${summaryHeader}
   ${decoPanel}
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
   }
@@ -180,10 +182,11 @@ ${summaryHeader}
   <div class="left-col">${bulletCards}</div>
   <div class="divider"></div>
   <div class="right-col">
-    <img class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
+    <img data-anim="image" class="scene-image" src="data:image/png;base64,${imageBase64}" alt="scene">
   </div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

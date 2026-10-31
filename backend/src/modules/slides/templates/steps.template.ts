@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, headerHtml, radiusValue, lerpColor, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 function stepFontSize(count: number, maxLen: number): number {
   const base = count <= 2 ? 34 : count === 3 ? 30 : count === 4 ? 26 : 23;
@@ -32,7 +33,7 @@ function buildHorizontalSteps(
     const isLast = i === count - 1;
 
     return `
-      <div style="flex:1;display:flex;flex-direction:column;align-items:stretch;min-width:0">
+      <div data-reveal="${i + 1}" style="flex:1;display:flex;flex-direction:column;align-items:stretch;min-width:0">
         <!-- Card -->
         <div style="
           background:white;
@@ -86,8 +87,8 @@ function buildHorizontalSteps(
         </div>
       </div>
       ${!isLast ? `
-        <!-- Arrow connector -->
-        <div style="
+        <!-- Arrow connector (aparece junto con el paso siguiente) -->
+        <div data-reveal="${i + 2}" style="
           width:52px; min-width:52px;
           display:flex; align-items:center; justify-content:center;
           padding-top:30px;
@@ -119,7 +120,7 @@ function buildVerticalSteps(steps: string[], primary: string, secondary: string,
     const isLast = i === steps.length - 1;
 
     return `
-      <div style="display:flex;align-items:stretch;gap:0;margin-bottom:${isLast ? 0 : gap}px">
+      <div data-reveal="${i + 1}" style="display:flex;align-items:stretch;gap:0;margin-bottom:${isLast ? 0 : gap}px">
         <!-- Number + line column -->
         <div style="
           display:flex; flex-direction:column; align-items:center;
@@ -200,6 +201,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
     : stepsContent}
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

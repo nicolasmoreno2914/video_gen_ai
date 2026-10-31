@@ -16,6 +16,7 @@ export interface SceneInsertData {
   visual_direction?: string | null;
   image_prompt?: string | null;
   highlight_words?: string[] | null;
+  reveal_cues?: Array<string | null> | null;
   transition?: string;
   image_url?: string | null;
   slide_png_url?: string | null;

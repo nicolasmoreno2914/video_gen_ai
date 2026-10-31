@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, footerHtml, headerHtml, bulletFontSize, radiusValue, lerpColor, baseSlideCSS } from './shared';
+import { animationRuntime } from './animation';
 
 function extractColumnTitles(title: string): [string, string] {
   // "A vs B" / "A versus B"
@@ -53,9 +54,9 @@ export function buildComparisonTemplate(data: SlideTemplateData, theme: VideoThe
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>`;
 
-  const colItems = (items: string[], color: string) =>
-    items.map(b =>
-      `<div style="
+  const colItems = (items: string[], color: string, offset: number) =>
+    items.map((b, i) =>
+      `<div data-reveal="${offset + i + 1}" style="
         background:white;
         border-left:5px solid ${color};
         border-radius:0 ${radius} ${radius} 0;
@@ -146,7 +147,7 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
       <div class="col-letter">A</div>
       <div class="col-title" style="color:${leftTextColor}">${escape(leftTitle)}</div>
     </div>
-    <div class="items">${colItems(leftItems, brand.primaryColor)}</div>
+    <div class="items">${colItems(leftItems, brand.primaryColor, 0)}</div>
   </div>
 
   <!-- VS center divider -->
@@ -161,10 +162,11 @@ ${headerHtml(theme, brand.primaryColor, brand.secondaryColor, scene.title ?? '',
       <div class="col-letter">B</div>
       <div class="col-title" style="color:${rightTextColor}">${escape(rightTitle)}</div>
     </div>
-    <div class="items">${colItems(rightItems, brand.secondaryColor)}</div>
+    <div class="items">${colItems(rightItems, brand.secondaryColor, leftItems.length)}</div>
   </div>
 </div>
 ${footerHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }

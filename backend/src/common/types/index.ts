@@ -49,6 +49,8 @@ export interface GeneratedScene {
   visual_direction: string;
   image_prompt: string | null;
   highlight_words: string[];
+  /** Frase literal de la narración donde se menciona cada on_screen_text (mismo índice). */
+  reveal_cues?: Array<string | null>;
   transition: TransitionType;
   estimated_duration_seconds: number;
 }

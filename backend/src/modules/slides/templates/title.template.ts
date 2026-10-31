@@ -1,6 +1,7 @@
 import { SlideTemplateData } from '../slides.service';
 import { VideoTheme } from '../theme';
 import { GOOGLE_FONTS, escape, bgStyle, watermarkHtml, adaptiveTitleSize } from './shared';
+import { animationRuntime } from './animation';
 
 export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): string {
   const { scene, brand, imageBase64 } = data;
@@ -192,12 +193,12 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
   ${imageBase64 ? '<div class="img-texture"></div>' : ''}
   <div class="content-inner">
     <div class="slide-tag">MATERIAL EDUCATIVO</div>
-    <div class="main-title" style="font-size:${titleSize}px">${escape(scene.title ?? '')}</div>
+    <div class="main-title" data-anim="enter" style="font-size:${titleSize}px">${escape(scene.title ?? '')}</div>
     ${subtitle ? `<div class="subtitle-text">${escape(subtitle)}</div>` : ''}
     ${bullets.length > 0
       ? `<div class="topics">
           ${bullets.map((b, i) =>
-            `<div class="topic-item">
+            `<div class="topic-item" data-reveal="${i + 1}">
               <div class="topic-dot" style="background:${i === 0 ? brand.primaryColor : i === 1 ? brand.secondaryColor : brand.primaryColor + '80'}"></div>
               ${escape(b)}
             </div>`
@@ -209,6 +210,7 @@ export function buildTitleTemplate(data: SlideTemplateData, theme: VideoTheme): 
 
 <!-- Watermark -->
 ${watermarkHtml(brand.logoBase64, brand.institutionName)}
+${animationRuntime(data.timeline)}
 </body>
 </html>`;
 }
