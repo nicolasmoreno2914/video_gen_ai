@@ -34,11 +34,6 @@ export interface AppConfig {
     imageQuality: string;
     ttsModel: string;
   };
-  elevenlabs: {
-    apiKey: string;
-    defaultVoiceId: string;
-    modelId: string;
-  };
   youtube: {
     clientId: string;
     clientSecret: string;
@@ -109,11 +104,6 @@ export default (): AppConfig => ({
     imageQuality: process.env.OPENAI_IMAGE_QUALITY ?? 'standard',
     // Snapshot fijado: el alias 'gpt-4o-mini-tts' se cuelga (125–172 s) desde 2026-10-15/16
     ttsModel: process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_OPENAI_TTS_MODEL,
-  },
-  elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY ?? '',
-    defaultVoiceId: process.env.ELEVENLABS_DEFAULT_VOICE_ID ?? '',
-    modelId: process.env.ELEVENLABS_MODEL_ID ?? 'eleven_multilingual_v2',
   },
   youtube: {
     clientId: process.env.YOUTUBE_CLIENT_ID ?? '',

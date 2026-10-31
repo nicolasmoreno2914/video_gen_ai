@@ -102,9 +102,11 @@ export interface DailyCostEntry {
 const PROVIDER_CATEGORY: Record<string, keyof CostBreakdown> = {
   openai_chat: 'openai_text',
   openai_dalle: 'openai_images',
-  openai_tts: 'elevenlabs',   // OpenAI TTS → mismo bucket "voz" que ElevenLabs
+  // La clave 'elevenlabs' es el bucket de "voz" (nombre histórico, se conserva por
+  // compatibilidad con cost_breakdown guardado y la API). Hoy solo lo alimenta OpenAI TTS.
+  openai_tts: 'elevenlabs',
   openai_stt: 'render',       // Whisper para subtítulos → parte del paso de render
-  elevenlabs: 'elevenlabs',
+  elevenlabs: 'elevenlabs',   // logs históricos de ElevenLabs (proveedor retirado)
   internal: 'render',
   youtube: 'youtube',
 };
@@ -243,7 +245,7 @@ export class CostsService {
         usage.text_tokens_output += outputUnits;
       } else if (row.provider === 'openai_dalle') {
         usage.images_generated += calls;
-      } else if (row.provider === 'elevenlabs') {
+      } else if (row.provider === 'elevenlabs' || row.provider === 'openai_tts') {
         usage.elevenlabs_characters += inputUnits;
       } else if (row.provider === 'internal') {
         usage.render_seconds += inputUnits;

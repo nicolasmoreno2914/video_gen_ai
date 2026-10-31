@@ -301,10 +301,6 @@ PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 OPENAI_API_KEY=<key>
 OPENAI_MODEL=gpt-4o
 
-# ElevenLabs
-ELEVENLABS_API_KEY=<key>
-ELEVENLABS_DEFAULT_VOICE_ID=<voice_id>
-
 # Test mode — true para validar sin consumir créditos
 VIDEOGEN_TEST_MODE=false
 ```
@@ -520,7 +516,7 @@ curl https://videosb.nomaddi.com/api/dev/jobs
 
 ## 15. Test mode — validar flujo Cursia ↔ Videogen
 
-Activa `VIDEOGEN_TEST_MODE=true` en el `.env` para probar sin consumir créditos de OpenAI/ElevenLabs.
+Activa `VIDEOGEN_TEST_MODE=true` en el `.env` para probar sin consumir créditos de OpenAI.
 
 ### ¿Qué hace el test mode?
 

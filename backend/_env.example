@@ -70,11 +70,6 @@ OPENAI_IMAGE_QUALITY=standard
 # Opcional: modelo TTS (default: snapshot fijado gpt-4o-mini-tts-2025-03-20)
 # OPENAI_TTS_MODEL=gpt-4o-mini-tts-2025-03-20
 
-# ── ElevenLabs ───────────────────────────────────────────────
-ELEVENLABS_API_KEY=
-ELEVENLABS_DEFAULT_VOICE_ID=
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
-
 # ── Costos (catálogo central: src/modules/costs/cost-config.ts) ─
 # Opcional: costo del servidor de render prorrateado por minuto de video (default 0.02)
 # RENDER_USD_PER_MINUTE=0.02
@@ -151,7 +146,7 @@ VIDEOGEN_WEBHOOK_SECRET=change_me_in_production
 
 # VIDEOGEN_TEST_MODE
 #   true  → los batches completan instantáneamente con una URL de video de prueba.
-#           No consume créditos de OpenAI/ElevenLabs. Callbacks reales a Cursia.
+#           No consume créditos de OpenAI. Callbacks reales a Cursia.
 #           Usar para validar el flujo Cursia ↔ Videogen ↔ callbacks.
 #   false → producción real. REQUIERE que processProductionBatch esté conectado
 #           al pipeline de generación (ver docs/DEPLOY_CONTABO_VIDEOGEN.md §Pendientes).

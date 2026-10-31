@@ -26,7 +26,6 @@ interface FormState {
   fileName: string | null;
   visualStyle: VisualStyle;
   targetMinutes: number;
-  voiceId: string;
   uploadYoutube: boolean;
   dryRun: boolean;
   youtubePrivacy: 'unlisted' | 'public' | 'private';
@@ -40,7 +39,6 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
     fileName: null,
     visualStyle: 'notebooklm',
     targetMinutes: 10,
-    voiceId: '',
     uploadYoutube: false,
     dryRun: false,
     youtubePrivacy: 'unlisted',
@@ -78,7 +76,6 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
         institution_name: institution?.brand_institution_name || institution?.name || 'Institución Demo',
         primary_color: institution?.brand_primary_color ?? '#003366',
         secondary_color: institution?.brand_secondary_color ?? '#00AEEF',
-        voice_id: form.voiceId || undefined,
       },
       youtube: form.uploadYoutube
         ? {
@@ -131,7 +128,6 @@ export function VideoCreatorForm({ onJobCreated }: VideoCreatorFormProps) {
 
       <AdvancedConfig
         targetMinutes={form.targetMinutes}
-        voiceId={form.voiceId}
         onChange={handleAdvancedChange}
       />
 
