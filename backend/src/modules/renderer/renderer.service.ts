@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import OpenAI from 'openai';
 import pLimit from 'p-limit';
+import { buildVfrEntries, readFramesList, writeFramesList } from './vfr-frames';
 import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
@@ -35,6 +36,10 @@ const BLOCKS: Record<string, string> = {
   application: 'apply', example: 'apply', practice: 'apply', summary: 'close', conclusion: 'close',
 };
 const PROGRESS_BAR_HEIGHT = 6;
+// La barra avanza ~4 px/s en un video de 7 min: basta un fotograma cada medio segundo
+const PROGRESS_BAR_STEP = 0.5;
+const SCENE_FADE = 0.35;
+const VFR_TIMESCALE = 30000;
 
 @Injectable()
 export class RendererService {
@@ -93,7 +98,7 @@ export class RendererService {
           const { srtPath, entries } = await this.writeSceneSubtitles(scene, jobDir, stt);
           sceneSubs[i] = entries;
           const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir, {
-            srtPath, start: starts[i], total, brand, pause: pauses[i],
+            srtPath, entries, start: starts[i], total, brand, pause: pauses[i],
           });
           this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
           return sceneVideoPath;
@@ -208,7 +213,14 @@ export class RendererService {
     jobId: string,
     scene: VideoScene,
     scenesDir: string,
-    opts: { srtPath: string; start: number; total: number; pause: number; brand: { primary: string; secondary: string } },
+    opts: {
+      srtPath: string;
+      entries: SrtEntry[];
+      start: number;
+      total: number;
+      pause: number;
+      brand: { primary: string; secondary: string };
+    },
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const slidePath = scene.slide_png_url;
@@ -227,30 +239,39 @@ export class RendererService {
         return;
       }
 
-      const fadeOut = Math.max(0, duration - 0.35);
+      const fadeOut = Math.max(0, duration - SCENE_FADE);
       const framesList = SlidesService.framesListPath(slidePath, scene.scene_order);
       const animated = fs.existsSync(framesList);
+      // Un fotograma solo cuando algo cambia (ver vfr-frames.ts); el slide fijo es una sola imagen
+      const vfrList = path.join(scenesDir, `scene_${scene.scene_order}_frames.txt`);
+      const overlayCuts = this.subtitlesMode === 'burned'
+        ? opts.entries.flatMap((e) => [e.startMs / 1000, e.endMs / 1000])
+        : [];
+      writeFramesList(
+        buildVfrEntries(animated ? readFramesList(framesList) : [{ file: slidePath, hold: duration }], {
+          duration, cuts: overlayCuts, fps: this.fps, fade: SCENE_FADE, maxHold: PROGRESS_BAR_STEP,
+        }),
+        vfrList,
+      );
       const escapedSrt = opts.srtPath.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
       const bar = opts.brand.secondary.replace('#', '0x');
 
       ffmpeg()
-        .input(animated ? framesList : slidePath)
-        .inputOptions(animated ? ['-f concat', '-safe 0'] : ['-loop 1'])
+        .input(vfrList)
+        .inputOptions(['-f concat', '-safe 0'])
         .input(audioPath)
         .complexFilter([
-          // fps=: el demuxer concat entrega solo los fotogramas clave; el filtro rellena los tramos
-          // quietos y tpad sostiene el último durante la pausa. Los JPEG son de rango completo
-          // (yuvj420p): se pasan a yuv420p de rango TV, el formato que exigen los reproductores.
-          // Los slides ya miden 1920×1080: el escalado solo convierte el rango de color
-          `[0:v]${animated ? `fps=${this.fps},scale=out_range=tv` : 'scale=1920:1080'},format=yuv420p,` +
-          `tpad=stop_mode=clone:stop_duration=${opts.pause}` +
+          // Base de tiempo fina para no perder fotogramas cortos. Los JPEG son de rango completo
+          // (yuvj420p) y el slide fijo es RGB: todo pasa a yuv420p de rango TV, el formato que
+          // exigen los reproductores. Los slides ya miden 1920×1080.
+          `[0:v]settb=1/${VFR_TIMESCALE},scale=1920:1080:out_range=tv,format=yuv420p` +
           (this.subtitlesMode === 'burned'
             ? `,subtitles='${escapedSrt}':force_style='${this.subtitleStyle(opts.brand.primary)}'[base]`
             : '[base]'),
           // Barra de progreso del video completo (abajo, color de la marca)
           `color=c=${bar}:s=1920x${PROGRESS_BAR_HEIGHT}:r=${this.fps}[bar]`,
           `[base][bar]overlay=x='-W+W*(${opts.start.toFixed(3)}+t)/${opts.total.toFixed(3)}':y=H-${PROGRESS_BAR_HEIGHT}:shortest=1,` +
-          `fade=t=in:st=0:d=0.35:color=white,fade=t=out:st=${fadeOut.toFixed(3)}:d=0.35:color=white[v]`,
+          `fade=t=in:st=0:d=${SCENE_FADE}:color=white,fade=t=out:st=${fadeOut.toFixed(3)}:d=${SCENE_FADE}:color=white[v]`,
           `[1:a]aresample=48000,apad=pad_dur=${opts.pause},` +
           `afade=t=in:st=0:d=0.15,afade=t=out:st=${Math.max(0, duration - 0.25).toFixed(3)}:d=0.25[a]`,
         ])
@@ -261,7 +282,9 @@ export class RendererService {
           '-c:v libx264', `-preset ${this.preset}`, '-tune stillimage', '-crf 16', '-g 60', '-profile:v high', '-level 4.1',
           '-c:a aac', '-b:a 160k', '-ar 48000', '-ac 2',
           '-pix_fmt yuv420p',
-          `-r ${this.fps}`,
+          // Frecuencia variable: cada imagen dura lo que indica la lista (los reproductores y
+          // YouTube lo admiten; la concatenación final copia el video sin recodificar)
+          '-fps_mode vfr', `-video_track_timescale ${VFR_TIMESCALE}`,
           `-t ${duration.toFixed(3)}`,
         ])
         .output(outputPath)
@@ -271,6 +294,7 @@ export class RendererService {
         })
         .on('end', () => {
           fs.rmSync(opts.srtPath, { force: true });
+          fs.rmSync(vfrList, { force: true });
           resolve(outputPath);
         })
         .run();
@@ -509,12 +533,13 @@ export class RendererService {
           if (videoStream.pix_fmt !== 'yuv420p') {
             issues.push(`pix_fmt es "${videoStream.pix_fmt}", se esperaba yuv420p`);
           }
-          // Check frame rate
-          const rFrameRate = videoStream.r_frame_rate ?? '';
-          const [num, den] = rFrameRate.split('/').map(Number);
+          // Frecuencia variable (VFR): la media cae bajo 30 en los tramos quietos; solo se rechaza
+          // un video sin fotogramas o con más de los que el reproductor admite
+          const avgFrameRate = videoStream.avg_frame_rate ?? '';
+          const [num, den] = avgFrameRate.split('/').map(Number);
           const fps = den && den > 0 ? (num ?? 0) / den : 0;
-          if (fps < 28 || fps > 32) {
-            issues.push(`frame rate es ${fps.toFixed(2)} fps, se esperaba ~30`);
+          if (fps <= 0 || fps > 61) {
+            issues.push(`frame rate medio es ${fps.toFixed(2)} fps, fuera de rango`);
           }
         }
 
