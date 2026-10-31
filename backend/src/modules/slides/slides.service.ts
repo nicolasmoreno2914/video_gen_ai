@@ -137,8 +137,12 @@ export class SlidesService {
     const page = await browser.newPage();
     try {
       await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-      // domcontentloaded: suficiente para HTML local — evita el timeout de networkidle0
-      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      // 'load' espera la hoja de Google Fonts; luego se esperan las fuentes (máx. 5 s).
+      // Con 'domcontentloaded' la captura salía con la fuente de respaldo del sistema.
+      await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
+      await page.evaluate(() =>
+        Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 5000))]).then(() => undefined),
+      );
       await page.screenshot({ path: outputPath, type: 'png' });
 
       await this.videosService.updateScene(scene.id, { slide_png_url: outputPath });
