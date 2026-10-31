@@ -225,7 +225,7 @@ export class VideoProcessor extends WorkerHost {
     }
 
     await this.openAiTtsService.generateAllAudio(job, scenes, {
-      voice: meta?.tts_voice ?? 'marin',
+      voice: meta?.tts_voice, // sin tts_voice → voz por defecto del servicio (cedar)
       model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
     });
 
@@ -318,7 +318,7 @@ export class VideoProcessor extends WorkerHost {
       // Regenerate only the expanded scenes' audio
       const meta = job.external_metadata as Record<string, string> | null;
       await this.openAiTtsService.regenerateScenesAudio(job, expandedScenes, {
-        voice: meta?.tts_voice ?? 'marin',
+        voice: meta?.tts_voice, // sin tts_voice → voz por defecto del servicio (cedar)
         model: meta?.tts_model, // sin tts_model → default del servicio (snapshot fijado)
       });
     }

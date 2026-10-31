@@ -218,7 +218,7 @@ export function repriceUsageLog(log: RepriceableLog): PriceResult | null {
     }
     case 'openai_tts':
       if (!model) return null;
-      return priceOpenAiTts(model, log.input_units ?? 0, num(meta.duration_seconds));
+      return priceOpenAiTts(model, (log.input_units ?? 0) + num(meta.instructions_characters), num(meta.duration_seconds));
     // elevenlabs: proveedor retirado — sus logs históricos conservan el costo original.
     case 'openai_stt':
       return priceStt(model || 'whisper-1', log.input_units ?? 0);

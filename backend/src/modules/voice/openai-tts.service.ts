@@ -9,7 +9,11 @@ import { AppConfig } from '../../config/configuration';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
-import { DEFAULT_OPENAI_TTS_MODEL } from './openai-tts.constants';
+import {
+  DEFAULT_OPENAI_TTS_MODEL,
+  DEFAULT_OPENAI_TTS_VOICE,
+  ttsModelSupportsInstructions,
+} from './openai-tts.constants';
 import { priceOpenAiTts } from '../costs/cost-config';
 
 export interface OpenAiTtsOpts {
@@ -24,14 +28,13 @@ const VALID_VOICES = new Set([
   'verse', 'marin', 'cedar',
 ]);
 
-const DEFAULT_VOICE = 'marin';
-
 @Injectable()
 export class OpenAiTtsService {
   private readonly logger = new Logger(OpenAiTtsService.name);
   private readonly apiKey: string;
   private readonly basePath: string;
   private readonly defaultModel: string;
+  private readonly instructions: string;
   private readonly limit = pLimit(3);
 
   constructor(
@@ -41,6 +44,7 @@ export class OpenAiTtsService {
     const cfg = this.configService.get<AppConfig['openai']>('openai')!;
     this.apiKey = cfg.apiKey;
     this.defaultModel = cfg.ttsModel || DEFAULT_OPENAI_TTS_MODEL;
+    this.instructions = cfg.ttsInstructions;
     this.basePath =
       this.configService.get<AppConfig['storage']>('storage')?.basePath ??
       '/tmp/video-engine';
@@ -118,6 +122,7 @@ export class OpenAiTtsService {
   ): Promise<void> {
     const outputPath = path.join(audioDir, `scene_${scene.scene_order}.mp3`);
     const text = scene.narration ?? '';
+    const instructions = ttsModelSupportsInstructions(model) ? this.instructions : '';
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -128,6 +133,7 @@ export class OpenAiTtsService {
             input: text,
             voice,
             response_format: 'mp3',
+            ...(instructions ? { instructions } : {}),
           },
           {
             headers: {
@@ -148,7 +154,8 @@ export class OpenAiTtsService {
           duration_seconds: durationSeconds,
         });
 
-        const price = priceOpenAiTts(model, text.length, durationSeconds);
+        // Las instrucciones también se cobran como tokens de texto de entrada
+        const price = priceOpenAiTts(model, text.length + instructions.length, durationSeconds);
         await this.videosService.logApiUsage({
           videoJobId: job.id,
           institutionId: job.institution_id,
@@ -164,6 +171,7 @@ export class OpenAiTtsService {
             model,
             scene_order: scene.scene_order,
             duration_seconds: durationSeconds,
+            instructions_characters: instructions.length,
             pricing: price.pricing,
           },
         });
@@ -215,7 +223,7 @@ export class OpenAiTtsService {
     const metaVoice = meta?.tts_voice ?? meta?.voice;
     if (metaVoice && VALID_VOICES.has(metaVoice)) return metaVoice;
 
-    return DEFAULT_VOICE;
+    return DEFAULT_OPENAI_TTS_VOICE;
   }
 
   private parseError(err: unknown): string {

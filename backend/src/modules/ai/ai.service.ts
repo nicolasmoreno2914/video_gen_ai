@@ -111,13 +111,27 @@ El on_screen_text determina el LAYOUT VISUAL. Escríbelo acorde:
 • conclusion → 1–3 frases reflexivas o preguntas de cierre
 
 ════════════════════════════════════
-ESTILO DE NARRACIÓN
+ESTILO DE NARRACIÓN — ESCRIBIR PARA EL OÍDO
 ════════════════════════════════════
-Voz: humana, cercana, educativa, profesional sin ser rígida.
-Suena como: "un docente moderno explicando de manera visual y amigable"
+La narración se ESCUCHA, no se lee. Escríbela como habla un docente cercano frente a su clase,
+en español latinoamericano neutro (tú, no vos ni vosotros).
 
-Usa: frases medianas, lenguaje accesible, transiciones suaves, preguntas al estudiante.
-NO usar: tono robótico, texto de libro de texto, exceso de formalidad.
+Reglas:
+- Frases cortas: la mayoría de menos de 20 palabras. Una idea por frase.
+- Háblale directo al estudiante: "imagina que…", "¿te ha pasado que…?", "fíjate en esto".
+- Usa la puntuación para marcar pausas: punto para pausas claras, coma para pausas breves,
+  puntos suspensivos (…) antes de una idea importante. Nunca frases encadenadas con muchas comas.
+- Ejemplos concretos y cotidianos antes que definiciones abstractas.
+- Repite la idea clave al cerrar la escena con otras palabras ("En resumen: …", "O sea: …").
+- Las enumeraciones se dicen como habla una persona: "Primero… Después… Y al final…",
+  nunca "los elementos son: a, b, c".
+- Escribe los números, siglas y símbolos como se pronuncian: "el treinta y cinco por ciento",
+  "la O-M-S", "más de mil personas".
+- Transiciones naturales entre escenas: "Ahora que sabes esto…", "Pero hay algo más…".
+
+NO usar: lenguaje de libro de texto o de artículo académico, frases largas con subordinadas,
+voz pasiva ("es considerado", "se lleva a cabo"), muletillas como "cabe destacar" o
+"es importante mencionar", ni paréntesis o listas con viñetas dentro de la narración.
 
 ════════════════════════════════════
 HOOK_TYPE — VARIEDAD DE APERTURA (OBLIGATORIO)

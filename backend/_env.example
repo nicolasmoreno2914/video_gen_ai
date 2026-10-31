@@ -69,6 +69,8 @@ OPENAI_IMAGE_SIZE=1536x1024
 OPENAI_IMAGE_QUALITY=standard
 # Opcional: modelo TTS (default: snapshot fijado gpt-4o-mini-tts-2025-03-20)
 # OPENAI_TTS_MODEL=gpt-4o-mini-tts-2025-03-20
+# Opcional: indicaciones de estilo de voz (default en voice/openai-tts.constants.ts)
+# OPENAI_TTS_INSTRUCTIONS=
 
 # ── Costos (catálogo central: src/modules/costs/cost-config.ts) ─
 # Opcional: costo del servidor de render prorrateado por minuto de video (default 0.02)
