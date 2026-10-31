@@ -273,7 +273,10 @@ export class OpenAiTtsService {
     const tmp = `${file}.trim.mp3`;
     await new Promise<void>((resolve) => {
       childProcess.execFile('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-af',
-        'silenceremove=stop_periods=-1:stop_duration=1.0:stop_threshold=-55dB:stop_silence=0.7', '-b:a', '128k', tmp],
+        // Silencios internos ≤ 0,7 s y sin cola final (la pausa entre escenas la pone el render;
+        // la cola del TTS se sumaba y daba silencios de 1,3–2,2 s)
+        'silenceremove=stop_periods=-1:stop_duration=1.0:stop_threshold=-55dB:stop_silence=0.7,' +
+        'areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.12,areverse', '-b:a', '128k', tmp],
       (err) => {
         if (!err && fs.existsSync(tmp)) fs.renameSync(tmp, file);
         resolve(); // si falla, se conserva el audio original

@@ -2,12 +2,35 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { AppConfig } from '../../config/configuration';
-import { GeneratedScript, GeneratedScene } from '../../common/types';
+import { GeneratedScript, GeneratedScene, LayoutType } from '../../common/types';
 import { VideoJob } from '../database/entities/video-job.entity';
 import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { priceChat } from '../costs/cost-config';
 import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
+
+const VALID_LAYOUTS = new Set<LayoutType>([
+  'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
+  'real_example', 'summary_checklist', 'conclusion_reflection', 'icon_cards', 'cycle_diagram', 'concept_map',
+  'timeline', 'practice_question',
+]);
+const LAYOUT_ALIASES: Record<string, LayoutType> = {
+  steps: 'process_steps', process: 'process_steps', summary: 'summary_checklist', summary_bullets: 'summary_checklist',
+  checklist: 'summary_checklist', conclusion: 'conclusion_reflection', question: 'guiding_question',
+  practice: 'practice_question', quiz: 'practice_question', cycle: 'cycle_diagram', map: 'concept_map',
+  mind_map: 'concept_map', cards: 'icon_cards', example: 'real_example', stat: 'big_stat', levels: 'hierarchy_diagram',
+};
+const LAYOUT_BY_SCENE: Record<string, LayoutType> = {
+  hook: 'content_split', context: 'content_split', explanation: 'icon_cards', process: 'process_steps',
+  comparison: 'comparison', application: 'real_example', example: 'real_example', practice: 'practice_question',
+  summary: 'summary_checklist', conclusion: 'conclusion_reflection',
+};
+
+/** Convierte un layout_type desconocido al válido más cercano (alias o, si no, según el tipo de escena). */
+function normalizeLayout(layout: string, sceneType: string): LayoutType {
+  if (VALID_LAYOUTS.has(layout as LayoutType)) return layout as LayoutType;
+  return LAYOUT_ALIASES[layout] ?? LAYOUT_BY_SCENE[sceneType] ?? 'content_split';
+}
 
 /** Párrafos del capítulo (separados por línea en blanco). */
 function sourceParagraphs(content: string): string[] {
@@ -780,6 +803,8 @@ Responde SOLO con el JSON completo corregido.`;
       );
     }
 
+    // Tipos de diapositiva desconocidos (el modelo a veces inventa "steps", "summary_bullets"…)
+    parsed.scenes = parsed.scenes.map((s) => ({ ...s, layout_type: normalizeLayout(s.layout_type as string, s.scene_type as string) }));
     // Enforce requires_ai_image rules
     parsed.scenes = this.enforceAiImageRules(parsed.scenes, jobId);
     const family = parsed.visual_family === 'realistic' ? 'realistic' : 'illustration';

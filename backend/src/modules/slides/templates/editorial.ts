@@ -62,7 +62,9 @@ export function editorialPage(opts: {
   /** Diagramas: el esquema completo se ve atenuado desde el inicio. */
   ghost?: boolean;
 }): string {
-  const { brand, eyebrow, title, css, body, timeline, variant } = opts;
+  const { brand, eyebrow, css, body, timeline, variant } = opts;
+  const title = opts.title.replace(/^(resumen|cierre|conclusi[oó]n|recapitulaci[oó]n|ejemplo|pr[aá]ctica)\s*:\s*/i, '')
+    .replace(/^./, (c) => c.toUpperCase());
   // Con varios elementos, el esquema completo se ve atenuado desde el inicio (nunca pantalla vacía)
   const ghost = opts.ghost ?? (variant !== 'dark' && (body.match(/data-reveal="/g) ?? []).length >= 2);
   const dark = variant === 'dark'

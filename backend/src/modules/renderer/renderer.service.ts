@@ -29,6 +29,7 @@ interface SttWord {
 // Pausa al final de cada escena: corta dentro de un mismo bloque, más larga al cambiar de bloque
 const PAUSE_SAME_BLOCK = 0.5;
 const PAUSE_NEW_BLOCK = 0.9;
+const PAUSE_END = 1.5;
 const BLOCKS: Record<string, string> = {
   hook: 'intro', context: 'intro', explanation: 'core', process: 'core', comparison: 'core',
   application: 'apply', example: 'apply', practice: 'apply', summary: 'close', conclusion: 'close',
@@ -72,7 +73,9 @@ export class RendererService {
     let total = 0;
     scenes.forEach((scene, i) => {
       const next = scenes[i + 1];
-      const pause = next && BLOCKS[next.scene_type ?? ''] !== BLOCKS[scene.scene_type ?? ''] ? PAUSE_NEW_BLOCK : PAUSE_SAME_BLOCK;
+      // Al final del video, 1,5 s para que la pregunta de cierre no quede cortada
+      const pause = !next ? PAUSE_END
+        : BLOCKS[next.scene_type ?? ''] !== BLOCKS[scene.scene_type ?? ''] ? PAUSE_NEW_BLOCK : PAUSE_SAME_BLOCK;
       starts.push(total);
       pauses.push(pause);
       total += (scene.duration_seconds ?? scene.estimated_duration_seconds ?? 30) + pause;

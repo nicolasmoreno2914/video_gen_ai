@@ -157,6 +157,14 @@ export class SlidesService {
     const timeline: SceneTimeline | null = animate
       ? { revealTimes: computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
       : null;
+    // Práctica: la respuesta (último elemento) aparece solo al terminar el silencio para pensar
+    if (timeline && scene.layout_type === 'practice_question' && scene.word_timings?.length) {
+      const w = scene.word_timings;
+      let gapEnd = -1;
+      for (let i = 1; i < w.length; i++) if (w[i].start - w[i - 1].end >= 3) gapEnd = w[i].start;
+      const last = timeline.revealTimes.length - 1;
+      if (gapEnd > 0 && last >= 0) timeline.revealTimes[last] = Math.max(timeline.revealTimes[last], gapEnd - 0.1);
+    }
 
     let html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
     // Con subtítulos aparte (VTT) no hace falta reservar la franja inferior para ellos

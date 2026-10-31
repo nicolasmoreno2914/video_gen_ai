@@ -90,7 +90,7 @@ export function buildCycleTemplate(data: SlideTemplateData): string {
   const angle = (i: number): number => -Math.PI / 2 + (2 * Math.PI * i) / n;
   const pt = (a: number): [number, number] => [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
   // Las flechas casi tocan los nodos (antes empezaban ~70 px lejos)
-  const gap = (node / 2 + 16) / Math.min(rx, ry);
+  const gap = (node / 2 + 30) / Math.min(rx, ry);
 
   const arcs = items.map((_, i) => {
     const [x1, y1] = pt(angle(i) + gap);

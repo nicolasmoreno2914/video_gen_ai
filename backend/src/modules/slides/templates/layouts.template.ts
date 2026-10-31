@@ -62,12 +62,13 @@ export function buildStepsEditorialTemplate(data: SlideTemplateData): string {
       return `<path data-draw="${i + 2}" d="M ${xa} ${lineY} L ${xb} ${lineY}" stroke="${alpha(brand.secondaryColor, 0.6)}"
         stroke-width="5" stroke-dasharray="2 12" stroke-linecap="round" fill="none"/>`;
     }).join('');
+    const cardFont = n >= 5 ? Math.min(fontSize, 34) : fontSize;
     const cards = items.map((it, i) => `
       <div class="step" data-reveal="${i + 1}" style="left:${x0 + i * (cardW + 40)}px;width:${cardW}px">
         <div class="badge">${i + 1}</div>
         <div class="step-card">
           ${iconSvg(it.icon, 56, brand.secondaryColor, 2) ? `<div class="step-icon">${iconSvg(it.icon, 56, brand.secondaryColor, 2)}</div>` : ''}
-          <div class="step-text" style="font-size:${fontSize}px">${escape(it.text)}</div>
+          <div class="step-text" style="font-size:${cardFont}px">${escape(it.text)}</div>
         </div>
       </div>`).join('');
     const css = `
@@ -77,7 +78,7 @@ export function buildStepsEditorialTemplate(data: SlideTemplateData): string {
 .badge { width:104px; height:104px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   background:linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor}); color:#fff; font-family:'Nunito',sans-serif;
   font-weight:900; font-size:46px; box-shadow:0 14px 34px ${alpha(brand.primaryColor, 0.28)}; border:6px solid #fff; }
-.step-card { width:100%; height:300px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
+.step-card { width:100%; min-height:300px; background:#fff; border-radius:28px; padding:40px 34px; display:flex; flex-direction:column;
   align-items:center; text-align:center; gap:22px; box-shadow:0 18px 50px ${alpha(brand.primaryColor, 0.10)}; }
 .step-text { font-weight:700; line-height:1.3; color:#1B1E24; }`;
     return editorialPage({
