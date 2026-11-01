@@ -38,6 +38,9 @@ const BLOCKS: Record<string, string> = {
 const PROGRESS_BAR_HEIGHT = 6;
 // La barra avanza ~4 px/s en un video de 7 min: basta un fotograma cada medio segundo
 const PROGRESS_BAR_STEP = 0.5;
+// Límite de una codificación de escena (s): varias veces lo normal, para cortar cuelgues de FFmpeg
+const SCENE_TIMEOUT_MIN = 120;
+const SCENE_TIMEOUT_FACTOR = 8;
 const SCENE_FADE = 0.35;
 const VFR_TIMESCALE = 30000;
 
@@ -97,8 +100,12 @@ export class RendererService {
         this.renderLimit(async () => {
           const { srtPath, entries } = await this.writeSceneSubtitles(scene, jobDir, stt);
           sceneSubs[i] = entries;
-          const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir, {
-            srtPath, entries, start: starts[i], total, brand, pause: pauses[i],
+          const sceneOpts = { srtPath, entries, start: starts[i], total, brand, pause: pauses[i] };
+          // FFmpeg se ha quedado colgado de forma esporádica (0 % de CPU, sin terminar): con el
+          // límite de tiempo se mata y se reintenta una vez en vez de bloquear el trabajo
+          const sceneVideoPath = await this.renderScene(job.id, scene, scenesDir, sceneOpts).catch((err: Error) => {
+            this.logger.warn(`[RendererService] [${job.id}] Escena ${scene.scene_order}: reintento tras error (${err.message})`);
+            return this.renderScene(job.id, scene, scenesDir, sceneOpts);
           });
           this.logger.log(`[RendererService] [${job.id}] Escena ${scene.scene_order}/${scenes.length} renderizada`);
           return sceneVideoPath;
@@ -256,7 +263,7 @@ export class RendererService {
       const escapedSrt = opts.srtPath.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
       const bar = opts.brand.secondary.replace('#', '0x');
 
-      ffmpeg()
+      ffmpeg({ timeout: Math.max(SCENE_TIMEOUT_MIN, Math.ceil(duration * SCENE_TIMEOUT_FACTOR)) })
         .input(vfrList)
         .inputOptions(['-f concat', '-safe 0'])
         .input(audioPath)
