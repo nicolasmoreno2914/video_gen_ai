@@ -20,6 +20,8 @@ import {
 import { SceneTimeline } from './templates/animation';
 import { captureKeyframes } from './keyframe-capture';
 import { computeRevealTimes } from './reveal-timing';
+import { resolveUiDemo } from './software/ui-demo';
+import { buildSoftwareTemplate } from './templates/software.template';
 
 export interface BrandData {
   primaryColor: string;
@@ -206,6 +208,19 @@ export class SlidesService {
     }
   }
 
+  /** Tutorial de software; si la demo no es válida, la diapositiva de pasos de siempre. */
+  private softwareDemo(data: SlideTemplateData): string {
+    try {
+      const demo = resolveUiDemo(data.scene.ui_demo);
+      return buildSoftwareTemplate(data, demo, data.scene.duration_seconds ?? 0);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[SlidesService] Escena ${data.scene.scene_order}: demo de software inválida (${err instanceof Error ? err.message : String(err)}) → pasos`,
+      );
+      return buildStepsEditorialTemplate(data);
+    }
+  }
+
   private sceneTexts(scene: VideoScene): string[] {
     const rawTexts = scene.on_screen_text ?? [];
     return Array.isArray(rawTexts) ? rawTexts : typeof rawTexts === 'string' ? [rawTexts] : [];
@@ -240,6 +255,7 @@ export class SlidesService {
         case 'concept_map':        return buildConceptMapTemplate(data);
         case 'timeline':           return buildTimelineTemplate(data);
         case 'practice_question':  return buildPracticeTemplate(data);
+        case 'software_demo':      return this.softwareDemo(data);
       }
     }
 

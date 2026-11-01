@@ -156,6 +156,7 @@ export class VideoProcessor extends WorkerHost {
       image_precision: s.image_precision ?? null,
       image_style: s.image_style ?? null,
       image_check: s.image_check ?? null,
+      ui_demo: s.layout_type === 'software_demo' ? s.ui_demo ?? null : null,
       transition: s.transition,
       estimated_duration_seconds: s.estimated_duration_seconds,
     }));
