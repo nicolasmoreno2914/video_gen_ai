@@ -36,7 +36,7 @@ const BLOCKS: Record<string, string> = {
   application: 'apply', example: 'apply', practice: 'apply', summary: 'close', conclusion: 'close',
 };
 const PROGRESS_BAR_HEIGHT = 6;
-// La barra avanza ~4 px/s en un video de 7 min: basta un fotograma cada medio segundo
+// La barra avanza ~3–4 px/s en un video de 7–9 min: basta un fotograma cada medio segundo
 const PROGRESS_BAR_STEP = 0.5;
 // Límite de una codificación de escena (s): varias veces lo normal, para cortar cuelgues de FFmpeg
 const SCENE_TIMEOUT_MIN = 120;

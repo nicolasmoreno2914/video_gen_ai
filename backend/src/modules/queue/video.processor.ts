@@ -4,7 +4,7 @@ import { Job } from 'bullmq';
 import { VIDEO_QUEUE } from './queue.constants';
 import { VideosService } from '../videos/videos.service';
 import { ProgressEventsService } from '../events/progress.events';
-import { AiService } from '../ai/ai.service';
+import { AiService, MAX_VIDEO_SECONDS } from '../ai/ai.service';
 import { DalleService } from '../image-generator/dalle.service';
 import { SlidesService } from '../slides/slides.service';
 import { OpenAiTtsService } from '../voice/openai-tts.service';
@@ -21,7 +21,6 @@ import { priceRender, priceStt } from '../costs/cost-config';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const MAX_VIDEO_SECONDS = 420;
 
 interface VideoJobData {
   jobId: string;
@@ -252,7 +251,7 @@ export class VideoProcessor extends WorkerHost {
     const scenes = await this.videosService.getScenes(job.id);
     const totalSeconds = scenes.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
     const msg = `[VideoProcessor] [${job.id}] Duración real de audio: ${this.formatDuration(totalSeconds)} (${scenes.length} escenas)`;
-    if (totalSeconds > MAX_VIDEO_SECONDS + 30) this.logger.warn(`${msg} — supera el tope de 7 min`);
+    if (totalSeconds > MAX_VIDEO_SECONDS + 30) this.logger.warn(`${msg} — supera el tope de ${MAX_VIDEO_SECONDS / 60} min`);
     else this.logger.log(msg);
   }
 

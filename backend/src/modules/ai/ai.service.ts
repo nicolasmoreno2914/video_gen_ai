@@ -89,8 +89,8 @@ function numberedParagraphs(content: string): string {
   return sourceParagraphs(content).map((p, i) => `[${i + 1}] ${p}`).join('\n\n');
 }
 
-// Duración según el contenido, con tope (decisión de producto 2026-10-31)
-const MAX_VIDEO_SECONDS = 420;
+// Duración según el contenido, con tope de 9 min (decisión de producto 2026-11-01; antes 7)
+export const MAX_VIDEO_SECONDS = 540;
 // Velocidad real medida con la voz cedar + pausas (≈130 ppm efectivas, no 140)
 const WORDS_PER_MINUTE = 130;
 const MAX_NARRATION_WORDS = Math.round((MAX_VIDEO_SECONDS / 60) * WORDS_PER_MINUTE * 0.95);
@@ -106,7 +106,7 @@ Escribir como un docente experto explicando visualmente paso a paso.
 DURACIÓN Y LONGITUD — OBLIGATORIO
 ════════════════════════════════════
 - La duración la decide el CONTENIDO: cubre todo lo importante del capítulo, sin relleno ni repeticiones.
-- TOPE: máximo 7 minutos de video (unas 950 palabras de narración en total). Si el capítulo es largo,
+- TOPE: máximo ${MAX_VIDEO_SECONDS / 60} minutos de video (unas ${MAX_NARRATION_WORDS} palabras de narración en total). Si el capítulo es largo,
   prioriza lo esencial y sintetiza; nunca superes el tope.
 - Cada escena: UNA sola idea, 25–45 segundos, entre 60 y 110 palabras de narración.
 - Número de escenas: el que el contenido necesite (normalmente entre 8 y 16).
@@ -554,7 +554,7 @@ REGLAS FINALES:
 - El total de escenas con requires_ai_image: true NO debe superar 12 (cover y conclusion_reflection no cuentan para ese límite).
 - Si requires_ai_image: false → image_prompt puede ser null.
 - on_screen_text: estructurarlo según lo que pide cada layout_type y hook_type (ver secciones anteriores).
-- La suma de estimated_duration_seconds NO debe superar 420 (7 minutos).
+- La suma de estimated_duration_seconds NO debe superar ${MAX_VIDEO_SECONDS} (${MAX_VIDEO_SECONDS / 60} minutos).
 - Cada escena debe tener estimated_duration_seconds entre 25 y 45.
 - El orden de scene_type en el array DEBE respetar la secuencia pedagógica obligatoria.
 - NO usar hook_stat por defecto. Solo si el dato es realmente el argumento más poderoso del capítulo.
