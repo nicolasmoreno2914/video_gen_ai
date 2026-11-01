@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { createWinstonLogger } from './config/logger.config';
 import * as fs from 'fs';
+import { json, Request } from 'express';
 import * as path from 'path';
 
 // La API encola videos; los monta el worker (salvo API_PROCESSES_JOBS=true o fuera de producción)
@@ -48,6 +49,13 @@ async function bootstrap(): Promise<void> {
       index: false,
     });
   }
+
+  // La API externa recibe el logo de cada pedido (data URI de hasta ~5 MB): límite mayor solo ahí.
+  // Se registra antes que el parser global de Nest, que ve el cuerpo ya leído y no lo vuelve a leer.
+  app.use('/api/external', json({
+    limit: '12mb',
+    verify: (req: Request & { rawBody?: Buffer }, _res, buf) => { req.rawBody = buf; },
+  }));
 
   app.setGlobalPrefix('api', { exclude: ['health', 'health/(.*)'] });
 
