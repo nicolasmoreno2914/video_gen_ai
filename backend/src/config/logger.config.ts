@@ -6,6 +6,15 @@ const basePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
 const retentionDays = process.env.LOG_RETENTION_DAYS ?? '14';
 const isDev = process.env.NODE_ENV !== 'production';
 
+// LOG_LEVEL usa los nombres de Nest ('log', 'fatal'), que winston no conoce: con level 'log' no
+// se escribía ningún registro. nest-winston envía logger.log() como 'info'.
+const NEST_TO_WINSTON: Record<string, string> = { log: 'info', fatal: 'error' };
+
+function winstonLevel(level: string | undefined): string {
+  const l = (level ?? 'log').toLowerCase();
+  return NEST_TO_WINSTON[l] ?? l;
+}
+
 export function createWinstonLogger(): ReturnType<typeof WinstonModule.createLogger> {
   const transports: winston.transport[] = [
     new winston.transports.DailyRotateFile({
@@ -37,7 +46,7 @@ export function createWinstonLogger(): ReturnType<typeof WinstonModule.createLog
   }
 
   return WinstonModule.createLogger({
-    level: process.env.LOG_LEVEL ?? 'log',
+    level: winstonLevel(process.env.LOG_LEVEL),
     transports,
   });
 }
