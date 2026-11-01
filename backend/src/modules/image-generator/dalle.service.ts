@@ -72,8 +72,14 @@ export class DalleService {
     const imagesDir = path.join(this.basePath, 'jobs', job.id, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
 
+    // Al reintentar un video, las imágenes ya generadas no se vuelven a pagar
+    const pending = aiScenes.filter((s) => !(s.image_url && fs.existsSync(s.image_url)));
+    if (pending.length < aiScenes.length) {
+      this.logger.log(`[DalleService] [${job.id}] ${aiScenes.length - pending.length} imágenes ya existían — se reutilizan`);
+    }
+
     await Promise.all(
-      aiScenes.map((scene) =>
+      pending.map((scene) =>
         this.limit(() => this.generateSceneImage(job, scene, imagesDir)),
       ),
     );
@@ -134,6 +140,7 @@ export class DalleService {
     const outputDir = path.join(this.basePath, 'jobs', job.id, 'output');
     fs.mkdirSync(outputDir, { recursive: true });
     const outputPath = path.join(outputDir, 'thumbnail.png');
+    if (fs.existsSync(outputPath)) return outputPath;
 
     const prompt =
       `Eye-catching cover image for an educational video about '${job.title}': one strong, ` +

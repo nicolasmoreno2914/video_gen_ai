@@ -17,7 +17,7 @@ import { Response } from 'express';
 import { randomUUID } from 'crypto';
 import { ExternalApiKeyGuard, ExternalRequest } from '../../common/guards/external-api-key.guard';
 import { VideosService } from '../videos/videos.service';
-import { VIDEO_QUEUE } from '../queue/queue.constants';
+import { VIDEO_QUEUE, enqueueVideo } from '../queue/queue.constants';
 import { STEP_LABELS } from '../../common/types';
 
 import {
@@ -396,6 +396,11 @@ export class ExternalController {
           ? `${process.env.PUBLIC_API_URL ?? 'https://videosb.nomaddi.com'}/api/videos/${job.id}/download`
           : null,
         error: job.error_message,
+        // Reintentos: mientras haya uno automático programado, el video sigue en 'queued'
+        auto_retry_count: job.auto_retry_count,
+        next_retry_at: job.next_retry_at,
+        failure_kind: job.failure_kind,
+        can_retry: job.status === 'failed',
         client_reference_id: job.client_reference_id,
         source_system: job.source_system,
         created_at: job.created_at,
@@ -451,11 +456,44 @@ export class ExternalController {
         : null,
       duration_seconds: status.duration_seconds,
       error: status.error,
+      auto_retry_count: job.auto_retry_count,
+      next_retry_at: job.next_retry_at,
+      failure_kind: job.failure_kind,
+      can_retry: job.status === 'failed',
       source_system: job.source_system,
       client_reference_id: job.client_reference_id,
       batch_id: job.batch_id,
       transcript: status.transcript ?? null,
       scenes: status.scenes ?? null,
     };
+  }
+
+  /** Reintento manual de un video fallido: continúa desde su último paso completado. */
+  @Post('videos/:jobId/retry')
+  async retryVideo(
+    @Req() req: ExternalRequest,
+    @Param('jobId') jobId: string,
+  ) {
+    const job = await this.videosService.findById(jobId);
+    if (job.institution_id !== req.institution_id) {
+      throw new NotFoundException('Job not found');
+    }
+    const { resumingFrom } = await this.videosService.retry(jobId);
+    await enqueueVideo(this.videoQueue, jobId, `manual-${Date.now()}`);
+    return { success: true, job_id: jobId, status: 'queued', resuming_from: resumingFrom };
+  }
+
+  /** Reintenta todos los videos fallidos de un lote. */
+  @Post('videos/batches/:batchId/retry-failed')
+  async retryFailedInBatch(
+    @Req() req: ExternalRequest,
+    @Param('batchId') batchId: string,
+  ) {
+    const failed = await this.videosService.findFailedInBatch(req.institution_id, batchId);
+    for (const job of failed) {
+      await this.videosService.retry(job.id);
+      await enqueueVideo(this.videoQueue, job.id, `manual-${Date.now()}`);
+    }
+    return { success: true, batch_id: batchId, retried: failed.map((j) => j.id) };
   }
 }

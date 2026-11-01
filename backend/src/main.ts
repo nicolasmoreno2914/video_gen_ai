@@ -9,6 +9,9 @@ import { createWinstonLogger } from './config/logger.config';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// La API encola videos; los monta el worker (salvo API_PROCESSES_JOBS=true o fuera de producción)
+process.env.VIDEOGEN_ROLE ??= 'api';
+
 async function bootstrap(): Promise<void> {
   console.log('[BOOT] Starting Video Engine API...');
   console.log('[BOOT] NODE_ENV:', process.env.NODE_ENV);

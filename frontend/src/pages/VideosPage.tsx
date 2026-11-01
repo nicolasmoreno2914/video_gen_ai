@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { Plus, PauseCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { VideoGrid } from '@/components/video-list/VideoGrid';
 import { VideoDetailDrawer } from '@/components/video-list/VideoDetailDrawer';
 import { useVideoList } from '@/hooks/useVideoList';
-import { cn } from '@/lib/utils';
+import { cn, formatTime } from '@/lib/utils';
+import { videoService } from '@/services/videoService';
 import { VideoJob } from '@/types';
 
 type FilterStatus = 'all' | 'processing' | 'completed' | 'failed' | 'dry_run';
@@ -26,6 +27,16 @@ export function VideosPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useVideoList({ limit: 100 });
+  // Si un problema general (p. ej. sin crédito de OpenAI) pausó la cola, los videos esperan
+  const { data: queue } = useQuery({
+    queryKey: ['queue-status'],
+    queryFn: () => videoService.queueStatus(),
+    refetchInterval: 60_000,
+  });
+  const resume = useMutation({
+    mutationFn: () => videoService.resumeQueue(),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['queue-status'] }),
+  });
   const allJobs = data?.jobs ?? [];
 
   function handleDeleted(jobId: string) {
@@ -73,6 +84,25 @@ export function VideosPage() {
             Generar nuevo video
           </Link>
         </div>
+
+        {queue?.paused && (
+          <div className="flex items-start gap-3 mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <PauseCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm font-inter text-amber-800">
+              <p className="font-semibold">La generación está en pausa. Ningún video se perdió: esperan en la cola.</p>
+              {queue.reason && <p className="mt-0.5">{queue.reason}</p>}
+              {queue.resume_at && <p className="mt-0.5">Se reanuda sola a las {formatTime(queue.resume_at)}.</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => resume.mutate()}
+              disabled={resume.isPending}
+              className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-nunito font-bold hover:bg-amber-700 transition-colors disabled:opacity-60"
+            >
+              Reanudar ahora
+            </button>
+          </div>
+        )}
 
         {/* Filter pills */}
         <div className="flex gap-2 mb-7 flex-wrap">

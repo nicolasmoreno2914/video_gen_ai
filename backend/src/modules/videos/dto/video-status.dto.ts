@@ -22,6 +22,11 @@ export interface VideoStatusResponse {
   thumbnail_url: string | null;
   error: string | null;
   retry_count: number;
+  /** Reintentos automáticos hechos; el próximo, si hay uno programado. */
+  auto_retry_count: number;
+  next_retry_at: Date | null;
+  /** transient | global | permanent (ver queue/failure.ts). */
+  failure_kind: string | null;
   created_at: Date;
   updated_at: Date;
   title?: string | null;

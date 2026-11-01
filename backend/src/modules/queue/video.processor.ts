@@ -1,7 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
-import { VIDEO_QUEUE } from './queue.constants';
+import { VIDEO_QUEUE, processesJobs } from './queue.constants';
+import { VideoRecoveryService } from './recovery.service';
+import { AppConfig } from '../../config/configuration';
 import { VideosService } from '../videos/videos.service';
 import { ProgressEventsService } from '../events/progress.events';
 import { AiService, MAX_VIDEO_SECONDS } from '../ai/ai.service';
@@ -26,8 +29,13 @@ interface VideoJobData {
   jobId: string;
 }
 
-@Processor(VIDEO_QUEUE, { concurrency: 1 })
-export class VideoProcessor extends WorkerHost {
+/** Cada cuánto el worker marca que sigue vivo mientras monta un video. */
+const HEARTBEAT_MS = 60_000;
+
+// autorun: false — el worker solo arranca en el proceso que monta videos (ver processesJobs).
+// lockDuration amplio: un paso pesado puede tener el bucle de eventos ocupado unos segundos.
+@Processor(VIDEO_QUEUE, { autorun: false, concurrency: 1, lockDuration: 120_000 })
+export class VideoProcessor extends WorkerHost implements OnApplicationBootstrap {
   private readonly logger = new Logger(VideoProcessor.name);
 
   constructor(
@@ -44,13 +52,33 @@ export class VideoProcessor extends WorkerHost {
     private readonly institutionsService: InstitutionsService,
     private readonly costsService: CostsService,
     private readonly storageService: StorageService,
+    private readonly recoveryService: VideoRecoveryService,
+    private readonly configService: ConfigService<AppConfig>,
   ) {
     super();
   }
 
+  onApplicationBootstrap(): void {
+    if (!processesJobs()) {
+      this.logger.log('[VideoProcessor] Este proceso no monta videos (solo el worker)');
+      return;
+    }
+    const concurrency = this.configService.get<AppConfig['queue']>('queue')?.concurrency ?? 1;
+    this.worker.concurrency = concurrency > 0 ? concurrency : 1;
+    this.logger.log(`[VideoProcessor] Worker activo: hasta ${this.worker.concurrency} videos a la vez`);
+    void this.worker.run();
+  }
+
   async process(bullJob: Job<VideoJobData>): Promise<void> {
     const { jobId } = bullJob.data;
+    // Un mismo video puede tener varios jobs en Redis (reintento automático, manual, vigilante):
+    // solo uno lo procesa; los demás ven que ya está en curso o terminado y no hacen nada.
+    if (!(await this.videosService.claim(jobId))) {
+      this.logger.log(`[VideoProcessor] [${jobId}] Ya en proceso o sin nada pendiente — job ${bullJob.id} omitido`);
+      return;
+    }
     this.logger.log(`[VideoProcessor] [${jobId}] Iniciando procesamiento`);
+    const heartbeat = setInterval(() => void this.videosService.heartbeat(jobId).catch(() => undefined), HEARTBEAT_MS);
 
     const videoJob = await this.videosService.findById(jobId);
     const completed = videoJob.completed_steps ?? [];
@@ -114,17 +142,16 @@ export class VideoProcessor extends WorkerHost {
         await this.webhookService.sendSuccess(finalJob, this.getHost());
       }
 
+      await this.videosService.clearRetryState(jobId);
+      await this.recoveryService.markHealthy();
       this.logger.log(`[VideoProcessor] [${jobId}] Completado: ${finalStatus}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      const safeMessage = this.sanitizeErrorMessage(message);
-
-      this.logger.error(`[VideoProcessor] [${jobId}] Error: ${safeMessage}`);
-
-      await this.videosService.markFailed(jobId, safeMessage);
-      const failedJob = await this.videosService.findById(jobId);
-      this.eventsService.emitFailed(failedJob, failedJob.current_step);
-      await this.webhookService.sendFailure(failedJob, failedJob.current_step);
+      this.logger.error(`[VideoProcessor] [${jobId}] Error: ${err instanceof Error ? err.message : String(err)}`);
+      await this.recoveryService.handleFailure(jobId, err).catch((e: unknown) =>
+        this.logger.error(`[VideoProcessor] [${jobId}] No se pudo registrar el error: ${e instanceof Error ? e.message : String(e)}`),
+      );
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 
@@ -341,14 +368,6 @@ export class VideoProcessor extends WorkerHost {
         youtubeVideoId: result.videoId,
       });
     }
-  }
-
-  private sanitizeErrorMessage(message: string): string {
-    return message
-      .replace(/sk-[a-zA-Z0-9\-_]{20,}/g, '[REDACTED_KEY]')
-      .replace(/Bearer\s+[a-zA-Z0-9\-_.]{10,}/g, 'Bearer [REDACTED]')
-      .replace(/xi-api-key[:\s]+[a-zA-Z0-9\-_]{10,}/gi, 'xi-api-key: [REDACTED]')
-      .substring(0, 500);
   }
 
   private getHost(): string {

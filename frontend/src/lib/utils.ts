@@ -29,3 +29,8 @@ export function countWords(text: string): number {
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
+
+/** Hora local corta (p. ej. "14:05") de una fecha ISO. */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}

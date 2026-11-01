@@ -59,7 +59,10 @@ export class WebhookService {
       status: 'failed',
       error: job.error_message ?? 'Error en el procesamiento del video',
       failed_step: failedStep,
-      can_retry: (job.retry_count ?? 0) < 3,
+      // Solo llega tras agotar los reintentos automáticos (o si reintentar solo no sirve):
+      // siempre se puede reintentar a mano con POST /api/external/videos/:jobId/retry
+      can_retry: true,
+      failure_kind: job.failure_kind,
       retry_count: job.retry_count,
     };
 

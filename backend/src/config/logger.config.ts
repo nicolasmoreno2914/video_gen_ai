@@ -9,7 +9,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 export function createWinstonLogger(): ReturnType<typeof WinstonModule.createLogger> {
   const transports: winston.transport[] = [
     new winston.transports.DailyRotateFile({
-      filename: `${basePath}/logs/app-%DATE%.log`,
+      // Archivo por proceso: dos procesos rotando el mismo archivo se pisan
+      filename: `${basePath}/logs/${process.env.VIDEOGEN_ROLE === 'worker' ? 'worker' : 'app'}-%DATE%.log`,
       datePattern: 'YYYY-MM-DD',
       maxFiles: `${retentionDays}d`,
       zippedArchive: false,

@@ -123,6 +123,26 @@ export class VideoJob {
   @Column({ type: 'int', default: 0 })
   retry_count!: number;
 
+  /** Reintentos automáticos hechos desde el último reintento manual (ver queue/failure.ts). */
+  @Column({ type: 'int', default: 0 })
+  auto_retry_count!: number;
+
+  /** Hora del próximo reintento automático; null si no hay uno programado. */
+  @Column({ type: 'timestamp', nullable: true })
+  next_retry_at!: Date | null;
+
+  /** Latido del worker mientras procesa: si se detiene, el vigilante retoma el video. */
+  @Column({ type: 'timestamp', nullable: true })
+  heartbeat_at!: Date | null;
+
+  /** Tipo del último error: transient | global | permanent. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  failure_kind!: string | null;
+
+  /** Último error técnico, aunque el video se haya recuperado después. */
+  @Column({ type: 'text', nullable: true })
+  last_error!: string | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, nullable: true })
   estimated_total_cost!: number | null;
 
