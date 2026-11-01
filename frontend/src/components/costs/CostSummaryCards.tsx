@@ -91,7 +91,7 @@ export function CostSummaryCards({ summary, isLoading }: Props) {
     {
       label: 'Costo imágenes IA',
       value: formatUsd(summary?.breakdown.openai_images ?? 0),
-      helper: 'OpenAI DALL-E',
+      helper: 'OpenAI (gpt-image)',
       icon: Image,
       iconBg: 'bg-purple-50',
       iconColor: 'text-purple-600',

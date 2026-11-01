@@ -34,3 +34,13 @@ export function generateId(): string {
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
+
+/** Nombre del estado de un video para mostrar en el panel. */
+export const STATUS_LABEL: Record<string, string> = {
+  queued: 'En cola',
+  processing: 'Procesando',
+  completed: 'Completado',
+  completed_local: 'Completado',
+  failed: 'Requiere atención',
+  dry_run_completed: 'Dry-run',
+};
