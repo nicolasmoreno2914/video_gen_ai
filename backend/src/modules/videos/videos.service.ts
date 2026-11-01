@@ -21,6 +21,7 @@ export interface SceneInsertData {
   image_precision?: string | null;
   image_style?: string | null;
   image_check?: string | null;
+  ui_demo?: object | null;
   transition?: string;
   image_url?: string | null;
   slide_png_url?: string | null;

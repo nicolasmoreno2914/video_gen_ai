@@ -33,7 +33,9 @@ export type LayoutType =
   | 'cycle_diagram'
   | 'concept_map'
   | 'timeline'
-  | 'practice_question';
+  | 'practice_question'
+  /** Tutorial de software: maqueta del programa con los pasos animados (ver slides/software). */
+  | 'software_demo';
 
 export type TransitionType = 'fade' | 'slide' | 'zoom' | 'dissolve';
 
@@ -67,6 +69,8 @@ export interface GeneratedScene {
   objective?: number;
   /** Párrafos del capítulo (1-based) que cubre la escena: se usa para validar la cobertura. */
   source_paragraphs?: number[];
+  /** Solo en software_demo: programa, estado inicial y pasos (se valida con resolveUiDemo). */
+  ui_demo?: Record<string, unknown> | null;
   transition: TransitionType;
   estimated_duration_seconds: number;
 }

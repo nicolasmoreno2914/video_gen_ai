@@ -8,11 +8,13 @@ import { VideoScene } from '../database/entities/video-scene.entity';
 import { VideosService } from '../videos/videos.service';
 import { priceChat } from '../costs/cost-config';
 import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
+import { resolveUiDemo } from '../slides/software/ui-demo';
+import { describePack, UI_PACKS, UiApp } from '../slides/software/ui-packs';
 
 const VALID_LAYOUTS = new Set<LayoutType>([
   'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
   'real_example', 'summary_checklist', 'conclusion_reflection', 'icon_cards', 'cycle_diagram', 'concept_map',
-  'timeline', 'practice_question',
+  'timeline', 'practice_question', 'software_demo',
 ]);
 const LAYOUT_ALIASES: Record<string, LayoutType> = {
   steps: 'process_steps', process: 'process_steps', summary: 'summary_checklist', summary_bullets: 'summary_checklist',
@@ -31,6 +33,52 @@ function normalizeLayout(layout: string, sceneType: string): LayoutType {
   if (VALID_LAYOUTS.has(layout as LayoutType)) return layout as LayoutType;
   return LAYOUT_ALIASES[layout] ?? LAYOUT_BY_SCENE[sceneType] ?? 'content_split';
 }
+
+// Tutoriales de software: solo si el capítulo trata de usar un programa. Primero un filtro por
+// palabras (gratis); si pasa, un clasificador barato confirma el programa. El resto de capítulos
+// no cambia en nada: mismo prompt, mismas pasadas.
+const SOFTWARE_HINTS = /\b(excel|hoja de c[aá]lculo|celdas?|f[oó]rmulas?|autosuma|google sheets|gmail|outlook|correo electr[oó]nico|bandeja de entrada|redactar|destinatario|google docs|word|procesador de texto|documento de google|negrita|encabezado)\b/gi;
+const CLASSIFIER_MODEL = 'gpt-4.1-mini';
+const ACTION_VERBS = /\b(haz clic|haga clic|clic en|pulsa|presiona|selecciona|escribe|elige|adjunta|abre la carpeta)\b/gi;
+const NO_DEMO_LAYOUTS = new Set(['cover', 'practice_question', 'summary_checklist', 'conclusion_reflection', 'guiding_question']);
+
+function softwareAddendum(app: UiApp): string {
+  const pack = UI_PACKS[app];
+  const labels = Object.values(pack.targets).map((t) => `"${t.label}"`).join(', ');
+  return `
+
+═══ MODO TUTORIAL DE SOFTWARE: ${pack.name} ═══
+Este capítulo enseña a USAR un programa. Además de todo lo anterior:
+- Usa layout_type "software_demo" en las escenas que muestran CÓMO se hace algo en el programa (entre 2 y 4 escenas,
+  una tarea por escena). Su narración describe acciones concretas, en orden y con el nombre exacto de cada botón o
+  campo ("Haz clic en Redactar.", "En el campo Para, escribe…", "Selecciona las celdas de B2 a B5."), con datos de
+  ejemplo realistas. Máximo 6 acciones por escena. on_screen_text: un paso por acción, en imperativo y de máximo
+  6 palabras ("Clic en Redactar"). requires_ai_image: false.
+- Solo puedes nombrar estos botones y menús del programa: ${labels}. Si el capítulo menciona otra función, explícala
+  en una escena normal sin decir dónde está el botón.
+- Estructura recomendada: gancho con una situación real → para qué sirve → demostraciones paso a paso → errores
+  comunes o consejos → práctica guiada ("Ahora inténtalo tú: …" con [PAUSA]) → resumen de los pasos.
+- En hojas de cálculo, las fórmulas van en español y con punto y coma: =SUMA(B2:B5), =PROMEDIO(B2:B5), =SI(B2>=100;"Meta";"Bajo").`;
+}
+
+const UI_DEMO_PROMPT = `Eres diseñador de tutoriales de software. Conviertes la narración de UNA escena en una demostración
+animada del programa: un cursor hará cada paso al ritmo de la voz.
+Devuelve SOLO un JSON: {"file_name": "nombre del archivo o documento", "initial": {...}, "steps": [...]}
+REGLAS:
+1. Cada paso: la acción con sus parámetros + "label" (imperativo, máximo 6 palabras, p. ej. "Clic en Redactar") +
+   "cue" (frase LITERAL de 2 a 6 palabras copiada de la narración, justo donde se dice esa acción).
+2. Pasos en el MISMO orden que la narración; entre 2 y 7; solo acciones y elementos de la ficha. Si la narración
+   menciona algo que la ficha no permite, omítelo.
+3. "initial" es el estado del programa ANTES de la escena, realista y coherente con la narración:
+   - Hoja de cálculo: {"cells": {"A1": "Mes", "B1": "Ventas", "A2": "Enero", "B2": 1200}} (columnas A–F, filas 1–11;
+     números como número; fórmulas en español con punto y coma: SUMA, PROMEDIO, MAX, MIN, CONTAR, CONTARA, SI, REDONDEAR).
+     Los botones de formato actúan sobre la selección anterior: selecciona antes de pulsarlos.
+   - Documento: {"paragraphs": [{"style": "Texto normal", "text": "…"}]} (1 a 6 párrafos). El fragmento que se
+     selecciona debe aparecer LITERALMENTE en su párrafo.
+   - Correo: {"inbox": [{"from": "…", "subject": "…", "snippet": "…"}]} (3 a 5 mensajes plausibles). Si la escena
+     continúa un mensaje que ya se estaba escribiendo, añade "compose": {"para": "…", "asunto": "…", "cuerpo": "…",
+     "adjuntos": ["archivo.pdf"]} con lo ya escrito (así no hay que repetir esos pasos).
+4. Lo que se escribe (fórmulas, textos, correos) debe ser exactamente lo que dice la narración.`;
 
 /** Párrafos del capítulo (separados por línea en blanco). */
 function sourceParagraphs(content: string): string[] {
@@ -548,14 +596,18 @@ Texto del capítulo (párrafos numerados; cada escena indica en "source_paragrap
 y TODO párrafo con contenido debe quedar cubierto por al menos una escena):
 ${numberedParagraphs(job.content_txt)}`;
 
+    const app = await this.detectSoftwareApp(job);
+
     // Initial generation with up to 3 attempts
     const script = await this.callGptWithRetry(job.id, [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: app ? SYSTEM_PROMPT + softwareAddendum(app) : SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ], 'generate_script', job.institution_id);
 
     // Revisión crítica contra la fuente (cifras, omisiones, coherencia pantalla-voz, cues)
     const finalScript = await this.reviewScript(job, script);
+    // Demostraciones de software: después de las revisiones (que reescriben el JSON completo)
+    await this.buildUiDemos(job, finalScript, app);
     // La duración la decide el contenido (sin relleno); solo se avisa si supera el tope
     this.logDuration(job.id, finalScript);
 
@@ -569,6 +621,133 @@ ${numberedParagraphs(job.content_txt)}`;
     );
 
     return finalScript;
+  }
+
+  /** Programa que enseña el capítulo, o null si no es un tutorial de software. */
+  private async detectSoftwareApp(job: VideoJob): Promise<UiApp | null> {
+    const text = `${job.title}\n${job.content_txt}`;
+    // Pistas distintas ("fórmula" y "fórmulas" cuentan como una)
+    const hints = new Set((text.match(SOFTWARE_HINTS) ?? []).map((h) => h.toLowerCase().replace(/s$/, '')));
+    if (hints.size < 2) return null;
+    try {
+      const raw = await this.jsonCall(job, [
+        { role: 'system', content: 'Clasifica un capítulo educativo. Responde SOLO JSON {"app": "spreadsheet" | "document" | "email" | null}. ' +
+          'Usa un valor solo si el capítulo enseña principalmente a USAR ese tipo de programa (hoja de cálculo como Excel o Sheets; ' +
+          'procesador de textos como Word o Docs; correo como Gmail u Outlook). Si solo lo menciona de pasada, null.' },
+        { role: 'user', content: `${job.title}\n\n${job.content_txt.slice(0, 6000)}` },
+      ], 'detect_software', CLASSIFIER_MODEL);
+      const app = raw.app as UiApp;
+      if (app && app in UI_PACKS) {
+        this.logger.log(`[AiService] [${job.id}] Tutorial de software detectado: ${UI_PACKS[app].name}`);
+        return app;
+      }
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Detección de software omitida: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
+  }
+
+  /**
+   * Genera y valida la demostración de cada escena software_demo. Si no se logra una demo válida
+   * (o el capítulo no es un tutorial), la escena queda como diapositiva de pasos.
+   */
+  private async buildUiDemos(job: VideoJob, script: GeneratedScript, app: UiApp | null): Promise<void> {
+    // El modelo no siempre marca como demo las escenas que describen acciones: si la narración
+    // tiene 2+ acciones concretas, se muestra en el programa (salvo portada, práctica y resumen)
+    if (app) {
+      for (const scene of script.scenes) {
+        const actions = (scene.narration ?? '').match(ACTION_VERBS)?.length ?? 0;
+        if (actions >= 2 && scene.layout_type !== 'software_demo' && !NO_DEMO_LAYOUTS.has(scene.layout_type)) {
+          this.logger.log(`[AiService] [${job.id}] Escena ${scene.scene_order} (${scene.layout_type}) tiene ${actions} acciones → software_demo`);
+          scene.layout_type = 'software_demo';
+        }
+      }
+    }
+    // Continuidad: cada demo parte del ejemplo de la anterior (mismos datos, mismo documento)
+    let previous = '';
+    let fileName: unknown = null;
+    for (const scene of script.scenes) {
+      if (scene.layout_type !== 'software_demo') continue;
+      scene.requires_ai_image = false;
+      if (!app) {
+        scene.layout_type = 'process_steps';
+        continue;
+      }
+      let feedback = '';
+      for (let attempt = 1; attempt <= 2 && scene.layout_type === 'software_demo'; attempt++) {
+        try {
+          const raw = await this.jsonCall(job, [
+            { role: 'system', content: `${UI_DEMO_PROMPT}\n\n${describePack(app)}` },
+            { role: 'user', content: `TÍTULO DE LA ESCENA: ${scene.title}\nNARRACIÓN:\n${scene.narration}` +
+              `\n\nDATOS DEL CAPÍTULO (usa sus cifras, nombres y ejemplos; no inventes otros):\n${job.content_txt.slice(0, 3500)}` +
+              (previous ? `\n\nDEMO ANTERIOR DEL MISMO VIDEO (continúa el mismo ejemplo y los mismos datos, con lo ya hecho):\n${previous}` : '') +
+              feedback },
+          ], 'ui_demo');
+          // Solo pasos que la narración de ESTA escena dice: la frase de referencia debe aparecer en ella
+          const norm = (t: string): string => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ=():;]+/g, ' ').trim();
+          const narration = norm(scene.narration ?? '');
+          const steps = Array.isArray(raw.steps) ? (raw.steps as Array<Record<string, unknown>>) : [];
+          raw.steps = steps.filter((st) => typeof st.cue === 'string' && norm(st.cue).length >= 3 && narration.includes(norm(st.cue)));
+          if ((raw.steps as unknown[]).length < steps.length) {
+            this.logger.warn(`[AiService] [${job.id}] Escena ${scene.scene_order}: ${steps.length - (raw.steps as unknown[]).length} pasos sin respaldo en la narración, descartados`);
+          }
+          // Es el mismo archivo en todo el video aunque el modelo lo renombre
+          if (fileName) raw.file_name = fileName;
+          const demo = resolveUiDemo({ ...raw, app });
+          scene.ui_demo = { ...raw, app };
+          scene.on_screen_text = demo.steps.map((st) => st.label);
+          scene.reveal_cues = demo.steps.map((st) => st.cue);
+          scene.icons = demo.steps.map(() => null);
+          previous = JSON.stringify({ file_name: raw.file_name, initial: raw.initial, steps: raw.steps }).slice(0, 2500);
+          fileName = raw.file_name ?? fileName;
+          this.logger.log(`[AiService] [${job.id}] Demo de software en escena ${scene.scene_order}: ${demo.steps.length} pasos`);
+          break;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`[AiService] [${job.id}] Demo de software escena ${scene.scene_order} intento ${attempt}: ${msg}`);
+          feedback = `\n\nEL INTENTO ANTERIOR NO ERA VÁLIDO: ${msg}. Corrígelo.`;
+          if (attempt === 2) scene.layout_type = 'process_steps';
+        }
+      }
+    }
+  }
+
+  /** Llamada JSON genérica con registro de costo. */
+  private async jsonCall(
+    job: VideoJob,
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    operation: string,
+    model = this.model,
+  ): Promise<Record<string, unknown>> {
+    const response = await this.client.chat.completions.create({
+      model, messages, temperature: 0.3, max_tokens: 4000, response_format: { type: 'json_object' },
+    });
+    await this.logChatUsage(job.id, job.institution_id, operation, response.model ?? model, response.usage);
+    return JSON.parse(response.choices[0]?.message?.content ?? '{}') as Record<string, unknown>;
+  }
+
+  private async logChatUsage(
+    jobId: string,
+    institutionId: string | null | undefined,
+    operation: string,
+    modelName: string,
+    usage: { prompt_tokens?: number; completion_tokens?: number } | undefined,
+  ): Promise<void> {
+    const inputTokens = usage?.prompt_tokens ?? 0;
+    const outputTokens = usage?.completion_tokens ?? 0;
+    const price = priceChat(modelName, inputTokens, outputTokens);
+    await this.videosService.logApiUsage({
+      videoJobId: jobId,
+      institutionId: institutionId ?? null,
+      provider: 'openai_chat',
+      operation,
+      inputUnits: inputTokens,
+      outputUnits: outputTokens,
+      estimatedCost: price.cost,
+      modelName,
+      unitType: 'tokens',
+      metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens, pricing: price.pricing },
+    });
   }
 
   /**
@@ -741,22 +920,7 @@ Responde SOLO con el JSON completo corregido.`;
         const rawContent = response.choices[0]?.message?.content ?? '';
         const script = this.parseAndValidateScript(rawContent, jobId);
 
-        const inputTokens = response.usage?.prompt_tokens ?? 0;
-        const outputTokens = response.usage?.completion_tokens ?? 0;
-        const modelName = response.model ?? this.model;
-        const price = priceChat(modelName, inputTokens, outputTokens);
-        await this.videosService.logApiUsage({
-          videoJobId: jobId,
-          institutionId: institutionId ?? null,
-          provider: 'openai_chat',
-          operation,
-          inputUnits: inputTokens,
-          outputUnits: outputTokens,
-          estimatedCost: price.cost,
-          modelName,
-          unitType: 'tokens',
-          metadata: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens, pricing: price.pricing },
-        });
+        await this.logChatUsage(jobId, institutionId, operation, response.model ?? this.model, response.usage);
 
         return script;
       } catch (err: unknown) {
@@ -848,7 +1012,7 @@ Responde SOLO con el JSON completo corregido.`;
     const CSS_ONLY_LAYOUTS = new Set([
       'process_steps', 'comparison', 'hierarchy_diagram',
       'summary_checklist', 'big_stat', 'guiding_question',
-      'icon_cards', 'cycle_diagram', 'concept_map', 'timeline', 'practice_question',
+      'icon_cards', 'cycle_diagram', 'concept_map', 'timeline', 'practice_question', 'software_demo',
     ]);
     // These layouts always get AI images and do NOT count against the cap
     const ALWAYS_IMAGE_LAYOUTS = new Set(['cover', 'conclusion_reflection']);

@@ -39,6 +39,11 @@ export function isValidIcon(name: unknown): name is string {
 /** SVG inline del icono, o '' si no existe. */
 export function iconSvg(name: string | null | undefined, size: number, color: string, strokeWidth = 2): string {
   if (!name || !isValidIcon(name)) return '';
+  return uiIconSvg(name, size, color, strokeWidth);
+}
+
+/** Igual que iconSvg pero con cualquier icono de Lucide: solo para nombres fijos del código (maquetas de software). */
+export function uiIconSvg(name: string, size: number, color: string, strokeWidth = 2): string {
   let raw = cache.get(name);
   if (raw === undefined) {
     try {

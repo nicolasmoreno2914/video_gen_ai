@@ -91,6 +91,10 @@ export class VideoScene {
   @Column({ type: 'text', nullable: true })
   image_check!: string | null;
 
+  /** Tutorial de software (layout software_demo): programa, estado inicial y pasos. */
+  @Column({ type: 'jsonb', nullable: true })
+  ui_demo!: object | null;
+
   @CreateDateColumn()
   created_at!: Date;
 
