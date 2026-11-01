@@ -18,6 +18,9 @@ import { randomUUID } from 'crypto';
 import { ExternalApiKeyGuard, ExternalRequest } from '../../common/guards/external-api-key.guard';
 import { VideosService } from '../videos/videos.service';
 import { VIDEO_QUEUE, enqueueVideo } from '../queue/queue.constants';
+import { StorageService } from '../storage/storage.service';
+import { CreateVideoDto } from '../videos/dto/create-video.dto';
+import { resolveRequestBrand } from './request-brand';
 import { STEP_LABELS } from '../../common/types';
 
 import {
@@ -36,6 +39,21 @@ import {
   IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+/** Marca de este pedido (ver request-brand.ts). Sin ella, la de la cuenta. */
+class ExternalBrandDto {
+  /** Logo PNG o JPEG como data URI base64. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(8_000_000)
+  logo_data_uri?: string;
+
+  /** Nombre de la institución que se muestra en el video. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  institution_name?: string;
+}
 
 class ExternalCreateVideoDto {
   @IsOptional()
@@ -97,6 +115,11 @@ class ExternalCreateVideoDto {
   batch_reference_id?: string;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => ExternalBrandDto)
+  brand?: ExternalBrandDto;
+
+  @IsOptional()
   @IsObject()
   external_metadata?: Record<string, unknown>;
 }
@@ -142,6 +165,11 @@ class BatchVideoItemDto {
   client_reference_id?: string;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => ExternalBrandDto)
+  brand?: ExternalBrandDto;
+
+  @IsOptional()
   @IsObject()
   external_metadata?: Record<string, unknown>;
 }
@@ -161,6 +189,12 @@ class ExternalBatchCreateDto {
   @MaxLength(255)
   batch_reference_id?: string;
 
+  /** Marca común a todos los videos del lote (cada video puede traer la suya). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExternalBrandDto)
+  brand?: ExternalBrandDto;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(20)
@@ -175,6 +209,7 @@ export class ExternalController {
   constructor(
     private readonly videosService: VideosService,
     @InjectQueue(VIDEO_QUEUE) private readonly videoQueue: Queue,
+    private readonly storageService: StorageService,
   ) {}
 
   @Get('auth-test')
@@ -213,8 +248,11 @@ export class ExternalController {
       return;
     }
 
+    const { brand, warnings } = await resolveRequestBrand(this.storageService, req.institution_id, body.brand, new Map());
+
     const { job } = await this.videosService.create({
       institution_id: req.institution_id,
+      brand: brand as CreateVideoDto['brand'],
       course_id: body.course_id ?? '',
       chapter_id: body.chapter_id ?? '',
       title: body.title!,
@@ -248,6 +286,7 @@ export class ExternalController {
       institution_id: req.institution_id,
       source_system: job.source_system,
       client_reference_id: job.client_reference_id,
+      ...(warnings.length ? { warnings } : {}),
     });
   }
 
@@ -281,10 +320,19 @@ export class ExternalController {
 
     const created: Array<{ index: number; job_id: string; title: string; client_reference_id: string | null }> = [];
 
+    // El logo común del lote se guarda una sola vez; un video puede traer el suyo (gana sobre el del lote)
+    const logoCache = new Map<string, string>();
+    const batchBrand = await resolveRequestBrand(this.storageService, req.institution_id, body.brand, logoCache);
+    const warnings = [...batchBrand.warnings];
+
     for (let i = 0; i < body.videos.length; i++) {
       const v = body.videos[i];
+      const own = await resolveRequestBrand(this.storageService, req.institution_id, v.brand, logoCache);
+      warnings.push(...own.warnings.map((w) => `video ${i}: ${w}`));
+      const brand = batchBrand.brand || own.brand ? { ...batchBrand.brand, ...own.brand } : undefined;
       const { job } = await this.videosService.create({
         institution_id: req.institution_id,
+        brand: brand as CreateVideoDto['brand'],
         course_id: v.course_id ?? '',
         chapter_id: v.chapter_id ?? '',
         title: v.title,
@@ -327,6 +375,7 @@ export class ExternalController {
       institution_id: req.institution_id,
       video_count: created.length,
       videos: created,
+      ...(warnings.length ? { warnings } : {}),
     });
   }
 

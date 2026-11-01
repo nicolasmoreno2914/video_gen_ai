@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ExternalController } from './external.controller';
 import { VideosModule } from '../videos/videos.module';
+import { StorageModule } from '../storage/storage.module';
 import { VIDEO_QUEUE } from '../queue/queue.constants';
 import { ExternalApiKeyGuard } from '../../common/guards/external-api-key.guard';
 
 @Module({
   imports: [
     VideosModule,
+    StorageModule,
     BullModule.registerQueue({ name: VIDEO_QUEUE }),
   ],
   controllers: [ExternalController],
