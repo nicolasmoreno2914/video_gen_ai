@@ -41,6 +41,9 @@ export interface VfrOptions {
   maxHold: number;
 }
 
+/** Por debajo de esto (s) un tramo se suma al anterior en vez de emitirse como fotograma. */
+const MIN_HOLD = 1e-3;
+
 export function buildVfrEntries(frames: FrameEntry[], opts: VfrOptions): FrameEntry[] {
   if (!frames.length) return [];
   const { duration, fps, fade, maxHold } = opts;
@@ -67,7 +70,11 @@ export function buildVfrEntries(frames: FrameEntry[], opts: VfrOptions): FrameEn
       if (!dense(cur) && next > duration - fade) next = Math.max(cur + 1e-3, duration - fade);
       while (ci < cuts.length && cuts[ci] <= cur + 1e-6) ci++;
       if (ci < cuts.length && cuts[ci] < next - 1e-6) next = cuts[ci];
-      out.push({ file: s.file, hold: next - cur });
+      const hold = next - cur;
+      // Los holds de la captura vienen redondeados (0,0667 frente a 2/30): el resto de unas
+      // decenas de µs no se ve y solo añade fotogramas con marcas de tiempo casi repetidas
+      if (hold < MIN_HOLD && out.length) out[out.length - 1].hold += hold;
+      else out.push({ file: s.file, hold });
       cur = next;
     }
   }
