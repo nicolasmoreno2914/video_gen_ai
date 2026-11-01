@@ -25,6 +25,11 @@ export interface VideoJob {
   thumbnail_url: string | null;
   error: string | null;
   retry_count: number;
+  /** Reintentos automáticos hechos y la hora del próximo, si hay uno programado. */
+  auto_retry_count?: number;
+  next_retry_at?: string | null;
+  /** transient | global | permanent */
+  failure_kind?: string | null;
   created_at: string;
   updated_at: string;
 }

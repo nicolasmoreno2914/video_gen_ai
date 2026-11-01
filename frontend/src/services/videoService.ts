@@ -23,6 +23,17 @@ export const videoService = {
     return data;
   },
 
+  async queueStatus(): Promise<{ paused: boolean; reason: string | null; resume_at: string | null }> {
+    const { data } = await apiClient.get<{ paused: boolean; reason: string | null; resume_at: string | null }>(
+      '/api/queue/status',
+    );
+    return data;
+  },
+
+  async resumeQueue(): Promise<void> {
+    await apiClient.post('/api/queue/resume');
+  },
+
   async cancel(jobId: string): Promise<{ success: boolean }> {
     const { data } = await apiClient.post<{ success: boolean }>(`/api/videos/${jobId}/cancel`);
     return data;

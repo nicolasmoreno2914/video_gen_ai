@@ -62,7 +62,7 @@ module.exports = {
       kill_timeout: 30000,        // 30s para que el job en curso termine limpiamente
       env_production: {
         NODE_ENV: 'production',
-        QUEUE_CONCURRENCY: '1',   // 1 video a la vez — conserva RAM en VPS
+        QUEUE_CONCURRENCY: '2',   // videos a la vez; solo este proceso monta (la API ya no)
       },
       error_file: '/var/log/videogen/worker-error.log',
       out_file:   '/var/log/videogen/worker-out.log',

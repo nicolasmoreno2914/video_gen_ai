@@ -7,6 +7,7 @@ import { ApiUsageLog } from '../database/entities/api-usage-log.entity';
 import { Institution } from '../database/entities/institution.entity';
 import { VideosService } from './videos.service';
 import { VideosController } from './videos.controller';
+import { QueueStatusController } from './queue-status.controller';
 import { CleanupService } from './cleanup.service';
 import { InstitutionsModule } from '../institutions/institutions.module';
 import { EventsModule } from '../events/events.module';
@@ -18,7 +19,7 @@ import { VIDEO_QUEUE } from '../queue/queue.constants';
     InstitutionsModule,
     EventsModule,
   ],
-  controllers: [VideosController],
+  controllers: [VideosController, QueueStatusController],
   providers: [VideosService, CleanupService],
   exports: [VideosService, TypeOrmModule],
 })

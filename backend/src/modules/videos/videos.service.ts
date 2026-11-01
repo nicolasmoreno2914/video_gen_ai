@@ -39,6 +39,20 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { VideoStatusResponse, VideoSceneSummary } from './dto/video-status.dto';
 import { VideoStatus, STEP_LABELS, ApiProvider } from '../../common/types';
 
+/** Pasos del pipeline en orden (las claves que guarda completed_steps). */
+export const PIPELINE_STEPS = [
+  'analyzing_content',
+  'generating_script',
+  'generating_scenes',
+  'generating_images_and_audio',
+  'generating_slides',
+  'rendering_video',
+  'uploading_youtube',
+];
+
+/** Minutos sin latido tras los que un video en proceso se considera interrumpido. */
+export const STALE_MINUTES = 10;
+
 @Injectable()
 export class VideosService {
   private readonly logger = new Logger(VideosService.name);
@@ -192,6 +206,9 @@ export class VideosService {
       thumbnail_url: job.thumbnail_url,
       error: job.error_message,
       retry_count: job.retry_count,
+      auto_retry_count: job.auto_retry_count,
+      next_retry_at: job.next_retry_at,
+      failure_kind: job.failure_kind,
       created_at: job.created_at,
       updated_at: job.updated_at,
       transcript,
@@ -247,47 +264,123 @@ export class VideosService {
     });
   }
 
-  async markFailed(id: string, errorMessage: string): Promise<void> {
+  /**
+   * Toma el video para procesarlo, de forma atómica: si otro proceso ya lo está haciendo (latido
+   * reciente) o ya terminó, devuelve false. Evita procesar dos veces el mismo video cuando coinciden
+   * un reintento automático, uno manual y el vigilante.
+   */
+  async claim(id: string): Promise<boolean> {
+    const rows: unknown[] = await this.videoJobRepo.query(
+      `UPDATE video_jobs SET status = 'processing', heartbeat_at = now(), next_retry_at = NULL, updated_at = now()
+       WHERE id = $1 AND (status = 'queued'
+         OR (status = 'processing' AND COALESCE(heartbeat_at, updated_at) < now() - interval '${STALE_MINUTES} minutes'))
+       RETURNING id`,
+      [id],
+    );
+    return Array.isArray(rows[0]) ? (rows[0] as unknown[]).length > 0 : rows.length > 0;
+  }
+
+  async heartbeat(id: string): Promise<void> {
+    await this.videoJobRepo.update(id, { heartbeat_at: new Date() });
+  }
+
+  /** Terminó bien: el contador de reintentos automáticos vuelve a cero. */
+  async clearRetryState(id: string): Promise<void> {
+    await this.videoJobRepo.update(id, { auto_retry_count: 0, next_retry_at: null, heartbeat_at: null });
+  }
+
+  /** Error pasajero: vuelve a la cola y se reintenta solo a la hora indicada. */
+  async scheduleAutoRetry(id: string, at: Date, lastError: string): Promise<number> {
+    const job = await this.findById(id);
+    const count = (job.auto_retry_count ?? 0) + 1;
+    await this.videoJobRepo.update(id, {
+      status: 'queued',
+      next_retry_at: at,
+      auto_retry_count: count,
+      failure_kind: 'transient',
+      last_error: lastError,
+      heartbeat_at: null,
+    });
+    return count;
+  }
+
+  /** Problema general (sin crédito, etc.): el video espera en la cola mientras está pausada. */
+  async markWaitingForQueue(id: string, lastError: string): Promise<void> {
+    await this.videoJobRepo.update(id, {
+      status: 'queued',
+      next_retry_at: null,
+      failure_kind: 'global',
+      last_error: lastError,
+      heartbeat_at: null,
+    });
+  }
+
+  /** Requiere atención: queda en 'failed' con el motivo en español y se puede reintentar a mano. */
+  async markFailed(id: string, errorMessage: string, failureKind: string | null = null): Promise<void> {
     const job = await this.findById(id);
     await this.videoJobRepo.update(id, {
       status: 'failed',
       error_message: errorMessage,
+      failure_kind: failureKind,
+      last_error: errorMessage,
+      next_retry_at: null,
+      heartbeat_at: null,
       retry_count: (job.retry_count ?? 0) + 1,
     });
   }
 
+  /**
+   * Reintento manual: un video fallido, o uno que espera un reintento automático ("reintentar ya").
+   * Reinicia el contador de reintentos automáticos y continúa desde el último paso completado.
+   */
   async retry(id: string): Promise<{ resumingFrom: string; retryCount: number }> {
     const job = await this.findById(id);
 
-    if (job.status !== 'failed') {
+    const waiting = job.status === 'queued' && job.next_retry_at != null;
+    if (job.status !== 'failed' && !waiting) {
       throw new BadRequestException(
-        `Solo se puede reintentar un job con status 'failed'. Estado actual: ${job.status}`,
+        `Solo se puede reintentar un video fallido o en espera de reintento. Estado actual: ${job.status}`,
       );
     }
 
     const completedSteps = job.completed_steps ?? [];
-    const allSteps = [
-      'analyzing_content',
-      'generating_script',
-      'generating_scenes',
-      'generating_images',
-      'generating_slides',
-      'generating_audio',
-      'rendering_video',
-      'uploading_youtube',
-    ];
-
-    const resumingFrom =
-      allSteps.find((s) => !completedSteps.includes(s)) ?? 'analyzing_content';
+    const resumingFrom = PIPELINE_STEPS.find((s) => !completedSteps.includes(s)) ?? PIPELINE_STEPS[0];
 
     await this.videoJobRepo.update(id, {
       status: 'queued',
       error_message: null,
       current_step: null,
-      progress: job.progress,
+      next_retry_at: null,
+      auto_retry_count: 0,
+      failure_kind: null,
     });
 
     return { resumingFrom, retryCount: job.retry_count };
+  }
+
+  /** Videos en 'processing' cuyo worker dejó de latir (se reinició o se colgó). */
+  async findStalled(): Promise<VideoJob[]> {
+    return this.videoJobRepo
+      .createQueryBuilder('job')
+      .where(`job.status = 'processing'`)
+      .andWhere(`COALESCE(job.heartbeat_at, job.updated_at) < now() - interval '${STALE_MINUTES} minutes'`)
+      .andWhere(`job.updated_at > now() - interval '7 days'`)
+      .getMany();
+  }
+
+  /** Videos en cola que ya deberían estar corriendo (candidatos a haberse perdido de Redis). */
+  async findOverdueQueued(): Promise<VideoJob[]> {
+    return this.videoJobRepo
+      .createQueryBuilder('job')
+      .where(`job.status = 'queued'`)
+      .andWhere(`job.updated_at < now() - interval '${STALE_MINUTES} minutes'`)
+      .andWhere(`job.updated_at > now() - interval '7 days'`)
+      .andWhere(`(job.next_retry_at IS NULL OR job.next_retry_at < now() - interval '5 minutes')`)
+      .getMany();
+  }
+
+  async findFailedInBatch(institutionId: string, batchId: string): Promise<VideoJob[]> {
+    return this.videoJobRepo.find({ where: { institution_id: institutionId, batch_id: batchId, status: 'failed' } });
   }
 
   async deleteJob(id: string): Promise<void> {

@@ -9,6 +9,10 @@ import { NestFactory } from '@nestjs/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AppModule } from './app.module';
+import { createWinstonLogger } from './config/logger.config';
+
+// Este proceso es el único que monta videos (ver processesJobs en queue.constants.ts)
+process.env.VIDEOGEN_ROLE = 'worker';
 
 async function bootstrap(): Promise<void> {
   const storagePath = process.env.STORAGE_BASE_PATH ?? '/tmp/video-engine';
@@ -16,8 +20,9 @@ async function bootstrap(): Promise<void> {
   fs.mkdirSync(path.join(storagePath, 'jobs'), { recursive: true });
 
   // createApplicationContext = NestJS DI without HTTP adapter
+  // Mismo logger que la API: con bufferLogs y sin logger, los registros del worker se perdían
   await NestFactory.createApplicationContext(AppModule, {
-    bufferLogs: true,
+    logger: createWinstonLogger(),
   });
 
   console.log('[Worker] Video processing worker started');

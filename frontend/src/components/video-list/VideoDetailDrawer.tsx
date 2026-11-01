@@ -5,7 +5,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { VideoJob } from '@/types';
 import { videoService } from '@/services/videoService';
-import { formatDuration, cn } from '@/lib/utils';
+import { formatDuration, formatTime, cn } from '@/lib/utils';
 
 interface Props {
   job: VideoJob | null;
@@ -147,7 +147,7 @@ export function VideoDetailDrawer({ job, onClose }: Props) {
                 <div className="px-5 py-3 border-b border-gray-50">
                   <p className="text-xs font-semibold text-red-400 uppercase tracking-wide mb-2 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
-                    Error
+                    Requiere atención
                   </p>
                   <div className="bg-red-50 rounded-xl p-3">
                     <p className="text-xs text-red-700 font-inter leading-relaxed">{job.error}</p>
@@ -164,6 +164,12 @@ export function VideoDetailDrawer({ job, onClose }: Props) {
                       <span>{job.step_label ?? 'En proceso...'}</span>
                       <span>{job.progress}%</span>
                     </div>
+                    {job.next_retry_at && (
+                      <p className="text-xs font-inter text-amber-700">
+                        Hubo un error pasajero. Reintento automático {job.auto_retry_count ?? 1} de 3 a las{' '}
+                        {formatTime(job.next_retry_at)}.
+                      </p>
+                    )}
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all"

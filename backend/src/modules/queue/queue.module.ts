@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import IORedis from 'ioredis';
 import { VIDEO_QUEUE } from './queue.constants';
 import { VideoProcessor } from './video.processor';
+import { VideoRecoveryService } from './recovery.service';
 import { VideosModule } from '../videos/videos.module';
 import { EventsModule } from '../events/events.module';
 import { AiModule } from '../ai/ai.module';
@@ -62,7 +63,7 @@ import { AppConfig } from '../../config/configuration';
     CostsModule,
     StorageModule,
   ],
-  providers: [VideoProcessor],
-  exports: [BullModule],
+  providers: [VideoProcessor, VideoRecoveryService],
+  exports: [BullModule, VideoRecoveryService],
 })
 export class QueueModule {}

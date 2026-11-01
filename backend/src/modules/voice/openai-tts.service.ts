@@ -77,8 +77,14 @@ export class OpenAiTtsService {
     const audioDir = path.join(this.basePath, 'jobs', job.id, 'audio');
     fs.mkdirSync(audioDir, { recursive: true });
 
+    // Al reintentar un video, las escenas que ya tienen su audio no se vuelven a pagar
+    const pending = scenes.filter((s) => !(s.audio_url && s.duration_seconds && fs.existsSync(s.audio_url)));
+    if (pending.length < scenes.length) {
+      this.logger.log(`[OpenAiTtsService] [${job.id}] ${scenes.length - pending.length} escenas ya tenían audio — se reutiliza`);
+    }
+
     await Promise.all(
-      scenes.map((scene) =>
+      pending.map((scene) =>
         this.limit(() =>
           this.generateSceneAudio(job, scene, voice, model, audioDir),
         ),
@@ -205,9 +211,11 @@ export class OpenAiTtsService {
             `OpenAI TTS: API key inválida o expirada. ${detail}`,
           );
         }
-        if (status === 429) {
+        // 429 es tanto "sin crédito" (no tiene sentido reintentar) como "demasiadas peticiones"
+        // (sí: basta esperar un poco más que en otros errores)
+        if (status === 429 && /quota|billing|credit/i.test(detail)) {
           throw new Error(
-            `OpenAI TTS: rate limit / cuota agotada en escena ${scene.scene_order}. ` +
+            `OpenAI TTS: cuota agotada en escena ${scene.scene_order}. ` +
             `${detail}. Revisa tu cuenta en platform.openai.com/usage.`,
           );
         }
@@ -221,7 +229,7 @@ export class OpenAiTtsService {
           `[OpenAiTtsService] [${job.id}] Escena ${scene.scene_order} ` +
           `intento ${attempt}/3 [HTTP ${status ?? 'err'}]: ${detail}`,
         );
-        if (attempt < 3) await this.sleep(3000 * attempt);
+        if (attempt < 3) await this.sleep((status === 429 ? 15000 : 3000) * attempt);
       }
     }
 

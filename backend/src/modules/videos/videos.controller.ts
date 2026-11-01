@@ -21,7 +21,7 @@ import { ProgressEventsService } from '../events/progress.events';
 import { DualAuthGuard } from '../../common/guards/dual-auth.guard';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { CreateVideoResponse, VideoStatusResponse } from './dto/video-status.dto';
-import { VIDEO_QUEUE } from '../queue/queue.constants';
+import { VIDEO_QUEUE, enqueueVideo } from '../queue/queue.constants';
 import { STEP_LABELS } from '../../common/types';
 import * as fs from 'fs';
 
@@ -226,17 +226,7 @@ export class VideosController {
     @Res() res: Response,
   ): Promise<void> {
     const { resumingFrom, retryCount } = await this.videosService.retry(jobId);
-
-    await this.videoQueue.add(
-      'process-video',
-      { jobId },
-      {
-        jobId: `${jobId}-retry-${retryCount}`,
-        attempts: 1,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    await enqueueVideo(this.videoQueue, jobId, `manual-${Date.now()}`);
 
     res.status(HttpStatus.OK).json({
       success: true,
@@ -288,6 +278,9 @@ export class VideosController {
       thumbnail_url: job.thumbnail_url,
       error: job.error_message,
       retry_count: job.retry_count,
+      auto_retry_count: job.auto_retry_count,
+      next_retry_at: job.next_retry_at,
+      failure_kind: job.failure_kind,
       created_at: job.created_at,
       updated_at: job.updated_at,
       title: job.title,

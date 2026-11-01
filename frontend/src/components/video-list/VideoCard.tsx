@@ -2,7 +2,7 @@ import { Download, ExternalLink, RefreshCw, Clock, Film, Eye, Layers, CheckCircl
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useState } from 'react';
-import { cn, formatDuration } from '@/lib/utils';
+import { cn, formatDuration, formatTime } from '@/lib/utils';
 import { VideoJob } from '@/types';
 import { videoService } from '@/services/videoService';
 
@@ -75,16 +75,22 @@ function StatusBadge({ job }: { job: VideoJob }) {
           Completado
         </span>
       )}
-      {isActive && (
+      {isActive && !job.next_retry_at && (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
           <Loader2 className="w-3 h-3 animate-spin" />
           En proceso
         </span>
       )}
+      {isActive && job.next_retry_at && (
+        <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+          <RefreshCw className="w-3 h-3" />
+          Reintento {formatTime(job.next_retry_at)}
+        </span>
+      )}
       {isFailed && (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
           <XCircle className="w-3 h-3" />
-          Error
+          Requiere atención
         </span>
       )}
       {isDryRun && (
