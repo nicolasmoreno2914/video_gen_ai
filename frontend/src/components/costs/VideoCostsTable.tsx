@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatUsd, formatSeconds } from '../../lib/costUtils';
 import type { VideoCostItem, Pagination } from '../../types/costs';
-import { cn } from '@/lib/utils';
+import { cn, STATUS_LABEL } from '@/lib/utils';
 
 interface Props {
   items: VideoCostItem[] | undefined;
@@ -42,11 +42,11 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        'px-2 py-0.5 rounded-full text-xs font-medium capitalize',
+        'px-2 py-0.5 rounded-full text-xs font-medium',
         STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600',
       )}
     >
-      {status}
+      {STATUS_LABEL[status] ?? status}
     </span>
   );
 }

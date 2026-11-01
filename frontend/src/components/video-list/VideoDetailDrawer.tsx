@@ -5,21 +5,12 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { VideoJob } from '@/types';
 import { videoService } from '@/services/videoService';
-import { formatDuration, formatTime, cn } from '@/lib/utils';
+import { formatDuration, formatTime, cn, STATUS_LABEL } from '@/lib/utils';
 
 interface Props {
   job: VideoJob | null;
   onClose: () => void;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  queued: 'En cola',
-  processing: 'Procesando',
-  completed: 'Completado',
-  completed_local: 'Completado local',
-  failed: 'Error',
-  dry_run_completed: 'Dry-run',
-};
 
 const STATUS_STYLES: Record<string, string> = {
   queued: 'bg-gray-100 text-gray-600',
