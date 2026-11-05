@@ -45,12 +45,12 @@ Usuario → Cloudflare Pages (frontend) → Cloudflare Tunnel → Backend local 
 # Supabase
 SUPABASE_URL=https://vokytkpwkboevfrllwty.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_X2yfWLBHcmxp9tRIusAXIg_f-geFScq
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_4RPClfsWLykYBrLtEcF1bg_Zth8Wd49
-SUPABASE_JWT_SECRET=VOdg+U2bWYcB9UH475Ohj8YFMFDc6rnxHVhOqyQK1txWdQtj7/sQkuNqd91J48tzjuh7/Iin4osWYsm3h7KPXQ==
-DATABASE_URL=postgresql://postgres:Vg9%23mK2%24pL8nXw4!@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
+SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SECRET_KEY>
+SUPABASE_JWT_SECRET=<SUPABASE_JWT_SECRET>
+DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
 
 # Redis (Upstash)
-REDIS_URL=rediss://default:gQAAAAAAAAdD7AAIgcDI1OGM4NzU2M2FkZmI0MWI1OTZhZDQ4NjZhYjQ1ZTJiMQ@finer-anchovy-119035.upstash.io:6379
+REDIS_URL=rediss://default:<REDIS_PASSWORD>@finer-anchovy-119035.upstash.io:6379
 
 # Storage
 STORAGE_DRIVER=local
@@ -78,11 +78,11 @@ API_SECRET=<genera con: openssl rand -hex 32>
 
 SUPABASE_URL=https://vokytkpwkboevfrllwty.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_X2yfWLBHcmxp9tRIusAXIg_f-geFScq
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_4RPClfsWLykYBrLtEcF1bg_Zth8Wd49
-SUPABASE_JWT_SECRET=VOdg+U2bWYcB9UH475Ohj8YFMFDc6rnxHVhOqyQK1txWdQtj7/sQkuNqd91J48tzjuh7/Iin4osWYsm3h7KPXQ==
-DATABASE_URL=postgresql://postgres:Vg9%23mK2%24pL8nXw4!@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
+SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SECRET_KEY>
+SUPABASE_JWT_SECRET=<SUPABASE_JWT_SECRET>
+DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres
 
-REDIS_URL=rediss://default:gQAAAAAAAAdD7AAIgcDI1OGM4NzU2M2FkZmI0MWI1OTZhZDQ4NjZhYjQ1ZTJiMQ@finer-anchovy-119035.upstash.io:6379
+REDIS_URL=rediss://default:<REDIS_PASSWORD>@finer-anchovy-119035.upstash.io:6379
 
 OPENAI_API_KEY=<tu key>
 OPENAI_MODEL=gpt-4o
@@ -283,7 +283,7 @@ git push origin staging
 
 ### Database connection failed
 - Verifica que el password no tenga caracteres sin URL-encode (`#`→`%23`, `$`→`%24`)
-- Verifica conectividad: `psql "postgresql://postgres:Vg9%23mK2%24pL8nXw4!@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres"`
+- Verifica conectividad: `psql "postgresql://postgres:<DB_PASSWORD>@db.vokytkpwkboevfrllwty.supabase.co:5432/postgres"`
 
 ### Redis connection failed
 - Verifica que `REDIS_URL` empiece con `rediss://` (doble s, TLS)
