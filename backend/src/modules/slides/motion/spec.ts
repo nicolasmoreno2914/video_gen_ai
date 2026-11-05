@@ -26,7 +26,8 @@ export const TONES = ['correct', 'incorrect', 'neutral'] as const;
 
 const MAX_ELEMENTS = 16;
 const MAX_BEATS = 8;
-const MAX_ACTIONS_PER_BEAT = 5;
+const MAX_ACTIONS_PER_BEAT = 8;
+const MAX_TEXTS = 4;
 
 export type Scenario = typeof SCENARIOS[number];
 export type Size = typeof SIZES[number];
@@ -224,7 +225,14 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
   const spec = (raw ?? {}) as Record<string, unknown>;
   const requestedScenario = strictOneOf(spec.scenario ?? 'canvas', SCENARIOS, 'scenario');
 
-  const rawElements = Array.isArray(spec.elements) ? (spec.elements as Array<Record<string, unknown>>) : [];
+  let rawElements = Array.isArray(spec.elements) ? (spec.elements as Array<Record<string, unknown>>) : [];
+  // Vías sin vehículos no explican nada (la IA las usaba como "línea de pasos"): se quitan, con sus acciones
+  const isRoad = (e: Record<string, unknown> | undefined): boolean => e?.type === 'road' || e?.type === 'roundabout';
+  const dropped = new Set<string>();
+  if (requestedScenario === 'versus' || !rawElements.some((e) => e?.type === 'vehicle')) {
+    for (const e of rawElements) if (isRoad(e)) dropped.add(String(e.id));
+    rawElements = rawElements.filter((e) => !isRoad(e));
+  }
   if (rawElements.length === 0) throw new MotionSpecError('la escena no tiene elementos');
   if (rawElements.length > MAX_ELEMENTS) throw new MotionSpecError(`demasiados elementos (${rawElements.length}, máx. ${MAX_ELEMENTS})`);
   const elements = rawElements.map((e, i) => parseElement(e ?? {}, i));
@@ -234,21 +242,17 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     ids.set(el.id, el);
   }
 
-  // Con vehículos, la escena es un mapa visto desde arriba aunque la IA haya puesto otro escenario.
-  // Las vías sin vehículos no explican nada (la IA las usaba como "línea de pasos")
+  // Con vías (y por tanto vehículos), la escena es un mapa visto desde arriba
   let scenario = requestedScenario;
-  const hasVehicles = elements.some((e) => e.type === 'vehicle');
-  if (scenario !== 'versus' && hasVehicles) scenario = 'map';
-  if (!hasVehicles && elements.some((e) => e.type === 'road' || e.type === 'roundabout')) {
-    throw new MotionSpecError('las vías y glorietas solo se usan en escenas de tránsito con vehículos; para pasos o procesos usa "canvas" con piezas en fila y connect');
+  if (scenario !== 'versus' && elements.some((e) => e.type === 'road' || e.type === 'roundabout')) scenario = 'map';
+  if (scenario === 'map' && !elements.some((e) => e.type === 'vehicle')) scenario = 'canvas';
+  if (elements.filter((e) => e.type === 'text').length > MAX_TEXTS) {
+    throw new MotionSpecError(`demasiados textos (máx. ${MAX_TEXTS}): usa etiquetas cortas en las piezas en vez de textos sueltos`);
   }
 
   for (const el of elements) {
     if (el.type === 'text' && el.pointsTo && !ids.has(el.pointsTo)) {
       throw new MotionSpecError(`texto "${el.id}": points_to "${el.pointsTo}" no es el id de ningún elemento`);
-    }
-    if ((el.type === 'vehicle' || el.type === 'road' || el.type === 'roundabout') && scenario !== 'map') {
-      throw new MotionSpecError(`"${el.id}" (${el.type}) solo se usa con scenario "map"`);
     }
     if (scenario === 'versus' && 'at' in el && el.at.row === 0) {
       throw new MotionSpecError(`"${el.id}": en "versus" la fila 1 es el encabezado de los paneles; usa filas 2–6`);
@@ -267,7 +271,11 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     panels = { left: side('left'), right: side('right') };
   }
 
-  const rawBeats = Array.isArray(spec.beats) ? (spec.beats as Array<Record<string, unknown>>) : [];
+  const touchesDropped = (a: Record<string, unknown> | undefined): boolean =>
+    [a?.target, a?.from, a?.to].some((x) => typeof x === 'string' && dropped.has(x));
+  // Un beat que solo animaba vías quitadas desaparece
+  const rawBeats = (Array.isArray(spec.beats) ? (spec.beats as Array<Record<string, unknown>>) : [])
+    .filter((b) => !dropped.size || !Array.isArray(b?.actions) || (b.actions as Array<Record<string, unknown>>).some((a) => !touchesDropped(a)));
   if (rawBeats.length < 2 || rawBeats.length > MAX_BEATS) {
     throw new MotionSpecError(`la escena necesita entre 2 y ${MAX_BEATS} beats (tiene ${rawBeats.length})`);
   }
@@ -275,7 +283,8 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     const where = `beat ${i + 1}`;
     const cue = str(b?.cue, 160);
     if (!cue) throw new MotionSpecError(`${where}: falta cue (frase literal de la narración)`);
-    const acts = Array.isArray(b?.actions) ? (b.actions as Array<Record<string, unknown>>) : [];
+    const acts = (Array.isArray(b?.actions) ? (b.actions as Array<Record<string, unknown>>) : [])
+      .filter((a) => !touchesDropped(a));
     if (acts.length === 0 || acts.length > MAX_ACTIONS_PER_BEAT) {
       throw new MotionSpecError(`${where}: necesita entre 1 y ${MAX_ACTIONS_PER_BEAT} acciones`);
     }

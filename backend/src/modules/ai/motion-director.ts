@@ -32,7 +32,7 @@ Elige escenas donde la narración describe algo que se puede MOSTRAR:
 - una cifra que crece o se acumula;
 - lo correcto contra lo incorrecto (así sí / así no).
 NO elijas escenas abstractas (definiciones, opiniones, reflexiones) ni escenas que sean una lista de ideas.
-Escenario de cada una: "map" (vista desde arriba con vías y vehículos), "diagram" (una pieza central con partes
+Escenario de cada una: "map" (SOLO tránsito: vista desde arriba con vías y vehículos), "diagram" (una pieza central con partes
 señaladas), "versus" (dos paneles: incorrecto y correcto) o "canvas" (libre).
 Evita elegir dos escenas seguidas. Si ninguna escena lo amerita, devuelve la lista vacía.
 Responde SOLO JSON: {"scenes": [{"scene_order": 3, "scenario": "map", "idea": "qué se ve, en una frase"}]}`;
@@ -176,14 +176,16 @@ export function checkNumbers(spec: MotionSpec, narration: string): void {
 /** Revisión visual: (imagen JPEG en base64, instrucciones) → {ok, problems}. */
 export type VisionCall = (jpegBase64: string, prompt: string) => Promise<Record<string, unknown>>;
 
-const VISION_PROMPT = `Revisas el último cuadro de una escena animada de un video educativo. Responde SOLO JSON:
-{"ok": true|false, "problems": ["problema concreto, en una frase", ...]}.
-Marca como problema SOLO cosas que confunden al estudiante:
-- una ilustración o ícono que NO representa lo que dice su etiqueta o la pieza descrita (p. ej. un banco con la
-  etiqueta "Alcancía", una bola de cristal como "bola de nieve");
-- texto ilegible, cortado o encimado;
-- una escena que no se entiende o no corresponde a la narración.
-No opines sobre estilo ni colores. Si todo está bien: {"ok": true, "problems": []}.`;
+const VISION_PROMPT = `Revisas el último cuadro de una escena animada de un video educativo. Las ilustraciones son de
+estilo emoji (simples, no realistas) y los íconos son símbolos: un corazón estilizado vale para "latido", un reloj
+para "tiempo". Sé tolerante con eso.
+Marca como problema SOLO lo que claramente confundiría al estudiante:
+- una pieza que muestra algo DISTINTO u OPUESTO a su etiqueta (un escudo de seguridad como "Riesgo", una persona CON
+  casco etiquetada "Sin casco", un banco como "Alcancía");
+- texto encimado con otra pieza o cortado por el borde.
+NO reportes ortografía, estilo, colores, posiciones aproximadas ni detalles que falten.
+Responde SOLO JSON: {"ok": true|false, "problems": ["problema concreto, en una frase", ...]}.
+Si nada de eso ocurre: {"ok": true, "problems": []}.`;
 
 function describePieces(spec: MotionSpec): string {
   return spec.elements.map((e) => {
@@ -248,6 +250,7 @@ export async function directMotionScenes(script: GeneratedScript, opts: Director
   try {
     for (const { scene, scenario, idea } of picks) {
       let feedback = '';
+      let lastRaw = '';
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
           const raw = await opts.call([
@@ -255,6 +258,7 @@ export async function directMotionScenes(script: GeneratedScript, opts: Director
             { role: 'user', content: `TÍTULO DE LA ESCENA: ${scene.title}\nESCENARIO SUGERIDO: ${scenario}\nIDEA: ${idea}\n` +
               `NARRACIÓN:\n${scene.narration}${feedback}` },
           ], 'motion_spec');
+          lastRaw = JSON.stringify(raw);
           checkCues(raw, scene.narration ?? '');
           const { spec, moved } = prepareMotionSpec(raw);
           checkNumbers(spec, scene.narration ?? '');
@@ -287,7 +291,9 @@ export async function directMotionScenes(script: GeneratedScript, opts: Director
           logger.warn(`[MotionDirector] [${jobId}] Escena ${scene.scene_order} intento ${attempt}: ${msg}`);
           // Errores de la API no se corrigen con explicaciones: la escena queda como estaba
           if (!(err instanceof MotionSpecError) && !(err instanceof SyntaxError)) break;
-          feedback = `\n\nEL INTENTO ANTERIOR NO ERA VÁLIDO: ${msg}. Corrígelo y devuelve el JSON completo.`;
+          // La IA ve su intento anterior y el problema: corrige eso en vez de empezar de cero
+          feedback = `\n\nTU INTENTO ANTERIOR:\n${lastRaw.slice(0, 6000)}\n\nNO ERA VÁLIDO: ${msg}.\n` +
+            'Corrige SOLO esos problemas (mueve, agranda, cambia o quita la pieza que falla) y devuelve el JSON completo.';
         }
       }
     }
