@@ -33,7 +33,7 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] 1.5 Plantilla `buildMotionTemplate` (+ estado final estático)
 - [x] 1.6 Conectar en SlidesService (`motion_scene`, respaldo si falla) + columna `motion_spec` + migración
 - [x] 1.7 Revisión de distribución en navegador (fuera de pantalla, encimados, texto cortado)
-- [ ] 1.8 Banco de pruebas local: 4 escenas de ejemplo (conducción, salud, finanzas, seguridad) a MP4, revisión visual e iteración
+- [x] 1.8 Banco de pruebas local: 4 escenas de ejemplo (conducción, salud, finanzas, seguridad) a MP4, revisión visual e iteración
 
 ## Fase 2 — director de animación (apagado por defecto)
 - [ ] 2.1 Interruptor `MOTION_SCENES` (off|on) y `MOTION_MAX_SCENES`
