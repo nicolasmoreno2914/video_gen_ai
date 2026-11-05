@@ -10,6 +10,7 @@ import { priceChat } from '../costs/cost-config';
 import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 import { resolveUiDemo } from '../slides/software/ui-demo';
 import { describePack, UI_PACKS, UiApp } from '../slides/software/ui-packs';
+import { directMotionScenes } from './motion-director';
 
 const VALID_LAYOUTS = new Set<LayoutType>([
   'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
@@ -608,6 +609,8 @@ ${numberedParagraphs(job.content_txt)}`;
     const finalScript = await this.reviewScript(job, script);
     // Demostraciones de software: después de las revisiones (que reescriben el JSON completo)
     await this.buildUiDemos(job, finalScript, app);
+    // Escenas animadas: al final, sobre el guion ya revisado (si falla, las escenas quedan como estaban)
+    await this.buildMotionScenes(job, finalScript);
     // La duración la decide el contenido (sin relleno); solo se avisa si supera el tope
     this.logDuration(job.id, finalScript);
 
@@ -709,6 +712,23 @@ ${numberedParagraphs(job.content_txt)}`;
           if (attempt === 2) scene.layout_type = 'process_steps';
         }
       }
+    }
+  }
+
+  private async buildMotionScenes(job: VideoJob, script: GeneratedScript): Promise<void> {
+    const video = this.configService.get<AppConfig['video']>('video');
+    if (!video?.motionScenes || job.dry_run) return;
+    try {
+      const animated = await directMotionScenes(script, {
+        jobId: job.id,
+        maxScenes: video.motionMaxScenes,
+        classifierModel: CLASSIFIER_MODEL,
+        logger: this.logger,
+        call: (messages, operation, model) => this.jsonCall(job, messages, operation, model),
+      });
+      if (animated) this.logger.log(`[AiService] [${job.id}] ${animated} escenas animadas`);
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Escenas animadas omitidas: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

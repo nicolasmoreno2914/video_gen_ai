@@ -36,11 +36,11 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] 1.8 Banco de pruebas local: 4 escenas de ejemplo (conducción, salud, finanzas, seguridad) a MP4, revisión visual e iteración
 
 ## Fase 2 — director de animación (apagado por defecto)
-- [ ] 2.1 Interruptor `MOTION_SCENES` (off|on) y `MOTION_MAX_SCENES`
-- [ ] 2.2 Elección de escenas + prompt del guion de animación + reintento con explicación + respaldo
-- [ ] 2.3 Revisión de distribución en el ciclo de generación (+ revisión visual barata opcional)
-- [ ] 2.4 Registro de costos; esas escenas no piden imagen
-- [ ] 2.5 Prueba de punta a punta con la IA simulada (costo $0)
+- [x] 2.1 Interruptor `MOTION_SCENES` (off|on) y `MOTION_MAX_SCENES`
+- [x] 2.2 Elección de escenas + prompt del guion de animación + reintento con explicación + respaldo
+- [x] 2.3 Revisión de distribución en el ciclo de generación (la revisión visual con modelo de visión queda para después de ver los videos de prueba)
+- [x] 2.4 Registro de costos; esas escenas no piden imagen
+- [x] 2.5 Prueba de punta a punta con la IA simulada (costo $0)
 - [ ] 2.6 PR a staging (borrador, sin fusionar) → **PARADA: costo de videos de prueba**
 
 ## Fase 3 — videos de prueba (requiere aprobación de costo, tope US$7)
@@ -56,3 +56,7 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - Cámara: zoom máx. 1,6 (más deja fuera casi todo).
 - Banco de pruebas: scratchpad/motion/bench.ts (Chrome local con pipe:true; el websocket falla en el sandbox).
 - Render local: ~6–11 s por escena de 13–16 s a 24 fps.
+- Director: elige con gpt-4.1-mini (`motion_director`), escribe cada guion con el modelo principal
+  (`motion_spec`). Cues literales y en orden (si no, reintento con el detalle). Errores de la API
+  no se reintentan: la escena queda como estaba. Respaldo guardado en `motion_spec.fallback_layout`.
+- No se anima: portada, demo de software, práctica, resumen y cierre, ni escenas de <25 palabras.
