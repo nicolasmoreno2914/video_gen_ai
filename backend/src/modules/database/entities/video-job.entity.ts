@@ -48,6 +48,10 @@ export class VideoJob {
   @Column({ type: 'boolean', default: false })
   dry_run!: boolean;
 
+  /** Escenas animadas pedidas para este video; null = lo que diga MOTION_SCENES. */
+  @Column({ type: 'boolean', nullable: true })
+  motion_scenes!: boolean | null;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   brand_logo_url!: string | null;
 

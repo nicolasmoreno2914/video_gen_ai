@@ -95,6 +95,10 @@ export class VideoScene {
   @Column({ type: 'jsonb', nullable: true })
   ui_demo!: object | null;
 
+  /** Escena animada (layout motion_scene): guion de animación y diseño de respaldo (fallback_layout). */
+  @Column({ type: 'jsonb', nullable: true })
+  motion_spec!: object | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

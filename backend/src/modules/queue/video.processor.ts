@@ -183,6 +183,7 @@ export class VideoProcessor extends WorkerHost implements OnApplicationBootstrap
       image_style: s.image_style ?? null,
       image_check: s.image_check ?? null,
       ui_demo: s.layout_type === 'software_demo' ? s.ui_demo ?? null : null,
+      motion_spec: s.layout_type === 'motion_scene' ? s.motion_spec ?? null : null,
       transition: s.transition,
       estimated_duration_seconds: s.estimated_duration_seconds,
     }));

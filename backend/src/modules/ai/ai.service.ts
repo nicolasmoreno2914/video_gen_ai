@@ -10,6 +10,7 @@ import { priceChat } from '../costs/cost-config';
 import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 import { resolveUiDemo } from '../slides/software/ui-demo';
 import { describePack, UI_PACKS, UiApp } from '../slides/software/ui-packs';
+import { directMotionScenes } from './motion-director';
 
 const VALID_LAYOUTS = new Set<LayoutType>([
   'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
@@ -608,6 +609,8 @@ ${numberedParagraphs(job.content_txt)}`;
     const finalScript = await this.reviewScript(job, script);
     // Demostraciones de software: después de las revisiones (que reescriben el JSON completo)
     await this.buildUiDemos(job, finalScript, app);
+    // Escenas animadas: al final, sobre el guion ya revisado (si falla, las escenas quedan como estaban)
+    await this.buildMotionScenes(job, finalScript);
     // La duración la decide el contenido (sin relleno); solo se avisa si supera el tope
     this.logDuration(job.id, finalScript);
 
@@ -710,6 +713,38 @@ ${numberedParagraphs(job.content_txt)}`;
         }
       }
     }
+  }
+
+  private async buildMotionScenes(job: VideoJob, script: GeneratedScript): Promise<void> {
+    const video = this.configService.get<AppConfig['video']>('video');
+    if (!(job.motion_scenes ?? video?.motionScenes) || job.dry_run) return;
+    try {
+      const animated = await directMotionScenes(script, {
+        jobId: job.id,
+        maxScenes: video?.motionMaxScenes ?? 4,
+        classifierModel: CLASSIFIER_MODEL,
+        logger: this.logger,
+        call: (messages, operation, model) => this.jsonCall(job, messages, operation, model),
+        vision: (jpeg, prompt) => this.visionCall(job, jpeg, prompt),
+      });
+      if (animated) this.logger.log(`[AiService] [${job.id}] ${animated} escenas animadas`);
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Escenas animadas omitidas: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /** Revisión de una imagen con el modelo de visión (JSON), con registro de costo. */
+  private async visionCall(job: VideoJob, jpegBase64: string, prompt: string): Promise<Record<string, unknown>> {
+    const model = this.configService.get<AppConfig['openai']>('openai')?.visionModel ?? CLASSIFIER_MODEL;
+    const response = await this.client.chat.completions.create({
+      model, temperature: 0, max_tokens: 600, response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpegBase64}`, detail: 'high' } },
+      ] }],
+    });
+    await this.logChatUsage(job.id, job.institution_id, 'motion_vision', response.model ?? model, response.usage);
+    return JSON.parse(response.choices[0]?.message?.content ?? '{}') as Record<string, unknown>;
   }
 
   /** Llamada JSON genérica con registro de costo. */

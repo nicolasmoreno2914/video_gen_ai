@@ -60,6 +60,11 @@ class ExternalCreateVideoDto {
   @IsBoolean()
   test_only?: boolean;
 
+  /** Escenas animadas para este pedido (true/false); sin el campo, lo que diga MOTION_SCENES. */
+  @IsOptional()
+  @IsBoolean()
+  motion_scenes?: boolean;
+
   @IsOptional()
   @IsString()
   course_id?: string;
@@ -179,6 +184,11 @@ class ExternalBatchCreateDto {
   @IsBoolean()
   test_only?: boolean;
 
+  /** Escenas animadas para este pedido (true/false); sin el campo, lo que diga MOTION_SCENES. */
+  @IsOptional()
+  @IsBoolean()
+  motion_scenes?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -253,6 +263,7 @@ export class ExternalController {
     const { job } = await this.videosService.create({
       institution_id: req.institution_id,
       brand: brand as CreateVideoDto['brand'],
+      motion_scenes: body.motion_scenes,
       course_id: body.course_id ?? '',
       chapter_id: body.chapter_id ?? '',
       title: body.title!,
@@ -333,6 +344,7 @@ export class ExternalController {
       const { job } = await this.videosService.create({
         institution_id: req.institution_id,
         brand: brand as CreateVideoDto['brand'],
+        motion_scenes: body.motion_scenes,
         course_id: v.course_id ?? '',
         chapter_id: v.chapter_id ?? '',
         title: v.title,

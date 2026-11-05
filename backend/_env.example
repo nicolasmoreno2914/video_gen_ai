@@ -130,6 +130,10 @@ ENABLE_ZOOM_EFFECT=false
 # SLIDES_MOTION_FPS=15
 # SLIDES_CONCURRENCY=4
 # RENDER_X264_PRESET=ultrafast
+# Escenas animadas: la IA elige hasta MOTION_MAX_SCENES escenas por video y las anima con
+# ilustraciones, íconos y movimiento (docs/motion/TABLERO.md). Default: off
+# MOTION_SCENES=on
+# MOTION_MAX_SCENES=4
 DEFAULT_DAILY_VIDEO_LIMIT=10
 
 # ── Logging ───────────────────────────────────────────────────

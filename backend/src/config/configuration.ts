@@ -65,6 +65,8 @@ export interface AppConfig {
     slidesMotionFps: number;
     slidesConcurrency: number;
     renderPreset: string;
+    motionScenes: boolean;
+    motionMaxScenes: number;
   };
   rateLimit: {
     defaultDailyVideoLimit: number;
@@ -155,6 +157,10 @@ export default (): AppConfig => ({
     // ultrafast: ~35 % más rápido que veryfast con calidad visual equivalente (SSIM 0,998 a crf 16);
     // el archivo pesa ~2× (≈2 Mbps), aceptable para slides
     renderPreset: process.env.RENDER_X264_PRESET ?? 'ultrafast',
+    // Escenas animadas (motion_scene): la IA elige hasta MOTION_MAX_SCENES escenas por video y les
+    // escribe un guion de animación. Apagado por defecto mientras se prueba.
+    motionScenes: process.env.MOTION_SCENES === 'on',
+    motionMaxScenes: parseInt(process.env.MOTION_MAX_SCENES ?? '4', 10),
   },
   rateLimit: {
     defaultDailyVideoLimit: parseInt(process.env.DEFAULT_DAILY_VIDEO_LIMIT ?? '10', 10),
