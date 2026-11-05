@@ -35,7 +35,8 @@ export type LayoutType =
   | 'timeline'
   | 'practice_question'
   /** Tutorial de software: maqueta del programa con los pasos animados (ver slides/software). */
-  | 'software_demo';
+  | 'software_demo'
+  | 'motion_scene';
 
 export type TransitionType = 'fade' | 'slide' | 'zoom' | 'dissolve';
 
@@ -71,6 +72,8 @@ export interface GeneratedScene {
   source_paragraphs?: number[];
   /** Solo en software_demo: programa, estado inicial y pasos (se valida con resolveUiDemo). */
   ui_demo?: Record<string, unknown> | null;
+  /** Solo en motion_scene: guion de animación (se valida con resolveMotionSpec) y diseño de respaldo. */
+  motion_spec?: Record<string, unknown> | null;
   transition: TransitionType;
   estimated_duration_seconds: number;
 }

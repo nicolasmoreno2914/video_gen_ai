@@ -22,6 +22,8 @@ import { captureKeyframes } from './keyframe-capture';
 import { computeRevealTimes } from './reveal-timing';
 import { resolveUiDemo } from './software/ui-demo';
 import { buildSoftwareTemplate } from './templates/software.template';
+import { MotionSpec, resolveMotionSpec } from './motion/spec';
+import { buildMotionTemplate } from './motion/motion.template';
 
 export interface BrandData {
   primaryColor: string;
@@ -37,7 +39,12 @@ export interface SlideTemplateData {
   requiresAiImage: boolean;
   /** Si está presente, la plantilla incluye el runtime de animación (captura por fotogramas). */
   timeline?: SceneTimeline | null;
+  /** Escena animada ya validada (layout motion_scene). */
+  motion?: MotionSpec | null;
 }
+
+/** Ritmo de captura de los desplazamientos de las escenas animadas (lo demás va a motionFps). */
+const MOTION_SCENE_FPS = 24;
 
 const HIERARCHY_KEYWORDS = [
   'nivel', 'niveles', 'capa', 'capas', 'orden', 'grado', 'escala',
@@ -74,6 +81,7 @@ export class SlidesService {
   private readonly animated: boolean;
   private readonly subtitlesMode: 'burned' | 'sidecar';
   private readonly motionFps: number;
+  private readonly videoFps: number;
 
   constructor(
     private readonly configService: ConfigService<AppConfig>,
@@ -87,6 +95,7 @@ export class SlidesService {
     this.animated = video?.animatedSlides ?? false;
     this.subtitlesMode = video?.subtitlesMode ?? 'burned';
     const fps = video?.fps || 30;
+    this.videoFps = fps;
     const motionFps = video?.slidesMotionFps;
     this.motionFps = motionFps && motionFps > 0 ? Math.min(motionFps, fps) : Math.min(15, fps);
     const concurrency = video?.slidesConcurrency;
@@ -160,8 +169,16 @@ export class SlidesService {
 
     const duration = scene.duration_seconds ?? 0;
     const animate = this.isAnimated(job) && duration > 0;
+    // Escena animada: si el guion de animación no es válido, se dibuja su diseño de respaldo
+    const motion = scene.layout_type === 'motion_scene' ? this.motionSpec(job, scene) : null;
+    if (scene.layout_type === 'motion_scene' && !motion) {
+      scene = { ...scene, layout_type: this.motionFallback(scene) } as VideoScene;
+    }
+    const cues = motion ? motion.beats.map((b) => b.cue) : null;
     const timeline: SceneTimeline | null = animate
-      ? { revealTimes: computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
+      ? { revealTimes: cues
+        ? computeRevealTimes(cues, cues, scene.word_timings, duration)
+        : computeRevealTimes(this.sceneTexts(scene), scene.reveal_cues, scene.word_timings, duration) }
       : null;
     // Práctica: la respuesta (último elemento) aparece solo al terminar el silencio para pensar
     if (timeline && scene.layout_type === 'practice_question' && scene.word_timings?.length) {
@@ -172,7 +189,7 @@ export class SlidesService {
       if (gapEnd > 0 && last >= 0) timeline.revealTimes[last] = Math.max(timeline.revealTimes[last], gapEnd - 0.1);
     }
 
-    let html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline }, theme);
+    let html = this.buildSlideHTML({ scene, brand, imageBase64, requiresAiImage, timeline, motion }, theme);
     // Con subtítulos aparte (VTT) no hace falta reservar la franja inferior para ellos
     if (this.subtitlesMode === 'sidecar') html = html.replace('</head>', '<style>.stage{bottom:96px !important}</style></head>');
 
@@ -188,7 +205,8 @@ export class SlidesService {
       if (timeline) {
         const framesDir = path.dirname(SlidesService.framesListPath(outputPath, scene.scene_order));
         fs.rmSync(framesDir, { recursive: true, force: true });
-        const { frameCount } = await captureKeyframes(page, framesDir, duration, this.motionFps);
+        const fps = motion ? Math.min(this.videoFps, MOTION_SCENE_FPS) : this.motionFps;
+        const { frameCount } = await captureKeyframes(page, framesDir, duration, fps);
         // Estado final como PNG: thumbnail, dry-run y respaldo si falta la lista de fotogramas
         await page.evaluate((t: number) => {
           (window as unknown as { __anim?: { seek(t: number): void } }).__anim?.seek(t);
@@ -206,6 +224,23 @@ export class SlidesService {
     } finally {
       await page.close();
     }
+  }
+
+  /** Guion de animación validado, o null si no es válido (la escena usa su diseño de respaldo). */
+  private motionSpec(job: VideoJob, scene: VideoScene): MotionSpec | null {
+    try {
+      return resolveMotionSpec(scene.motion_spec);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[SlidesService] [${job.id}] Escena ${scene.scene_order}: escena animada inválida (${err instanceof Error ? err.message : String(err)}) → ${this.motionFallback(scene)}`,
+      );
+      return null;
+    }
+  }
+
+  private motionFallback(scene: VideoScene): string {
+    const fallback = (scene.motion_spec as { fallback_layout?: unknown } | null)?.fallback_layout;
+    return typeof fallback === 'string' && fallback !== 'motion_scene' ? fallback : 'icon_cards';
   }
 
   /** Tutorial de software; si la demo no es válida, la diapositiva de pasos de siempre. */
@@ -256,6 +291,15 @@ export class SlidesService {
         case 'timeline':           return buildTimelineTemplate(data);
         case 'practice_question':  return buildPracticeTemplate(data);
         case 'software_demo':      return this.softwareDemo(data);
+        case 'motion_scene':
+          if (data.motion) {
+            try {
+              return buildMotionTemplate(data, data.motion, scene.duration_seconds ?? 0);
+            } catch (err: unknown) {
+              this.logger.warn(`[SlidesService] Escena ${scene.scene_order}: no se pudo dibujar la escena animada (${err instanceof Error ? err.message : String(err)}) → respaldo`);
+            }
+          }
+          return this.buildSlideHTML({ ...data, motion: null, scene: { ...scene, layout_type: this.motionFallback(scene) } as VideoScene }, theme);
       }
     }
 

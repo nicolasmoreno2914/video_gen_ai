@@ -26,13 +26,13 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] Copiar ilustraciones + catálogo (`tools/vendor-fluent-emoji.js`)
 
 ## Fase 1 — motor (sin costo de API)
-- [ ] 1.1 Buscador de piezas: ilustración/ícono por nombre o palabra clave, con sugerencias
-- [ ] 1.2 Esquema del guion de animación + validador `resolveMotionSpec`
-- [ ] 1.3 Distribución: cuadrícula → píxeles, tamaños, escenarios (lienzo, vista desde arriba, diagrama señalado, correcto vs incorrecto)
-- [ ] 1.4 Runtime de animación determinista (todas las acciones) + ventanas de movimiento
-- [ ] 1.5 Plantilla `buildMotionTemplate` (+ estado final estático)
-- [ ] 1.6 Conectar en SlidesService (`motion_scene`, respaldo si falla) + columna `motion_spec` + migración
-- [ ] 1.7 Revisión de distribución en navegador (fuera de pantalla, encimados, texto cortado)
+- [x] 1.1 Buscador de piezas: ilustración/ícono por nombre o palabra clave, con sugerencias
+- [x] 1.2 Esquema del guion de animación + validador `resolveMotionSpec`
+- [x] 1.3 Distribución: cuadrícula → píxeles, tamaños, escenarios (lienzo, vista desde arriba, diagrama señalado, correcto vs incorrecto)
+- [x] 1.4 Runtime de animación determinista (todas las acciones) + ventanas de movimiento
+- [x] 1.5 Plantilla `buildMotionTemplate` (+ estado final estático)
+- [x] 1.6 Conectar en SlidesService (`motion_scene`, respaldo si falla) + columna `motion_spec` + migración
+- [x] 1.7 Revisión de distribución en navegador (fuera de pantalla, encimados, texto cortado)
 - [ ] 1.8 Banco de pruebas local: 4 escenas de ejemplo (conducción, salud, finanzas, seguridad) a MP4, revisión visual e iteración
 
 ## Fase 2 — director de animación (apagado por defecto)
@@ -48,4 +48,11 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 ## Fase 5 — paquetes por sector (señales de tránsito de Colombia), cuando se firme
 
 ## Aprendizajes
-- Fluent Emoji: personas en `assets/<Nombre>/Default/Flat`; se excluyen banderas.
+- Fluent Emoji: personas en `assets/<Nombre>/Default/Flat`; se excluyen banderas. No hay alcancía
+  (piggy bank): el buscador no debe aceptar coincidencias de una sola palabra ("bank").
+- El buscador quita colores/adjetivos ("red car" → car) y exige que cada palabra coincida.
+- Vehículos: vista desde arriba dibujada en código (miran al este; se giran al moverse) y van
+  por el carril derecho en vías de 2 carriles (Colombia).
+- Cámara: zoom máx. 1,6 (más deja fuera casi todo).
+- Banco de pruebas: scratchpad/motion/bench.ts (Chrome local con pipe:true; el websocket falla en el sandbox).
+- Render local: ~6–11 s por escena de 13–16 s a 24 fps.
