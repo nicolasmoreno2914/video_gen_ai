@@ -41,7 +41,7 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] 2.3 Revisión de distribución en el ciclo de generación (la revisión visual con modelo de visión queda para después de ver los videos de prueba)
 - [x] 2.4 Registro de costos; esas escenas no piden imagen
 - [x] 2.5 Prueba de punta a punta con la IA simulada (costo $0)
-- [ ] 2.6 PR a staging (borrador, sin fusionar) → **PARADA: costo de videos de prueba**
+- [x] 2.6 PR a staging (borrador, sin fusionar: #16) → **PARADA: costo de videos de prueba**
 
 ## Fase 3 — videos de prueba (requiere aprobación de costo, tope US$7)
 ## Fase 4 — activación gradual (requiere aprobación en cada despliegue)
