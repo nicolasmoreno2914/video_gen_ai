@@ -13,8 +13,8 @@ import { Cell, ColorToken, GRID_COLS, GRID_ROWS, MotionElement, MotionSpec, Size
 /** Zona de contenido (dentro de .stage, con los márgenes laterales de siempre). */
 export const STAGE_W = 1700;
 export const STAGE_H = 680;
-const CELL_W = STAGE_W / GRID_COLS;
-const CELL_H = STAGE_H / GRID_ROWS;
+export const CELL_W = STAGE_W / GRID_COLS;
+export const CELL_H = STAGE_H / GRID_ROWS;
 
 const BOX: Record<Size, number> = { s: 110, m: 170, l: 260, xl: 380 };
 const NUMBER_FONT: Record<Size, number> = { s: 64, m: 96, l: 140, xl: 180 };
@@ -65,8 +65,8 @@ export function colorOf(token: ColorToken | null, brand: { primaryColor: string;
   }
 }
 
-const cx = (c: Cell): number => (c.col + 0.5) * CELL_W;
-const cy = (c: Cell): number => (c.row + 0.5) * CELL_H;
+export const cx = (c: Cell): number => (c.col + 0.5) * CELL_W;
+export const cy = (c: Cell): number => (c.row + 0.5) * CELL_H;
 const domId = (id: string): string => `m-${id}`;
 
 // ─── Vehículos vistos desde arriba (miran al este; el runtime los gira) ───────
@@ -108,16 +108,17 @@ function vehicleSvg(kind: keyof typeof VEHICLE_RATIO, color: string): string {
 
 // ─── Geometría de cada pieza ─────────────────────────────────────────────────
 
-interface Geometry { x: number; y: number; w: number; h: number; round: boolean }
+export interface Geometry { x: number; y: number; w: number; h: number; round: boolean }
 
 function textHeight(el: Extract<MotionElement, { type: 'text' }>): number {
   const font = TEXT_FONT[el.style];
   const pad = el.style === 'title' ? 0 : 44;
-  const charsPerLine = Math.max(8, Math.floor((el.width * CELL_W - pad) / (font * 0.52)));
+  // Inter en negrita: ~0,58 del tamaño de letra por carácter en promedio
+  const charsPerLine = Math.max(8, Math.floor((el.width * CELL_W - pad) / (font * 0.58)));
   return Math.ceil(el.text.length / charsPerLine) * font * 1.25 + pad;
 }
 
-function geometry(el: MotionElement): Geometry | null {
+export function geometry(el: MotionElement): Geometry | null {
   switch (el.type) {
     case 'illustration':
     case 'icon':

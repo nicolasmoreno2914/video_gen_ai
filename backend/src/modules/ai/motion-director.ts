@@ -2,7 +2,8 @@ import { Logger } from '@nestjs/common';
 import { GeneratedScene, GeneratedScript } from '../../common/types';
 import { illustrationSamples } from '../slides/motion/assets';
 import { MotionPreview } from '../slides/motion/preview';
-import { MotionSpecError, resolveMotionSpec } from '../slides/motion/spec';
+import { MotionSpecError } from '../slides/motion/spec';
+import { prepareMotionSpec } from '../slides/motion/auto-layout';
 
 // Director de animación: después del guion, elige las escenas que se entienden mejor con una
 // animación y le pide a la IA el guion de animación de cada una. Cada guion se valida y se revisa
@@ -161,7 +162,8 @@ export async function directMotionScenes(script: GeneratedScript, opts: Director
               `NARRACIÓN:\n${scene.narration}${feedback}` },
           ], 'motion_spec');
           checkCues(raw, scene.narration ?? '');
-          const spec = resolveMotionSpec(raw);
+          const { spec, moved } = prepareMotionSpec(raw);
+          if (moved.length) logger.log(`[MotionDirector] [${jobId}] Escena ${scene.scene_order}: acomodadas ${moved.join(', ')}`);
           const issues = await preview.check(spec, scene.title ?? '', scene.estimated_duration_seconds || 20);
           if (issues.length) {
             throw new MotionSpecError(issues.map((i) => `beat ${i.beat}: ${i.message}`).join('; '));

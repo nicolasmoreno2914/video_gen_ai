@@ -22,7 +22,8 @@ import { captureKeyframes } from './keyframe-capture';
 import { computeRevealTimes } from './reveal-timing';
 import { resolveUiDemo } from './software/ui-demo';
 import { buildSoftwareTemplate } from './templates/software.template';
-import { MotionSpec, resolveMotionSpec } from './motion/spec';
+import { MotionSpec } from './motion/spec';
+import { prepareMotionSpec } from './motion/auto-layout';
 import { buildMotionTemplate } from './motion/motion.template';
 
 export interface BrandData {
@@ -229,7 +230,7 @@ export class SlidesService {
   /** Guion de animación validado, o null si no es válido (la escena usa su diseño de respaldo). */
   private motionSpec(job: VideoJob, scene: VideoScene): MotionSpec | null {
     try {
-      return resolveMotionSpec(scene.motion_spec);
+      return prepareMotionSpec(scene.motion_spec).spec;
     } catch (err: unknown) {
       this.logger.warn(
         `[SlidesService] [${job.id}] Escena ${scene.scene_order}: escena animada inválida (${err instanceof Error ? err.message : String(err)}) → ${this.motionFallback(scene)}`,
