@@ -578,7 +578,8 @@ const MOTION_CSS = `.stage { top:206px; bottom:150px; }
 .mo-under, .mo-over { position:absolute; left:0; top:0; overflow:visible; }
 .mo-under { z-index:0; } .mo-over { z-index:5; pointer-events:none; }
 .mo-el { position:absolute; left:0; top:0; will-change:transform,opacity; }
-.mo-el > svg { display:block; width:100%; height:100%; filter:drop-shadow(0 10px 14px rgba(20,22,26,0.16)); }
+.mo-el > svg, .mo-el > img { display:block; width:100%; height:100%; filter:drop-shadow(0 10px 14px rgba(20,22,26,0.16)); }
+.mo-el > img { object-fit:contain; }
 .mo-icon { width:100%; height:100%; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center;
   box-shadow:0 14px 30px rgba(20,22,26,0.12); }
 .mo-icon svg { display:block; width:100%; height:100%; }

@@ -111,8 +111,31 @@ export function suggestAssets(kind: AssetKind, requested: string, limit = 6): st
   return best(query, entries, limit).map(([n]) => n);
 }
 
+// Estilo 3D (Fluent Emoji 3D, PNG 256 px, misma licencia y mismos nombres): con MOTION_ILLUSTRATION_STYLE=3d
+// las ilustraciones salen de MOTION_3D_DIR (o assets/illustrations-3d). Si falta el PNG, se usa el plano.
+const illustration3dDir = (): string => process.env.MOTION_3D_DIR ?? path.resolve(ILLUSTRATION_DIR, '..', 'illustrations-3d');
+const pngCache = new Map<string, string>();
+
+function illustration3d(name: string): string {
+  if (process.env.MOTION_ILLUSTRATION_STYLE !== '3d') return '';
+  let uri = pngCache.get(name);
+  if (uri === undefined) {
+    try {
+      uri = `data:image/png;base64,${fs.readFileSync(path.join(illustration3dDir(), `${name}.png`)).toString('base64')}`;
+    } catch {
+      uri = '';
+    }
+    pngCache.set(name, uri);
+  }
+  return uri ? `<img src="${uri}" alt="" width="100%" height="100%">` : '';
+}
+
 /** SVG de la pieza (sin tamaño fijo: se ajusta a su caja). Los íconos usan el color dado. */
 export function assetSvg(asset: AssetMatch, color = '#14161A', strokeWidth = 2): string {
+  if (asset.kind === 'illustration') {
+    const img = illustration3d(asset.name);
+    if (img) return img;
+  }
   const key = `${asset.kind}:${asset.name}`;
   let raw = svgCache.get(key);
   if (raw === undefined) {

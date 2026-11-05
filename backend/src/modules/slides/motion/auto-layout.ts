@@ -17,6 +17,9 @@ const LABEL_H = 52;
 
 type Placed = Extract<MotionElement, { at: Cell }>;
 
+/** Tamaños menores a probar, de mayor a menor (la pieza central nunca baja de m). */
+const SMALLER: Record<string, Array<'l' | 'm'>> = { xl: ['l', 'm'], l: ['m'], m: [], s: [] };
+
 function hasAt(el: MotionElement): el is Placed {
   return 'at' in el;
 }
@@ -124,7 +127,17 @@ export function autoLayout(spec: MotionSpec): string[] {
     const b = boxAt(el, el.at);
     if (!b) continue;
     if (collides(b, occupied)) {
-      const cell = findCell(spec, el, el.at, occupied, true);
+      // Sin celda libre a su tamaño, se prueba más angosto (texto) o más pequeño (pieza)
+      const shrinks = el.type === 'text'
+        ? Array.from({ length: Math.max(0, el.width - 2) }, (_, i) => ({ width: el.width - i - 1 }))
+        : 'size' in el ? SMALLER[el.size].map((size) => ({ size })) : [];
+      let cell = findCell(spec, el, el.at, occupied, true);
+      for (const change of shrinks) {
+        if (cell) break;
+        const trial = { ...el, ...change } as Placed;
+        cell = findCell(spec, trial, el.at, occupied, true);
+        if (cell) Object.assign(el, change);
+      }
       if (cell) { el.at = cell; moved.add(el.id); }
     }
     const placed = boxAt(el, el.at);
