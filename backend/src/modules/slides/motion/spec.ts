@@ -110,7 +110,15 @@ function parseElement(raw: Record<string, unknown>, index: number): MotionElemen
     case 'icon': {
       const asked = str(raw.asset, 60);
       if (!asked) throw new MotionSpecError(`elemento "${id}": falta asset`);
-      const asset = findAsset(type, asked);
+      // Si no hay ilustración, un ícono del mismo concepto (y al revés) antes que rechazar la escena
+      const other = type === 'icon' ? 'illustration' : 'icon';
+      const found = findAsset(type, asked) ?? findAsset(other, asked);
+      const asset = found;
+      if (found && found.kind !== type) {
+        return found.kind === 'icon'
+          ? { ...base, type: 'icon', asset: found, at: at(), size: size(), faces: 'left' }
+          : { ...base, type: 'illustration', asset: found, at: at(), size: size(), faces: 'left' };
+      }
       if (!asset) {
         const near = suggestAssets(type, asked);
         throw new MotionSpecError(`elemento "${id}": no existe ${type === 'icon' ? 'el ícono' : 'la ilustración'} "${asked}"` +
@@ -214,7 +222,7 @@ function parseAction(raw: Record<string, unknown>, where: string, ids: Map<strin
 
 export function resolveMotionSpec(raw: unknown): MotionSpec {
   const spec = (raw ?? {}) as Record<string, unknown>;
-  const scenario = strictOneOf(spec.scenario ?? 'canvas', SCENARIOS, 'scenario');
+  const requestedScenario = strictOneOf(spec.scenario ?? 'canvas', SCENARIOS, 'scenario');
 
   const rawElements = Array.isArray(spec.elements) ? (spec.elements as Array<Record<string, unknown>>) : [];
   if (rawElements.length === 0) throw new MotionSpecError('la escena no tiene elementos');
@@ -225,6 +233,10 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     if (ids.has(el.id)) throw new MotionSpecError(`id repetido: "${el.id}"`);
     ids.set(el.id, el);
   }
+
+  // Con vías o vehículos, la escena es un mapa visto desde arriba aunque la IA haya puesto otro escenario
+  let scenario = requestedScenario;
+  if (scenario !== 'versus' && elements.some((e) => e.type === 'road' || e.type === 'vehicle' || e.type === 'roundabout')) scenario = 'map';
 
   for (const el of elements) {
     if (el.type === 'text' && el.pointsTo && !ids.has(el.pointsTo)) {

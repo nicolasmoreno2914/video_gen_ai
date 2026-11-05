@@ -338,7 +338,8 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
 <circle cx="100" cy="100" r="50" fill="#B7DDB0" stroke="#F8FAFC" stroke-width="4"/></svg>`;
         break;
     }
-    const label = 'label' in el && el.label ? `<div class="mo-label">${escape(el.label)}</div>` : '';
+    // La etiqueta de un vehículo va aparte (ver más abajo): dentro de él giraría con el vehículo
+    const label = 'label' in el && el.label && el.type !== 'vehicle' ? `<div class="mo-label">${escape(el.label)}</div>` : '';
     const radius = g.round || el.type === 'roundabout' ? '50%' : el.type === 'text' || el.type === 'zone' ? '22px' : '28px';
     const sizeCss = el.type === 'text' ? `width:${g.w}px` : `width:${g.w}px;height:${g.h}px`;
     const z = el.type === 'zone' || el.type === 'roundabout' ? 1 : el.type === 'text' ? 4 : 3;
@@ -519,6 +520,26 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     checkpoints.push(Math.min(beatEnd + 0.05, end - 0.05));
   });
 
+  // Etiquetas de vehículos: siguen la posición del vehículo pero siempre derechas y debajo de él
+  const tags: string[] = [];
+  for (const el of spec.elements) {
+    if (el.type !== 'vehicle' || !el.label) continue;
+    const id = domId(el.id);
+    const tag = `${id}-tag`;
+    const g = geo.get(el.id)!;
+    const off = Math.max(g.w, g.h) / 2 - 8;
+    pieces.push(`<div class="mo-el mo-tag" id="${tag}" style="width:0;height:0;z-index:4"><div class="mo-label">${escape(el.label)}</div></div>`);
+    tags.push(tag);
+    for (const [prop, v] of Object.entries(tb.initial[id]!)) {
+      if (prop === 'x' || prop === 'opacity') tb.initial[tag] = { ...tb.initial[tag], [prop]: v };
+      if (prop === 'y') tb.initial[tag] = { ...tb.initial[tag], y: v + off };
+    }
+    tb.initial[tag] = { rot: 0, scale: 1, sx: 1, pulse: 0, badge: 0, ...tb.initial[tag] };
+    for (const t of tb.tracks.filter((x) => x.id === id && (x.prop === 'x' || x.prop === 'y' || x.prop === 'opacity'))) {
+      tb.tracks.push(t.prop === 'y' ? { ...t, id: tag, from: t.from + off, to: t.to + off } : { ...t, id: tag });
+    }
+  }
+
   const html = `<div class="mo-stage"><div class="mo-cam" id="m-cam">
 ${backdrop}
 <svg class="mo-under" width="${STAGE_W}" height="${STAGE_H}">${under.join('\n')}</svg>
@@ -531,7 +552,7 @@ ${pieces.join('\n')}
     tracks: tb.tracks,
     initial: tb.initial,
     numbers,
-    pieces: spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout').map((e) => domId(e.id)),
+    pieces: [...spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout').map((e) => domId(e.id)), ...tags],
     checkpoints,
   };
 }
