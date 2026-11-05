@@ -111,13 +111,14 @@ export function suggestAssets(kind: AssetKind, requested: string, limit = 6): st
   return best(query, entries, limit).map(([n]) => n);
 }
 
-// Estilo 3D (Fluent Emoji 3D, PNG 256 px, misma licencia y mismos nombres): con MOTION_ILLUSTRATION_STYLE=3d
-// las ilustraciones salen de MOTION_3D_DIR (o assets/illustrations-3d). Si falta el PNG, se usa el plano.
+// Estilo 3D (Fluent Emoji 3D, PNG 256 px, misma licencia y mismos nombres), el de siempre salvo
+// MOTION_ILLUSTRATION_STYLE=flat. Los PNG pesan ~55 MB y no van en git: se preparan en el servidor con
+// tools/vendor-fluent-emoji.js --3d (en assets/illustrations-3d, o MOTION_3D_DIR). Sin el PNG, se usa el plano.
 const illustration3dDir = (): string => process.env.MOTION_3D_DIR ?? path.resolve(ILLUSTRATION_DIR, '..', 'illustrations-3d');
 const pngCache = new Map<string, string>();
 
 function illustration3d(name: string): string {
-  if (process.env.MOTION_ILLUSTRATION_STYLE !== '3d') return '';
+  if (process.env.MOTION_ILLUSTRATION_STYLE === 'flat') return '';
   let uri = pngCache.get(name);
   if (uri === undefined) {
     try {

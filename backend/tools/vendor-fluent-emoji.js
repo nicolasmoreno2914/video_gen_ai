@@ -6,19 +6,47 @@
 //   git clone --depth 1 --filter=blob:none --sparse https://github.com/microsoft/fluentui-emoji.git /tmp/fluent
 //   (cd /tmp/fluent && git sparse-checkout set --no-cone '/assets/*/Flat/*.svg' '/assets/*/Default/Flat/*.svg' '/assets/*/metadata.json' '/LICENSE')
 //   node tools/vendor-fluent-emoji.js /tmp/fluent
+//
+// Estilo 3D (PNG, ~55 MB, fuera de git: se prepara en el servidor):
+//   (cd /tmp/fluent && git sparse-checkout add '/assets/*/3D/*.png' '/assets/*/Default/3D/*.png')
+//   node tools/vendor-fluent-emoji.js /tmp/fluent --3d
 const fs = require('fs');
 const path = require('path');
 
 const src = process.argv[2];
+const threeD = process.argv.includes('--3d');
 if (!src || !fs.existsSync(path.join(src, 'assets'))) {
   console.error('Uso: node tools/vendor-fluent-emoji.js <carpeta del repositorio fluentui-emoji>');
   process.exit(1);
 }
+const slugify = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+if (threeD) {
+  // Mismos nombres que el catálogo plano (el cldr de cada emoji): assets/illustrations-3d/<nombre>.png
+  const out3d = path.join(__dirname, '..', 'assets', 'illustrations-3d');
+  fs.mkdirSync(out3d, { recursive: true });
+  let n = 0;
+  for (const dir of fs.readdirSync(path.join(src, 'assets')).sort()) {
+    const metaPath = path.join(src, 'assets', dir, 'metadata.json');
+    if (!fs.existsSync(metaPath)) continue;
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    const png = [path.join(src, 'assets', dir, '3D'), path.join(src, 'assets', dir, 'Default', '3D')]
+      .filter((d) => fs.existsSync(d))
+      .flatMap((d) => fs.readdirSync(d).filter((f) => f.endsWith('.png')).map((f) => path.join(d, f)))[0];
+    const name = slugify(meta.cldr || dir);
+    const dst = path.join(out3d, `${name}.png`);
+    if (!png || fs.existsSync(dst)) continue;
+    fs.copyFileSync(png, dst);
+    n++;
+  }
+  console.log(`${n} ilustraciones 3D → ${out3d}`);
+  process.exit(0);
+}
+
 const out = path.join(__dirname, '..', 'assets', 'illustrations');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'svg'), { recursive: true });
 
-const slugify = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 // Banderas y señas de botón no sirven como ilustración de una escena
 const SKIP_GROUPS = new Set(['Flags']);
 

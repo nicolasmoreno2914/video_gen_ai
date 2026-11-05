@@ -9,3 +9,6 @@ tmp/
 *.mp4
 *.mp3
 *.wav
+
+# Ilustraciones 3D de las escenas animadas (~55 MB): se preparan en el servidor (tools/vendor-fluent-emoji.js --3d)
+assets/illustrations-3d/
