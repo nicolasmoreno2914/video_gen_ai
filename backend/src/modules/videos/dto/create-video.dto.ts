@@ -87,6 +87,11 @@ export class CreateVideoDto {
   @IsBoolean()
   dry_run?: boolean;
 
+  /** Escenas animadas para este video; sin el campo, lo que diga MOTION_SCENES. */
+  @IsOptional()
+  @IsBoolean()
+  motion_scenes?: boolean;
+
   @IsOptional()
   @IsObject()
   @Type(() => BrandDto)

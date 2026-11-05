@@ -108,6 +108,7 @@ export class VideosService {
       target_duration_minutes: dto.target_duration_minutes ?? 10,
       visual_style: dto.visual_style ?? 'notebooklm',
       dry_run: dto.dry_run ?? false,
+      motion_scenes: dto.motion_scenes ?? null,
       brand_logo_url: dto.brand?.logo_url ?? institution?.brand_logo_url ?? null,
       brand_primary_color: dto.brand?.primary_color ?? institution?.brand_primary_color ?? '#003366',
       brand_secondary_color: dto.brand?.secondary_color ?? institution?.brand_secondary_color ?? '#00AEEF',

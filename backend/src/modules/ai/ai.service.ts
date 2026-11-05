@@ -717,11 +717,11 @@ ${numberedParagraphs(job.content_txt)}`;
 
   private async buildMotionScenes(job: VideoJob, script: GeneratedScript): Promise<void> {
     const video = this.configService.get<AppConfig['video']>('video');
-    if (!video?.motionScenes || job.dry_run) return;
+    if (!(job.motion_scenes ?? video?.motionScenes) || job.dry_run) return;
     try {
       const animated = await directMotionScenes(script, {
         jobId: job.id,
-        maxScenes: video.motionMaxScenes,
+        maxScenes: video?.motionMaxScenes ?? 4,
         classifierModel: CLASSIFIER_MODEL,
         logger: this.logger,
         call: (messages, operation, model) => this.jsonCall(job, messages, operation, model),
