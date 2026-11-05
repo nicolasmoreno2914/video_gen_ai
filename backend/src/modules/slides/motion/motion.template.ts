@@ -46,6 +46,8 @@ export interface CompiledMotion {
   pieces: string[];
   /** Fin de cada beat (instante en que se revisa la distribución). */
   checkpoints: number[];
+  /** Piezas que se desplazan: pueden llegar encima de otra a propósito (la moneda a la alcancía). */
+  movers: string[];
 }
 
 export function colorOf(token: ColorToken | null, brand: { primaryColor: string; secondaryColor: string }, fallback: string): string {
@@ -264,6 +266,10 @@ export function compileMotion(
   const end = Math.max(duration, 1);
   const tb = new TrackBuilder(end);
   const hidden = initiallyHidden(spec);
+  // Si al empezar no se vería ninguna pieza, las que aparecen después se ven tenues desde el inicio
+  // (como los diagramas de siempre): la pantalla nunca queda vacía mientras la voz introduce el tema
+  const visibleAtStart = spec.elements.some((e) => e.type !== 'road' && e.type !== 'zone' && !hidden.has(e.id));
+  const startOpacity = visibleAtStart ? 0 : 0.16;
   const geo = new Map<string, Geometry>();
   const byId = new Map(spec.elements.map((e) => [e.id, e]));
   for (const el of spec.elements) {
@@ -352,7 +358,7 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     tb.init(id, 'rot', el.type === 'vehicle' ? HEADING_DEG[el.heading] : 0);
     tb.init(id, 'scale', 1);
     tb.init(id, 'sx', 1);
-    tb.init(id, 'opacity', hidden.has(el.id) ? 0 : 1);
+    tb.init(id, 'opacity', hidden.has(el.id) ? startOpacity : 1);
     tb.init(id, 'pulse', 0);
     tb.init(id, 'badge', 0);
     if (el.type === 'number') tb.init(id, 'count', el.value);
@@ -553,6 +559,7 @@ ${pieces.join('\n')}
     initial: tb.initial,
     numbers,
     pieces: [...spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout').map((e) => domId(e.id)), ...tags],
+    movers: [...new Set(spec.beats.flatMap((b) => b.actions.filter((a) => a.do === 'move').map((a) => domId((a as { target: string }).target))))],
     checkpoints,
   };
 }
@@ -596,7 +603,7 @@ const MOTION_CSS = `.stage { top:206px; bottom:150px; }
   font-size:24px; color:#14161A; box-shadow:0 6px 16px rgba(20,22,26,0.12); white-space:nowrap; }`;
 
 function motionRuntime(c: CompiledMotion, duration: number, live: boolean): string {
-  const data = { tracks: c.tracks, initial: c.initial, numbers: c.numbers, pieces: c.pieces, checkpoints: c.checkpoints };
+  const data = { tracks: c.tracks, initial: c.initial, numbers: c.numbers, pieces: c.pieces, movers: c.movers, checkpoints: c.checkpoints };
   return `<script>
 (function () {
   var D = ${JSON.stringify(data)};
@@ -672,6 +679,7 @@ function motionRuntime(c: CompiledMotion, duration: number, live: boolean): stri
         .map(function (t) { return t.fps ? [t.t0, t.t1, t.fps] : [t.t0, t.t1]; });
     },
     pieces: D.pieces,
+    movers: D.movers,
     checkpoints: D.checkpoints,
   };
   seek(${live ? 0 : 'Infinity'});

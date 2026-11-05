@@ -34,8 +34,10 @@ function boxAt(el: Placed, cell: Cell): Box[] | null {
   return [body, { l: g.x - lw / 2, t: body.b + 8, r: g.x + lw / 2, b: body.b + 8 + LABEL_H }];
 }
 
-const inside = (parts: Box[]): boolean =>
-  parts.every((b) => b.l >= MARGIN && b.t >= MARGIN && b.r <= STAGE_W - MARGIN && b.b <= STAGE_H - MARGIN);
+const inside = (parts: Box[], versus = false): boolean =>
+  parts.every((b) => b.l >= MARGIN && b.t >= MARGIN && b.r <= STAGE_W - MARGIN && b.b <= STAGE_H - MARGIN &&
+    // En versus cada pieza queda dentro de su panel (no cruza la línea del medio)
+    (!versus || b.r <= STAGE_W / 2 - 14 || b.l >= STAGE_W / 2 + 14));
 
 function overlapArea(a: Box, b: Box): number {
   return Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
@@ -65,7 +67,7 @@ function allowedCells(spec: MotionSpec, original: Cell): Cell[] {
 function findCell(spec: MotionSpec, el: Placed, original: Cell, occupied: Box[], needFree: boolean): Cell | null {
   for (const cell of allowedCells(spec, original)) {
     const b = boxAt(el, cell);
-    if (b && inside(b) && (!needFree || !collides(b, occupied))) return cell;
+    if (b && inside(b, spec.scenario === 'versus') && (!needFree || !collides(b, occupied))) return cell;
   }
   return null;
 }
@@ -82,7 +84,7 @@ export function autoLayout(spec: MotionSpec): string[] {
   for (const el of spec.elements) {
     if (!hasAt(el) || el.type === 'zone' || el.type === 'roundabout') continue;
     const b = boxAt(el, el.at);
-    if (b && !inside(b)) {
+    if (b && !inside(b, spec.scenario === 'versus')) {
       const cell = findCell(spec, el, el.at, [], false);
       if (cell) { el.at = cell; moved.add(el.id); }
     }
@@ -91,7 +93,7 @@ export function autoLayout(spec: MotionSpec): string[] {
     const el = byId.get(a.target);
     if (!el || !hasAt(el)) continue;
     const b = boxAt(el, a.to);
-    if (b && !inside(b)) {
+    if (b && !inside(b, spec.scenario === 'versus')) {
       const cell = findCell(spec, el, a.to, [], false);
       if (cell) { a.to = cell; moved.add(el.id); }
     }
