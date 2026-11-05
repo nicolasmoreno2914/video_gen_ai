@@ -234,9 +234,14 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     ids.set(el.id, el);
   }
 
-  // Con vías o vehículos, la escena es un mapa visto desde arriba aunque la IA haya puesto otro escenario
+  // Con vehículos, la escena es un mapa visto desde arriba aunque la IA haya puesto otro escenario.
+  // Las vías sin vehículos no explican nada (la IA las usaba como "línea de pasos")
   let scenario = requestedScenario;
-  if (scenario !== 'versus' && elements.some((e) => e.type === 'road' || e.type === 'vehicle' || e.type === 'roundabout')) scenario = 'map';
+  const hasVehicles = elements.some((e) => e.type === 'vehicle');
+  if (scenario !== 'versus' && hasVehicles) scenario = 'map';
+  if (!hasVehicles && elements.some((e) => e.type === 'road' || e.type === 'roundabout')) {
+    throw new MotionSpecError('las vías y glorietas solo se usan en escenas de tránsito con vehículos; para pasos o procesos usa "canvas" con piezas en fila y connect');
+  }
 
   for (const el of elements) {
     if (el.type === 'text' && el.pointsTo && !ids.has(el.pointsTo)) {
@@ -282,6 +287,13 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
     for (const a of b.actions) {
       if (a.do === 'count') (ids.get(a.target) as Extract<MotionElement, { type: 'number' }>).counts.push(a.to);
     }
+  }
+
+  // Escena con piezas diminutas: se ve vacía y no se lee en un celular
+  const visual = elements.filter((e) => e.type === 'illustration' || e.type === 'icon' || e.type === 'vehicle');
+  // (En un mapa las vías llenan la escena y los vehículos van a escala de la vía)
+  if (scenario !== 'map' && visual.length && !visual.some((e) => 'size' in e && (e.size === 'l' || e.size === 'xl'))) {
+    throw new MotionSpecError('todas las piezas son pequeñas: la pieza principal de la escena debe ser de tamaño l o xl');
   }
 
   // Un texto con flecha a su objeto no sigue al objeto si este se mueve

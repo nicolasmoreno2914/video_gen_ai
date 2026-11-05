@@ -58,7 +58,6 @@ function score(query: string[], name: string, keywords: string[]): number {
   for (const q of query) {
     if (nameWords.includes(q)) total += 3;
     else if (keywords.some((k) => k.split(/\s+/).includes(q))) total += 2;
-    else if (nameWords.some((n) => n.length >= 4 && q.length >= 4 && (n.startsWith(q) || q.startsWith(n)))) total += 1;
   }
   // A igual puntaje, el nombre más corto es el más genérico ("car" antes que "car-front-wheel")
   // Palabras del nombre que no se pidieron restan: "car" → automobile antes que police-car
@@ -134,6 +133,11 @@ export function assetSvg(asset: AssetMatch, color = '#14161A', strokeWidth = 2):
     .replace(/class="[^"]*"/, '')
     .replace(/stroke="currentColor"/, `stroke="${color}"`)
     .replace(/stroke-width="2"/, `stroke-width="${strokeWidth}"`);
+}
+
+/** Todas las ilustraciones por grupo: la IA elige de aquí el nombre exacto (≈ 7.000 tokens). */
+export function illustrationCatalogText(): string {
+  return illustrationSamples(Infinity);
 }
 
 /** Lista corta de ilustraciones por grupo, para orientar a la IA en el prompt. */

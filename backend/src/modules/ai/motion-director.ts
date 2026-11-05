@@ -1,8 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { GeneratedScene, GeneratedScript } from '../../common/types';
-import { illustrationSamples } from '../slides/motion/assets';
+import { illustrationCatalogText } from '../slides/motion/assets';
 import { MotionPreview } from '../slides/motion/preview';
-import { MotionSpecError } from '../slides/motion/spec';
+import { MotionSpec, MotionSpecError } from '../slides/motion/spec';
+import { numberToSpanish } from '../slides/reveal-timing';
 import { prepareMotionSpec } from '../slides/motion/auto-layout';
 
 // Director de animación: después del guion, elige las escenas que se entienden mejor con una
@@ -18,7 +19,8 @@ export type JsonCall = (
 
 /** Diseños que no se reemplazan por una animación (portada con imagen, demo de software, práctica, cierre). */
 const KEEP_LAYOUTS = new Set(['cover', 'software_demo', 'practice_question', 'summary_checklist', 'conclusion_reflection']);
-const MAX_ATTEMPTS = 2;
+// Tres intentos: con la revisión visual hay un motivo más para corregir
+const MAX_ATTEMPTS = 3;
 
 const DIRECTOR_PROMPT = `Eres director de arte de videos educativos. Recibes las escenas de un video (título y narración)
 y eliges cuáles se entienden MUCHO mejor con una animación hecha de ilustraciones, íconos, flechas y movimiento
@@ -35,7 +37,10 @@ señaladas), "versus" (dos paneles: incorrecto y correcto) o "canvas" (libre).
 Evita elegir dos escenas seguidas. Si ninguna escena lo amerita, devuelve la lista vacía.
 Responde SOLO JSON: {"scenes": [{"scene_order": 3, "scenario": "map", "idea": "qué se ve, en una frase"}]}`;
 
+let catalog = '';
+
 function specPrompt(): string {
+  catalog ||= illustrationCatalogText();
   return `Eres animador de videos educativos. Conviertes la narración de UNA escena en un guion de animación JSON.
 La animación ocupa la zona de contenido (bajo el título), dividida en una CUADRÍCULA de 12 columnas (A–L) por
 6 filas (1–6). Cada pieza se ubica con "at": la celda de su centro, p. ej. "C4". Nunca uses píxeles.
@@ -63,8 +68,10 @@ ELEMENTOS (todos con "id" único y "type"):
 - roundabout (solo map): {"at", "size": l|xl}
 Colores: primary, secondary, success, danger, warning, neutral, blue, red, yellow, green, orange, white, gray, black.
 
-ILUSTRACIONES DISPONIBLES (estilo plano; usa estos nombres o conceptos simples en inglés):
-${illustrationSamples(28)}
+ILUSTRACIONES DISPONIBLES (estilo plano). "asset" de una illustration debe ser EXACTAMENTE uno de estos nombres:
+${catalog}
+Si el concepto no tiene ilustración, usa un ícono Lucide o no pongas esa pieza. NUNCA uses la ilustración de otra
+cosa con una etiqueta que diga lo que no es (p. ej. un banco con la etiqueta "Alcancía").
 
 BEATS (entre 2 y 7, en el orden de la narración). Cada uno: {"cue": frase LITERAL de 3 a 8 palabras copiada de la
 narración de esta escena, justo donde ocurre lo que se anima, "actions": [1 a 4 acciones que ocurren a la vez]}.
@@ -83,8 +90,12 @@ libre entre piezas. Una pieza con "label" necesita libre la mitad superior de la
 no van en las filas 1 ni 6 ni en las columnas A ni L. Un text de width N ocupa N columnas.
 
 REGLAS:
-1. Muestra SOLO lo que dice la narración de esta escena, con sus datos exactos; nada inventado.
-2. Pocas piezas y claras: entre 3 y 10 elementos. Textos en español, cortos (máximo 3 textos).
+1. Muestra SOLO lo que dice la narración de esta escena, con sus datos exactos; nada inventado. Toda cifra en
+   pantalla (textos, etiquetas, number, count) debe decirse en la narración de esta escena.
+2. Pocas piezas, grandes y claras: entre 3 y 7 piezas visuales. La pieza principal en xl (o l); el resto l o m;
+   s solo para detalles. Textos en español, cortos (máximo 3 textos). Usa el espacio: la escena no debe verse vacía.
+   Vías ("road") y vehículos solo para tránsito; un proceso o una secuencia de pasos va en "canvas" con las piezas
+   en fila (p. ej. columnas B, E, H, K de la fila 3) unidas con connect.
 3. Lo que empieza visible arma el escenario (vías, pieza central); lo que la narración introduce después aparece con appear.
 4. Cada cue debe aparecer tal cual en la narración y los cues van en el mismo orden que en ella.
 Responde SOLO el JSON.`;
@@ -111,6 +122,87 @@ function checkCues(raw: Record<string, unknown>, narration: string): void {
   });
 }
 
+/** Números de un texto: "1.200.000" → 1200000, "4,5" → 4.5, "60 %" → 60. */
+function numbersIn(text: string): number[] {
+  return (text.match(/\d[\d.,]*/g) ?? []).map((raw) => {
+    const t = raw.replace(/[.,]$/, '');
+    // Punto o coma seguidos de 3 cifras son separadores de miles; si no, coma decimal
+    const n = /^\d{1,3}([.,]\d{3})+$/.test(t) ? Number(t.replace(/[.,]/g, '')) : Number(t.replace(',', '.'));
+    return n;
+  }).filter((n) => Number.isFinite(n));
+}
+
+/** ¿La narración dice esta cifra (con números o con palabras)? */
+function said(n: number, digits: Set<number>, words: string): boolean {
+  if (digits.has(n)) return true;
+  // Del 0 al 10 suelen ser pasos, puestos o cantidades obvias ("Paso 2")
+  if (Number.isInteger(n) && n >= 0 && n <= 10) return true;
+  if (!Number.isInteger(n) || n < 0) return false;
+  const inWords = (x: number): boolean => x < 1_000_000 && ` ${words} `.includes(` ${numberToSpanish(x)} `);
+  if (n < 1_000_000) return inWords(n);
+  // Millones: "un millón doscientos mil", "un millón 200000", "3 millones"
+  const m = Math.floor(n / 1_000_000);
+  const r = n % 1_000_000;
+  const hasMillion = /\bmillon(es)?\b/.test(words);
+  const millionsOk = m === 1 ? /\bun millon\b/.test(words) : digits.has(m) || inWords(m);
+  return hasMillion && millionsOk && (r === 0 || digits.has(r) || inWords(r));
+}
+
+/** Toda cifra en pantalla debe decirla la narración de la escena: la animación no inventa datos. */
+export function checkNumbers(spec: MotionSpec, narration: string): void {
+  const digits = new Set(numbersIn(narration));
+  const words = norm(narration);
+  const shown: Array<[number, string]> = [];
+  for (const el of spec.elements) {
+    if (el.type === 'number') {
+      if (el.value !== 0) shown.push([el.value, el.id]);
+    }
+    const texts = [el.type === 'text' ? el.text : '', el.label ?? ''];
+    for (const t of texts) for (const n of numbersIn(t)) shown.push([n, el.id]);
+  }
+  for (const b of spec.beats) {
+    for (const a of b.actions) {
+      if (a.do === 'count') shown.push([a.to, a.target]);
+      if (a.do === 'connect' && a.label) for (const n of numbersIn(a.label)) shown.push([n, `${a.from}→${a.to}`]);
+    }
+  }
+  const wrong = shown.filter(([n]) => !said(n, digits, words));
+  if (wrong.length) {
+    throw new MotionSpecError(wrong.map(([n, id]) => `la cifra ${n.toLocaleString('es-CO')} de "${id}" no aparece en la narración`).join('; ') +
+      ': usa solo cifras que se dicen en esta escena');
+  }
+}
+
+/** Revisión visual: (imagen JPEG en base64, instrucciones) → {ok, problems}. */
+export type VisionCall = (jpegBase64: string, prompt: string) => Promise<Record<string, unknown>>;
+
+const VISION_PROMPT = `Revisas el último cuadro de una escena animada de un video educativo. Responde SOLO JSON:
+{"ok": true|false, "problems": ["problema concreto, en una frase", ...]}.
+Marca como problema SOLO cosas que confunden al estudiante:
+- una ilustración o ícono que NO representa lo que dice su etiqueta o la pieza descrita (p. ej. un banco con la
+  etiqueta "Alcancía", una bola de cristal como "bola de nieve");
+- texto ilegible, cortado o encimado;
+- una escena que no se entiende o no corresponde a la narración.
+No opines sobre estilo ni colores. Si todo está bien: {"ok": true, "problems": []}.`;
+
+function describePieces(spec: MotionSpec): string {
+  return spec.elements.map((e) => {
+    switch (e.type) {
+      case 'illustration':
+      case 'icon':
+        return `- "${e.id}": ${e.type === 'icon' ? 'ícono' : 'ilustración'} de "${e.asset.name}"${e.label ? ` con etiqueta "${e.label}"` : ''}`;
+      case 'vehicle':
+        return `- "${e.id}": vehículo (${e.vehicle}) visto desde arriba${e.label ? ` con etiqueta "${e.label}"` : ''}`;
+      case 'text':
+        return `- "${e.id}": texto "${e.text}"`;
+      case 'number':
+        return `- "${e.id}": cifra${e.label ? ` con etiqueta "${e.label}"` : ''}`;
+      default:
+        return `- "${e.id}": ${e.type}`;
+    }
+  }).join('\n');
+}
+
 export interface DirectorOptions {
   jobId: string;
   maxScenes: number;
@@ -119,6 +211,8 @@ export interface DirectorOptions {
   logger: Logger;
   /** Para pruebas: revisión de distribución alternativa (por defecto, un navegador propio). */
   preview?: Pick<MotionPreview, 'check' | 'close'>;
+  /** Revisión visual del último cuadro con un modelo de visión; sin ella solo se revisa la distribución. */
+  vision?: VisionCall;
 }
 
 /** Convierte hasta maxScenes escenas en escenas animadas. Devuelve cuántas quedaron animadas. */
@@ -163,10 +257,23 @@ export async function directMotionScenes(script: GeneratedScript, opts: Director
           ], 'motion_spec');
           checkCues(raw, scene.narration ?? '');
           const { spec, moved } = prepareMotionSpec(raw);
+          checkNumbers(spec, scene.narration ?? '');
           if (moved.length) logger.log(`[MotionDirector] [${jobId}] Escena ${scene.scene_order}: acomodadas ${moved.join(', ')}`);
-          const issues = await preview.check(spec, scene.title ?? '', scene.estimated_duration_seconds || 20);
+          const { issues, snapshot } = await preview.check(spec, scene.title ?? '', scene.estimated_duration_seconds || 20);
           if (issues.length) {
             throw new MotionSpecError(issues.map((i) => `beat ${i.beat}: ${i.message}`).join('; '));
+          }
+          if (opts.vision) {
+            const verdict = await opts.vision(snapshot, `${VISION_PROMPT}\n\nTÍTULO: ${scene.title}\nNARRACIÓN: ${scene.narration}\nPIEZAS:\n${describePieces(spec)}`)
+              .catch((err: unknown) => {
+                // Si la revisión visual falla (API), se acepta la escena: ya pasó las demás revisiones
+                logger.warn(`[MotionDirector] [${jobId}] Revisión visual omitida: ${err instanceof Error ? err.message : String(err)}`);
+                return { ok: true } as Record<string, unknown>;
+              });
+            const problems = Array.isArray(verdict.problems) ? verdict.problems.map(String).filter(Boolean) : [];
+            if (verdict.ok === false && problems.length) {
+              throw new MotionSpecError(`revisión visual: ${problems.join('; ')}`);
+            }
           }
           scene.motion_spec = { ...raw, fallback_layout: scene.layout_type };
           scene.layout_type = 'motion_scene';

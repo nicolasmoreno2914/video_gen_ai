@@ -12,8 +12,8 @@ const BRAND = { primaryColor: '#1E3A8A', secondaryColor: '#0EA5E9', institutionN
 export class MotionPreview {
   private browser: puppeteer.Browser | null = null;
 
-  /** Problemas de distribución de la escena (lista vacía si está bien). */
-  async check(spec: MotionSpec, title: string, estimatedSeconds: number): Promise<LayoutIssue[]> {
+  /** Problemas de distribución de la escena (lista vacía si está bien) y captura del estado final (JPEG base64). */
+  async check(spec: MotionSpec, title: string, estimatedSeconds: number): Promise<{ issues: LayoutIssue[]; snapshot: string }> {
     this.browser ??= await puppeteer.launch({
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium',
@@ -26,12 +26,16 @@ export class MotionPreview {
     const html = buildMotionTemplate({ scene, brand: BRAND, imageBase64: null, requiresAiImage: false, timeline: { revealTimes } }, spec, duration);
     const page = await this.browser.newPage();
     try {
-      await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+      // Media resolución: la revisión de distribución mide en px CSS (no cambia) y la captura pesa menos
+      await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 0.5 });
       await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
       await page.evaluate(() =>
         Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 5000))]).then(() => undefined),
       );
-      return await checkMotionLayout(page);
+      const issues = await checkMotionLayout(page);
+      // Al terminar la revisión la escena quedó en su último beat: lo que el estudiante ve al final
+      const snapshot = (await page.screenshot({ type: 'jpeg', quality: 75, encoding: 'base64' })) as string;
+      return { issues, snapshot };
     } finally {
       await page.close();
     }

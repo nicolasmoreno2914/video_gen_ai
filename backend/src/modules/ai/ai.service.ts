@@ -725,11 +725,26 @@ ${numberedParagraphs(job.content_txt)}`;
         classifierModel: CLASSIFIER_MODEL,
         logger: this.logger,
         call: (messages, operation, model) => this.jsonCall(job, messages, operation, model),
+        vision: (jpeg, prompt) => this.visionCall(job, jpeg, prompt),
       });
       if (animated) this.logger.log(`[AiService] [${job.id}] ${animated} escenas animadas`);
     } catch (err: unknown) {
       this.logger.warn(`[AiService] [${job.id}] Escenas animadas omitidas: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  /** Revisión de una imagen con el modelo de visión (JSON), con registro de costo. */
+  private async visionCall(job: VideoJob, jpegBase64: string, prompt: string): Promise<Record<string, unknown>> {
+    const model = this.configService.get<AppConfig['openai']>('openai')?.visionModel ?? CLASSIFIER_MODEL;
+    const response = await this.client.chat.completions.create({
+      model, temperature: 0, max_tokens: 600, response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpegBase64}`, detail: 'high' } },
+      ] }],
+    });
+    await this.logChatUsage(job.id, job.institution_id, 'motion_vision', response.model ?? model, response.usage);
+    return JSON.parse(response.choices[0]?.message?.content ?? '{}') as Record<string, unknown>;
   }
 
   /** Llamada JSON genérica con registro de costo. */
