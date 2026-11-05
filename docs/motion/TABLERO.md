@@ -43,8 +43,17 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] 2.5 Prueba de punta a punta con la IA simulada (costo $0)
 - [x] 2.6 PR a staging (borrador, sin fusionar: #16) → **PARADA: costo de videos de prueba**
 
-## Fase 3 — videos de prueba (requiere aprobación de costo, tope US$7)
+## Fase 3 — videos de prueba (aprobado, tope US$7; gastado US$4,78)
+- [x] Rama desplegada en el servidor con animaciones apagadas + opción por pedido `motion_scenes`
+- [x] 5 videos de prueba (conducción, salud, finanzas, alimentos, seguridad): 1 escena animada
+- [x] Acomodador automático (auto-layout.ts) → ronda 1: 6 escenas, pero ilustraciones equivocadas y una cifra inventada
+- [x] Lista exacta de ilustraciones, cifras verificadas, composición, revisión visual → ronda 2: 2 escenas
+- [x] Reintentos con el intento anterior, revisión visual calibrada → ronda 3: 5 escenas correctas
+- [x] Estilo 3D (Fluent 3D) por defecto; PNG en el servidor (assets/illustrations-3d, fuera de git)
+- [ ] Pendiente menor: la línea guía de un texto puede cruzar otro texto
 ## Fase 4 — activación gradual (requiere aprobación en cada despliegue)
+- [ ] Fusionar #16 a staging (servidor vuelve a staging; animaciones apagadas)
+- [ ] Activar por pedido (`motion_scenes: true`) en cursos de prueba / una cuenta
 ## Fase 5 — paquetes por sector (señales de tránsito de Colombia), cuando se firme
 
 ## Aprendizajes
@@ -60,3 +69,12 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
   (`motion_spec`). Cues literales y en orden (si no, reintento con el detalle). Errores de la API
   no se reintentan: la escena queda como estaba. Respaldo guardado en `motion_spec.fallback_layout`.
 - No se anima: portada, demo de software, práctica, resumen y cierre, ni escenas de <25 palabras.
+- La IA ubica bien las ideas pero calcula mal el espacio: el acomodador mueve piezas fijas a la celda libre
+  más cercana (y las achica si no caben). Vehículos y piezas que se mueven conservan su lugar.
+- Las sugerencias de "parecidos" en los errores llevaban a la IA a usar una pieza equivocada con la etiqueta
+  correcta (banco = "Alcancía"): ahora ve la lista completa (~7k tokens) y la revisión visual lo detecta.
+- La revisión visual debe ser tolerante (íconos simbólicos, estilo emoji) o rechaza casi todo.
+- Los reintentos deben incluir el JSON anterior; sin él la IA repite los mismos errores.
+- La voz de los videos terminados se borra: para rehacer una escena hay que regenerar el audio (centavos).
+- Costo de animaciones: ~US$0,20–0,30 por video (lista de ilustraciones + revisión visual + reintentos).
+- Fluent 3D: PNG 256 px; nítido en tamaño l, se amplía un poco en xl.
