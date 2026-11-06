@@ -18,7 +18,7 @@ export async function checkMotionLayout(page: Page): Promise<LayoutIssue[]> {
   return page.evaluate((maxOverlap: number, tolerance: number) => {
     interface Box { id: string; l: number; t: number; r: number; b: number }
     const anim = (window as unknown as {
-      __anim?: { seek(t: number): void; pieces: string[]; movers?: string[]; checkpoints: number[] };
+      __anim?: { seek(t: number): void; pieces: string[]; movers?: string[]; vehicles?: string[]; checkpoints: number[] };
     }).__anim;
     const stageEl = document.querySelector('.mo-stage');
     if (!anim || !stageEl) return [{ beat: 0, message: 'la escena no tiene runtime de animación' }];
@@ -63,11 +63,17 @@ export async function checkMotionLayout(page: Page): Promise<LayoutIssue[]> {
       }
       if (zoomed) return;
       const movers = new Set(anim.movers ?? []);
+      const vehicles = new Set(anim.vehicles ?? []);
       for (let a = 0; a < bodies.length; a++) {
         for (let b = a + 1; b < bodies.length; b++) {
           // Lo que se desplaza puede llegar encima de otra pieza a propósito; eso lo juzga la revisión visual
-          if (movers.has(bodies[a]!.id) || movers.has(bodies[b]!.id)) continue;
+          const crash = vehicles.has(bodies[a]!.id) && vehicles.has(bodies[b]!.id);
+          if (!crash && (movers.has(bodies[a]!.id) || movers.has(bodies[b]!.id))) continue;
           const o = overlap(bodies[a]!, bodies[b]!);
+          if (crash && o > 0.05 * Math.min(area(bodies[a]!), area(bodies[b]!))) {
+            report(i + 1, `los vehículos ${name(bodies[a]!.id)} y ${name(bodies[b]!.id)} quedan uno encima del otro: detén uno antes (otra celda) o haz que uno espere`);
+            continue;
+          }
           if (o > maxOverlap * Math.min(area(bodies[a]!), area(bodies[b]!))) {
             report(i + 1, `${name(bodies[a]!.id)} y ${name(bodies[b]!.id)} se tapan: sepáralos al menos una celda`);
           }

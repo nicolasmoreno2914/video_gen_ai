@@ -51,7 +51,9 @@ ESCENARIOS:
 - "canvas": libre.
 - "map": vista desde ARRIBA. Vías con "road" y vehículos con "vehicle". Se conduce por la derecha (el carril se
   ajusta solo). Las vías van por una fila o columna completa (p. ej. path ["A4","L4"]) y los vehículos se ubican
-  y se mueven SOBRE celdas de la vía.
+  y se mueven SOBRE celdas de la vía. En una glorieta, un vehículo con "at" en la celda de la glorieta queda sobre su
+  anillo (abajo si mira al E, a la derecha si mira al N, arriba si mira al W, a la izquierda si mira al S) y un "move"
+  hacia la glorieta la recorre en curva en el sentido correcto. Dos vehículos nunca deben terminar en el mismo lugar.
 - "diagram": una pieza central grande (xl) y textos cortos alrededor con "points_to" hacia ella.
 - "versus": dos paneles: izquierdo columnas A–F, derecho G–L; la fila 1 es el encabezado (no pongas piezas ahí).
   Requiere "panels": {"left": {"title": "Así no", "tone": "incorrect"}, "right": {"title": "Así sí", "tone": "correct"}}
