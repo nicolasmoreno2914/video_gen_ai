@@ -48,6 +48,8 @@ export interface CompiledMotion {
   checkpoints: number[];
   /** Piezas que se desplazan: pueden llegar encima de otra a propósito (la moneda a la alcancía). */
   movers: string[];
+  /** Vehículos: dos vehículos nunca pueden quedar encimados (sería un choque), se muevan o no. */
+  vehicles: string[];
 }
 
 export function colorOf(token: ColorToken | null, brand: { primaryColor: string; secondaryColor: string }, fallback: string): string {
@@ -215,6 +217,88 @@ function inLane(x: number, y: number, deg: number, roads: Array<[number, number,
   return [x - Math.sin(a) * LANE_OFFSET, y + Math.cos(a) * LANE_OFFSET];
 }
 
+// ─── Glorietas ───────────────────────────────────────────────────────────────
+// En Colombia se circula por la derecha: visto desde arriba, la glorieta se recorre en sentido
+// contrario a las agujas del reloj (en pantalla, con y hacia abajo, el ángulo disminuye).
+
+interface Ring { x: number; y: number; r: number }
+
+/** Radio del anillo (centro de la vía) de cada glorieta, igual que en su dibujo (r=78 sobre 200). */
+function rings(spec: MotionSpec): Ring[] {
+  return spec.elements.flatMap((e) => (e.type === 'roundabout'
+    ? [{ x: cx(e.at), y: cy(e.at), r: (BOX[e.size] * 1.3 * 78) / 200 }] : []));
+}
+
+/** La glorieta que contiene el punto (en su isla o su anillo), si hay. */
+function ringAt(x: number, y: number, list: Ring[]): Ring | null {
+  return list.find((g) => Math.hypot(x - g.x, y - g.y) < g.r + 28) ?? null;
+}
+
+const onRing = (g: Ring, deg: number): readonly [number, number] => {
+  const a = (deg * Math.PI) / 180;
+  return [g.x + Math.cos(a) * g.r, g.y + Math.sin(a) * g.r] as const;
+};
+
+/** Punto del anillo donde va un vehículo que mira hacia heading (el sentido de giro lo exige). */
+function ringSpotForHeading(g: Ring, headingDeg: number): readonly [number, number] {
+  // Mirando al este se va por abajo; al norte, por la derecha; etc. (tangente antihoraria)
+  return onRing(g, headingDeg + 90);
+}
+
+/** Puntos sobre el anillo de 'from' a 'to' grados, en el sentido de circulación (cada ~12°). */
+function arc(g: Ring, fromDeg: number, toDeg: number): Array<readonly [number, number]> {
+  let sweep = ((fromDeg - toDeg) % 360 + 360) % 360;
+  if (sweep < 1) sweep = 360;
+  const steps = Math.max(2, Math.ceil(sweep / 12));
+  return Array.from({ length: steps }, (_, i) => onRing(g, fromDeg - (sweep * (i + 1)) / steps));
+}
+
+const degFrom = (g: Ring, x: number, y: number): number => (Math.atan2(y - g.y, x - g.x) * 180) / Math.PI;
+
+/**
+ * Recorrido de un vehículo con glorietas: si un tramo entra a una glorieta, el vehículo llega al
+ * anillo por donde viene y la recorre en curva hasta salir hacia el siguiente punto (o, si se
+ * detiene dentro, un cuarto de vuelta). Nunca pasa por la isla. Devuelve los puntos marcados
+ * como "en el anillo" (no se corren al carril derecho de la vía recta).
+ */
+function routeThroughRings(x: number, y: number, targets: Array<readonly [number, number]>, list: Ring[]): Array<{ p: readonly [number, number]; ring: boolean }> {
+  if (!list.length) return targets.map((p) => ({ p, ring: false }));
+  const out: Array<{ p: readonly [number, number]; ring: boolean }> = [];
+  let [px, py] = [x, y];
+  let inside = ringAt(px, py, list);
+  targets.forEach(([qx, qy], k) => {
+    const next = targets[k + 1];
+    const g = ringAt(qx, qy, list) ?? list.find((r) => segmentNear(px, py, qx, qy, r)) ?? null;
+    if (!g) { out.push({ p: [qx, qy], ring: false }); [px, py] = [qx, qy]; inside = null; return; }
+    // Entrada: el punto del anillo del lado por donde llega (o donde ya está)
+    const entryDeg = degFrom(g, px, py);
+    if (inside !== g) out.push({ p: onRing(g, entryDeg), ring: true });
+    const stopsInside = !!ringAt(qx, qy, list) && (!next || !!ringAt(next[0], next[1], [g]));
+    if (stopsInside) {
+      out.push(...arc(g, entryDeg, entryDeg - 90).map((p) => ({ p, ring: true })));
+      inside = g;
+      [px, py] = out[out.length - 1]!.p as [number, number];
+      return;
+    }
+    // Sale hacia el punto siguiente fuera de la glorieta (el destino de este tramo o el próximo)
+    const [ox, oy] = ringAt(qx, qy, list) && next ? next : [qx, qy];
+    out.push(...arc(g, entryDeg, degFrom(g, ox, oy)).map((p) => ({ p, ring: true })));
+    if (!ringAt(qx, qy, list)) out.push({ p: [qx, qy], ring: false });
+    inside = ringAt(qx, qy, list) ? g : null;
+    [px, py] = out[out.length - 1]!.p as [number, number];
+  });
+  return out;
+}
+
+/** ¿El tramo recto pasa por la isla de la glorieta? */
+function segmentNear(x0: number, y0: number, x1: number, y1: number, g: Ring): boolean {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((g.x - x0) * dx + (g.y - y0) * dy) / len2));
+  return Math.hypot(g.x - (x0 + t * dx), g.y - (y0 + t * dy)) < g.r * 0.7;
+}
+
 function angleTo(x0: number, y0: number, x1: number, y1: number): number {
   return (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;
 }
@@ -278,6 +362,7 @@ export function compileMotion(
   }
 
   const roads = twoLaneSegments(spec);
+  const ringList = rings(spec);
   const under: string[] = [];
   const pieces: string[] = [];
   const over: string[] = [];
@@ -352,7 +437,10 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     pieces.push(`<div class="mo-el${cls}" id="${id}" style="${sizeCss};z-index:${z}">
 <div class="mo-ring" style="border-radius:${radius};border-color:${brand.secondaryColor}"></div>${body}${label}<div class="mo-badge"></div></div>`);
 
-    const [x0, y0] = el.type === 'vehicle' ? inLane(g.x, g.y, HEADING_DEG[el.heading], roads) : [g.x, g.y];
+    // Un vehículo en una glorieta va sobre el anillo (nunca en la isla), mirando en el sentido de giro
+    const ring = el.type === 'vehicle' ? ringAt(g.x, g.y, ringList) : null;
+    const [x0, y0] = ring && el.type === 'vehicle' ? ringSpotForHeading(ring, HEADING_DEG[el.heading])
+      : el.type === 'vehicle' ? inLane(g.x, g.y, HEADING_DEG[el.heading], roads) : [g.x, g.y];
     tb.init(id, 'x', x0);
     tb.init(id, 'y', y0);
     tb.init(id, 'rot', el.type === 'vehicle' ? HEADING_DEG[el.heading] : 0);
@@ -420,10 +508,10 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
           let y = tb.value(id, 'y');
           let points = [...a.via, a.to].map((c) => [cx(c), cy(c)] as const);
           if (el.type === 'vehicle') {
-            // Cada punto en el carril derecho según hacia dónde va el tramo que llega a él
+            // Por las glorietas en curva; en las vías rectas, por el carril derecho
             let [px, py] = [x, y];
-            points = points.map(([qx, qy]) => {
-              const p = inLane(qx, qy, angleTo(px, py, qx, qy), roads);
+            points = routeThroughRings(x, y, points, ringList).map(({ p: [qx, qy], ring }) => {
+              const p = ring ? ([qx, qy] as const) : inLane(qx, qy, angleTo(px, py, qx, qy), roads);
               [px, py] = [qx, qy];
               return p;
             });
@@ -449,7 +537,9 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
             const ease: Track['ease'] = points.length === 1 ? 'inout' : k === 0 ? 'in' : k === points.length - 1 ? 'out' : 'linear';
             if (el.type === 'vehicle') {
               const target = nearestAngle(tb.value(id, 'rot'), angleTo(x, y, px, py));
-              if (Math.abs(target - tb.value(id, 'rot')) > 0.5) tb.add(id, 'rot', Math.max(t, tk - 0.15), Math.min(0.45, dur), target, 'inout');
+              // En tramos cortos (curvas) el giro dura todo el tramo; en rectas, un giro rápido al empezar
+              const turn = lengths[k]! < 80 ? dur : Math.min(0.45, dur);
+              if (Math.abs(target - tb.value(id, 'rot')) > 0.5) tb.add(id, 'rot', lengths[k]! < 80 ? tk : Math.max(t, tk - 0.15), turn, target, lengths[k]! < 80 ? 'linear' : 'inout');
             }
             tb.add(id, 'x', tk, dur, px, ease);
             tb.add(id, 'y', tk, dur, py, ease);
@@ -559,6 +649,7 @@ ${pieces.join('\n')}
     initial: tb.initial,
     numbers,
     pieces: [...spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout').map((e) => domId(e.id)), ...tags],
+    vehicles: spec.elements.filter((e) => e.type === 'vehicle').map((e) => domId(e.id)),
     movers: [...new Set(spec.beats.flatMap((b) => b.actions.filter((a) => a.do === 'move').map((a) => domId((a as { target: string }).target))))],
     checkpoints,
   };
@@ -604,7 +695,7 @@ const MOTION_CSS = `.stage { top:206px; bottom:150px; }
   font-size:24px; color:#14161A; box-shadow:0 6px 16px rgba(20,22,26,0.12); white-space:nowrap; }`;
 
 function motionRuntime(c: CompiledMotion, duration: number, live: boolean): string {
-  const data = { tracks: c.tracks, initial: c.initial, numbers: c.numbers, pieces: c.pieces, movers: c.movers, checkpoints: c.checkpoints };
+  const data = { tracks: c.tracks, initial: c.initial, numbers: c.numbers, pieces: c.pieces, movers: c.movers, vehicles: c.vehicles, checkpoints: c.checkpoints };
   return `<script>
 (function () {
   var D = ${JSON.stringify(data)};
@@ -681,6 +772,7 @@ function motionRuntime(c: CompiledMotion, duration: number, live: boolean): stri
     },
     pieces: D.pieces,
     movers: D.movers,
+    vehicles: D.vehicles,
     checkpoints: D.checkpoints,
   };
   seek(${live ? 0 : 'Infinity'});
