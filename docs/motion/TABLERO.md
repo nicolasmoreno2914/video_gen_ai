@@ -52,8 +52,10 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] Estilo 3D (Fluent 3D) por defecto; PNG en el servidor (assets/illustrations-3d, fuera de git)
 - [ ] Pendiente menor: la línea guía de un texto puede cruzar otro texto
 ## Fase 4 — activación gradual (requiere aprobación en cada despliegue)
-- [ ] Fusionar #16 a staging (servidor vuelve a staging; animaciones apagadas)
-- [ ] Activar por pedido (`motion_scenes: true`) en cursos de prueba / una cuenta
+- [x] Fusionar #16 a staging y desplegar (2026-11-05)
+- [x] Activadas para todos: `MOTION_SCENES=on` en el .env del servidor (2026-11-05)
+- [x] Primer video real (pedido por el camino de Cursia): 2 escenas animadas, glorieta con carros en la isla
+- [x] #17: glorietas en curva (sentido antihorario), vehículos sobre el anillo, choque entre vehículos detectado
 ## Fase 5 — paquetes por sector (señales de tránsito de Colombia), cuando se firme
 
 ## Aprendizajes
