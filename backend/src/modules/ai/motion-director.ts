@@ -4,6 +4,7 @@ import { illustrationCatalogText } from '../slides/motion/assets';
 import { MotionPreview } from '../slides/motion/preview';
 import { MotionSpec, MotionSpecError } from '../slides/motion/spec';
 import { numberToSpanish } from '../slides/reveal-timing';
+import { SIGNS } from '../slides/motion/signs';
 import { prepareMotionSpec } from '../slides/motion/auto-layout';
 
 // Director de animación: después del guion, elige las escenas que se entienden mejor con una
@@ -63,6 +64,9 @@ ELEMENTOS (todos con "id" único y "type"):
 - illustration: {"asset": nombre en INGLÉS de la ilustración, "at", "size": s|m|l|xl, "label"?: máx. 28 caracteres}
 - icon: {"asset": nombre de ícono Lucide (p. ej. "triangle-alert", "clock", "shield-check"), "at", "size", "color"?}
 - vehicle (solo map): {"vehicle": car|bus|truck|motorcycle|bicycle, "at", "heading": N|E|S|W, "color"?, "label"?}
+- sign: señal de tránsito oficial de Colombia {"sign": uno de ${Object.keys(SIGNS).join(', ')}, "value"?: km/h (solo
+  velocidad-maxima), "at", "size", "label"?}. Para señales de tránsito usa SIEMPRE "sign", nunca ilustraciones ni
+  íconos (y nunca una señal que no esté en la lista).
 - text: {"text": máx. 90 caracteres, "at", "width": columnas 2–12, "style": title|body|caption, "points_to"?: id}
 - number: {"value": número inicial, "prefix"?: "$", "suffix"?: " %", "decimals"?: 0–2, "at", "size", "label"?}
 - zone: {"at": celda SUPERIOR IZQUIERDA, "span": [columnas, filas], "shape": box|circle, "color"?, "label"?}
@@ -159,6 +163,8 @@ export function checkNumbers(spec: MotionSpec, narration: string): void {
     if (el.type === 'number') {
       if (el.value !== 0) shown.push([el.value, el.id]);
     }
+    // El límite de velocidad de una señal también es una cifra que debe decir la narración
+    if (el.type === 'sign' && el.value != null) shown.push([el.value, el.id]);
     const texts = [el.type === 'text' ? el.text : '', el.label ?? ''];
     for (const t of texts) for (const n of numbersIn(t)) shown.push([n, el.id]);
   }
@@ -185,7 +191,8 @@ Marca como problema SOLO lo que claramente confundiría al estudiante:
 - una pieza que muestra algo DISTINTO u OPUESTO a su etiqueta (un escudo de seguridad como "Riesgo", una persona CON
   casco etiquetada "Sin casco", un banco como "Alcancía");
 - texto encimado con otra pieza o cortado por el borde.
-NO reportes ortografía, estilo, colores, posiciones aproximadas ni detalles que falten.
+NO reportes ortografía, estilo, colores, posiciones aproximadas ni detalles que falten. Las señales de tránsito
+de la lista son las oficiales de Colombia dibujadas con símbolos simplificados: no las reportes por su dibujo.
 Responde SOLO JSON: {"ok": true|false, "problems": ["problema concreto, en una frase", ...]}.
 Si nada de eso ocurre: {"ok": true, "problems": []}.`;
 
@@ -197,6 +204,8 @@ function describePieces(spec: MotionSpec): string {
         return `- "${e.id}": ${e.type === 'icon' ? 'ícono' : 'ilustración'} de "${e.asset.name}"${e.label ? ` con etiqueta "${e.label}"` : ''}`;
       case 'vehicle':
         return `- "${e.id}": vehículo (${e.vehicle}) visto desde arriba${e.label ? ` con etiqueta "${e.label}"` : ''}`;
+      case 'sign':
+        return `- "${e.id}": señal de tránsito oficial "${SIGNS[e.sign]?.name ?? e.sign}"${e.value ? ` (${e.value} km/h)` : ''}${e.label ? ` con etiqueta "${e.label}"` : ''}`;
       case 'text':
         return `- "${e.id}": texto "${e.text}"`;
       case 'number':
