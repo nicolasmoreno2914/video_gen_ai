@@ -3,6 +3,7 @@ import { eyebrow } from '../templates/diagrams.template';
 import { alpha, editorialPage } from '../templates/editorial';
 import { escape } from '../templates/shared';
 import { assetSvg } from './assets';
+import { signSvg } from './signs';
 import { Cell, ColorToken, GRID_COLS, GRID_ROWS, MotionElement, MotionSpec, Size, initiallyHidden } from './spec';
 
 // Escena animada (layout motion_scene): dibuja el guion de animación ya validado y calcula, en
@@ -148,6 +149,8 @@ export function geometry(el: MotionElement): Geometry | null {
     }
     case 'roundabout':
       return { x: cx(el.at), y: cy(el.at), w: BOX[el.size] * 1.3, h: BOX[el.size] * 1.3, round: true };
+    case 'sign':
+      return { x: cx(el.at), y: cy(el.at), w: BOX[el.size], h: BOX[el.size], round: false };
     case 'road':
       return null;
   }
@@ -310,7 +313,7 @@ function nearestAngle(from: number, to: number): number {
   return from + d;
 }
 
-function arrowPath(x0: number, y0: number, x1: number, y1: number, r0: number, r1: number): string {
+function arrowPath(x0: number, y0: number, x1: number, y1: number, r0: number, r1: number, bend = 0.12): string {
   const len = Math.hypot(x1 - x0, y1 - y0) || 1;
   const ux = (x1 - x0) / len;
   const uy = (y1 - y0) / len;
@@ -319,9 +322,22 @@ function arrowPath(x0: number, y0: number, x1: number, y1: number, r0: number, r
   const ex = x1 - ux * r1;
   const ey = y1 - uy * r1;
   // Curva suave hacia un lado: se lee mejor que una recta y no tapa lo que hay en medio
-  const mx = (sx + ex) / 2 - uy * len * 0.12;
-  const my = (sy + ey) / 2 + ux * len * 0.12;
+  const mx = (sx + ex) / 2 - uy * len * bend;
+  const my = (sy + ey) / 2 + ux * len * bend;
   return `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+}
+
+/** ¿La curva "M sx sy Q mx my ex ey" pasa por alguna de las cajas? (se muestrea a lo largo) */
+function curveHits(d: string, boxes: Geometry[]): boolean {
+  const n = d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+  const [sx, sy, mx, my, ex, ey] = n as [number, number, number, number, number, number];
+  for (let i = 1; i < 20; i++) {
+    const t = i / 20;
+    const x = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * ex;
+    const y = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * ey;
+    if (boxes.some((g) => Math.abs(x - g.x) < g.w / 2 + 6 && Math.abs(y - g.y) < g.h / 2 + 6)) return true;
+  }
+  return false;
 }
 
 function arrowHead(x1: number, y1: number, mx: number, my: number, color: string): string {
@@ -423,6 +439,9 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
         cls = ' mo-zone';
         body = `<div class="mo-zone-in" style="border-color:${color};background:${alpha(color, 0.14)};border-radius:${el.shape === 'circle' ? '50%' : '28px'}"></div>`;
         break;
+      case 'sign':
+        body = signSvg(el.sign, el.value);
+        break;
       case 'roundabout':
         body = `<svg viewBox="0 0 200 200" width="100%" height="100%"><circle cx="100" cy="100" r="78" fill="none" stroke="#C7CDD4" stroke-width="54"/>
 <circle cx="100" cy="100" r="78" fill="none" stroke="#4B5563" stroke-width="44"/><circle cx="100" cy="100" r="78" fill="none" stroke="#F8FAFC" stroke-width="2.5" stroke-dasharray="12 10"/>
@@ -461,7 +480,22 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     const id = `${domId(el.id)}-lead`;
     const r0 = rectExit(a, b.x - a.x, b.y - a.y) + 10;
     const r1 = Math.max(b.w, b.h) / 2 * 0.8;
-    const d = arrowPath(a.x, a.y, b.x, b.y, r0, r1 + 8);
+    // La línea no debe cruzar otros textos ni piezas: se prueba la curva hacia un lado, hacia el otro y recta
+    const others = spec.elements
+      .filter((o) => o.id !== el.id && o.id !== el.pointsTo && o.type !== 'road' && o.type !== 'zone' && o.type !== 'roundabout')
+      .map((o) => geo.get(o.id)).filter((g): g is Geometry => !!g);
+    const bends = [0.12, -0.12, 0, 0.25, -0.25];
+    const fromCenter = bends.map((bend) => arrowPath(a.x, a.y, b.x, b.y, r0, r1 + 8, bend));
+    // También desde los costados del texto (rodea lo que haya debajo o encima)
+    const fromSides = [-1, 1].flatMap((side) => {
+      const sx = a.x + side * (a.w / 2 + 10);
+      return [side * 0.3, side * 0.18, 0].map((bend) => arrowPath(sx, a.y, b.x, b.y, 0, r1 + 8, bend));
+    });
+    // Si ninguna línea queda limpia, no se dibuja: una línea que cruza otro texto confunde más que ayuda
+    // (y si el texto está pegado a la pieza, tampoco hace falta: saldría un garabato)
+    const longEnough = (o: string): boolean => { const n = o.match(/-?\d+(?:\.\d+)?/g)!.map(Number); return Math.hypot(n[4]! - n[0]!, n[5]! - n[1]!) > 45; };
+    const d = [...fromCenter, ...fromSides].find((o) => longEnough(o) && !curveHits(o, others));
+    if (!d) continue;
     const { ex, ey } = pathEnds(d);
     over.push(`<g id="${id}"><path d="${d}" fill="none" stroke="#14161A" stroke-width="4" stroke-dasharray="2 10" stroke-linecap="round" data-len/><circle cx="${ex}" cy="${ey}" r="9" fill="#14161A"/></g>`);
     tb.init(id, 'draw', hidden.has(el.id) ? 0 : 1);

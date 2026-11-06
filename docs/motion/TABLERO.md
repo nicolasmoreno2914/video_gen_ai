@@ -50,13 +50,17 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] Lista exacta de ilustraciones, cifras verificadas, composición, revisión visual → ronda 2: 2 escenas
 - [x] Reintentos con el intento anterior, revisión visual calibrada → ronda 3: 5 escenas correctas
 - [x] Estilo 3D (Fluent 3D) por defecto; PNG en el servidor (assets/illustrations-3d, fuera de git)
-- [ ] Pendiente menor: la línea guía de un texto puede cruzar otro texto
+- [x] La línea guía de un texto ya no cruza otros textos ni piezas (se rodea o no se dibuja)
 ## Fase 4 — activación gradual (requiere aprobación en cada despliegue)
 - [x] Fusionar #16 a staging y desplegar (2026-11-05)
 - [x] Activadas para todos: `MOTION_SCENES=on` en el .env del servidor (2026-11-05)
 - [x] Primer video real (pedido por el camino de Cursia): 2 escenas animadas, glorieta con carros en la isla
 - [x] #17: glorietas en curva (sentido antihorario), vehículos sobre el anillo, choque entre vehículos detectado
-## Fase 5 — paquetes por sector (señales de tránsito de Colombia), cuando se firme
+## Fase 5 — paquetes por sector
+- [x] Señales de tránsito de Colombia (`type: "sign"`, signs.ts): PARE, CEDA EL PASO, velocidad máxima,
+  prohibido girar (izq./der./U); preventivas: semáforo, peatones, zona escolar, glorieta, curva, resalto, ciclistas.
+  Forma, colores y texto según el manual; símbolos simplificados. La IA solo elige de la lista.
+- [ ] Ampliar con más señales o con los SVG oficiales del manual si la escuela los entrega
 
 ## Aprendizajes
 - Fluent Emoji: personas en `assets/<Nombre>/Default/Flat`; se excluyen banderas. No hay alcancía

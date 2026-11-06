@@ -1,4 +1,13 @@
 import { AssetMatch, findAsset, suggestAssets } from './assets';
+import { SIGNS, SIGN_IDS } from './signs';
+
+/** Nombres en inglés que la IA suele usar para las señales. */
+const SIGN_ALIASES: Record<string, string> = {
+  stop: 'pare', 'stop-sign': 'pare', yield: 'ceda-el-paso', 'yield-sign': 'ceda-el-paso', 'speed-limit': 'velocidad-maxima',
+  'traffic-light-ahead': 'semaforo-adelante', pedestrians: 'peatones', 'pedestrian-crossing': 'peatones', 'school-zone': 'zona-escolar',
+  roundabout: 'glorieta', curve: 'curva-peligrosa', 'speed-bump': 'resalto', cyclists: 'ciclistas', 'no-left-turn': 'prohibido-girar-izquierda',
+  'no-right-turn': 'prohibido-girar-derecha', 'no-u-turn': 'prohibido-girar-en-u',
+};
 
 // Guion de animación de una escena (layout motion_scene). La IA lo escribe en JSON; aquí se valida
 // y se normaliza. Cualquier problema lanza MotionSpecError con un mensaje pensado para devolverlo
@@ -13,7 +22,7 @@ export class MotionSpecError extends Error {}
 export const GRID_COLS = 12;
 export const GRID_ROWS = 6;
 export const SCENARIOS = ['canvas', 'map', 'diagram', 'versus'] as const;
-export const ELEMENT_TYPES = ['illustration', 'icon', 'vehicle', 'text', 'number', 'zone', 'road', 'roundabout'] as const;
+export const ELEMENT_TYPES = ['illustration', 'icon', 'vehicle', 'sign', 'text', 'number', 'zone', 'road', 'roundabout'] as const;
 export const ACTIONS = ['appear', 'hide', 'move', 'highlight', 'connect', 'count', 'mark', 'focus', 'reset_focus'] as const;
 export const SIZES = ['s', 'm', 'l', 'xl'] as const;
 export const COLORS = [
@@ -44,7 +53,8 @@ export type MotionElement =
   | BaseElement & { type: 'number'; value: number; prefix: string; suffix: string; decimals: number; at: Cell; size: Size; counts: number[] }
   | BaseElement & { type: 'zone'; at: Cell; span: [number, number]; shape: 'box' | 'circle' }
   | BaseElement & { type: 'road'; path: Cell[]; lanes: 1 | 2 }
-  | BaseElement & { type: 'roundabout'; at: Cell; size: Size };
+  | BaseElement & { type: 'roundabout'; at: Cell; size: Size }
+  | BaseElement & { type: 'sign'; sign: string; value: number | null; at: Cell; size: Size };
 
 export type MotionAction =
   | { do: 'appear' | 'hide' | 'highlight'; target: string }
@@ -169,6 +179,13 @@ function parseElement(raw: Record<string, unknown>, index: number): MotionElemen
     }
     case 'roundabout':
       return { ...base, type, at: at(), size: oneOf(raw.size, SIZES, 'l') };
+    case 'sign': {
+      const asked = str(raw.sign, 40).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const sign = SIGNS[asked] ? asked : SIGN_ALIASES[asked];
+      if (!sign) throw new MotionSpecError(`elemento "${id}": no existe la señal "${String(raw.sign)}" (opciones: ${SIGN_IDS.join(', ')})`);
+      const value = SIGNS[sign]!.value ? Math.round(num(raw.value ?? 30, `elemento "${id}": value`)) : null;
+      return { ...base, type, sign, value, at: at(), size: oneOf(raw.size, SIZES, 'm') };
+    }
   }
 }
 
@@ -299,7 +316,7 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
   }
 
   // Escena con piezas diminutas: se ve vacía y no se lee en un celular
-  const visual = elements.filter((e) => e.type === 'illustration' || e.type === 'icon' || e.type === 'vehicle');
+  const visual = elements.filter((e) => e.type === 'illustration' || e.type === 'icon' || e.type === 'vehicle' || e.type === 'sign');
   // (En un mapa las vías llenan la escena y los vehículos van a escala de la vía)
   if (scenario !== 'map' && visual.length && !visual.some((e) => 'size' in e && (e.size === 'l' || e.size === 'xl'))) {
     throw new MotionSpecError('todas las piezas son pequeñas: la pieza principal de la escena debe ser de tamaño l o xl');
