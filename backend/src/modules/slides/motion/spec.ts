@@ -6,7 +6,7 @@ const SIGN_ALIASES: Record<string, string> = {
   stop: 'pare', 'stop-sign': 'pare', yield: 'ceda-el-paso', 'yield-sign': 'ceda-el-paso', 'speed-limit': 'velocidad-maxima',
   'traffic-light-ahead': 'semaforo-adelante', pedestrians: 'peatones', 'pedestrian-crossing': 'peatones', 'school-zone': 'zona-escolar',
   roundabout: 'glorieta', curve: 'curva-peligrosa', 'speed-bump': 'resalto', cyclists: 'ciclistas', 'no-left-turn': 'prohibido-girar-izquierda',
-  'no-right-turn': 'prohibido-girar-derecha', 'no-u-turn': 'prohibido-girar-en-u',
+  'no-right-turn': 'prohibido-girar-derecha', 'no-u-turn': 'prohibido-girar-en-u', 'no-motorcycles': 'prohibido-motos',
 };
 
 // Guion de animación de una escena (layout motion_scene). La IA lo escribe en JSON; aquí se valida
@@ -22,7 +22,7 @@ export class MotionSpecError extends Error {}
 export const GRID_COLS = 12;
 export const GRID_ROWS = 6;
 export const SCENARIOS = ['canvas', 'map', 'diagram', 'versus'] as const;
-export const ELEMENT_TYPES = ['illustration', 'icon', 'vehicle', 'sign', 'text', 'number', 'zone', 'road', 'roundabout'] as const;
+export const ELEMENT_TYPES = ['illustration', 'icon', 'vehicle', 'sign', 'text', 'number', 'zone', 'road', 'roundabout', 'crosswalk'] as const;
 export const ACTIONS = ['appear', 'hide', 'move', 'highlight', 'connect', 'count', 'mark', 'focus', 'reset_focus'] as const;
 export const SIZES = ['s', 'm', 'l', 'xl'] as const;
 export const COLORS = [
@@ -52,7 +52,9 @@ export type MotionElement =
   | BaseElement & { type: 'text'; text: string; at: Cell; width: number; style: 'title' | 'body' | 'caption'; pointsTo: string | null }
   | BaseElement & { type: 'number'; value: number; prefix: string; suffix: string; decimals: number; at: Cell; size: Size; counts: number[] }
   | BaseElement & { type: 'zone'; at: Cell; span: [number, number]; shape: 'box' | 'circle' }
-  | BaseElement & { type: 'road'; path: Cell[]; lanes: 1 | 2 }
+  | BaseElement & { type: 'road'; path: Cell[]; lanes: 1 | 2; center: 'dashed' | 'solid' | 'double' }
+  /** Paso de cebra sobre la vía, en la celda dada; las franjas van a lo ancho de la vía. */
+  | BaseElement & { type: 'crosswalk'; at: Cell; direction: 'h' | 'v' }
   | BaseElement & { type: 'roundabout'; at: Cell; size: Size }
   | BaseElement & { type: 'sign'; sign: string; value: number | null; at: Cell; size: Size };
 
@@ -175,7 +177,12 @@ function parseElement(raw: Record<string, unknown>, index: number): MotionElemen
     case 'road': {
       const cells = Array.isArray(raw.path) ? raw.path.map((c, i) => parseCell(c, `vía "${id}" punto ${i + 1}`)) : [];
       if (cells.length < 2) throw new MotionSpecError(`vía "${id}": path necesita al menos 2 celdas`);
-      return { ...base, type, path: cells, lanes: Number(raw.lanes) === 1 ? 1 : 2 };
+      // Línea central (solo en vías de 2 carriles): discontinua (se puede adelantar), continua o doble (no)
+      return { ...base, type, path: cells, lanes: Number(raw.lanes) === 1 ? 1 : 2, center: oneOf(raw.center, ['dashed', 'solid', 'double'] as const, 'dashed') };
+    }
+    case 'crosswalk': {
+      // h: la vía va de izquierda a derecha (franjas verticales); v: de arriba abajo
+      return { ...base, type, at: at(), direction: oneOf(raw.direction, ['h', 'v'] as const, 'h') };
     }
     case 'roundabout':
       return { ...base, type, at: at(), size: oneOf(raw.size, SIZES, 'l') };
@@ -244,7 +251,7 @@ export function resolveMotionSpec(raw: unknown): MotionSpec {
 
   let rawElements = Array.isArray(spec.elements) ? (spec.elements as Array<Record<string, unknown>>) : [];
   // Vías sin vehículos no explican nada (la IA las usaba como "línea de pasos"): se quitan, con sus acciones
-  const isRoad = (e: Record<string, unknown> | undefined): boolean => e?.type === 'road' || e?.type === 'roundabout';
+  const isRoad = (e: Record<string, unknown> | undefined): boolean => e?.type === 'road' || e?.type === 'roundabout' || e?.type === 'crosswalk';
   const dropped = new Set<string>();
   if (requestedScenario === 'versus' || !rawElements.some((e) => e?.type === 'vehicle')) {
     for (const e of rawElements) if (isRoad(e)) dropped.add(String(e.id));

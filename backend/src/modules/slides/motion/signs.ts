@@ -18,6 +18,7 @@ export const SIGNS: Record<string, SignDef> = {
   'prohibido-girar-izquierda': { name: 'Prohibido girar a la izquierda', kind: 'reglamentaria' },
   'prohibido-girar-derecha': { name: 'Prohibido girar a la derecha', kind: 'reglamentaria' },
   'prohibido-girar-en-u': { name: 'Prohibido girar en U', kind: 'reglamentaria' },
+  'prohibido-motos': { name: 'Prohibida la circulación de motocicletas', kind: 'reglamentaria' },
   'semaforo-adelante': { name: 'Semáforo adelante', kind: 'preventiva' },
   peatones: { name: 'Peatones en la vía', kind: 'preventiva' },
   'zona-escolar': { name: 'Zona escolar', kind: 'preventiva' },
@@ -75,6 +76,12 @@ export function signSvg(id: string, value?: number | null): string {
       return ring(`<path d="M80 150 V95 Q80 75 100 75 H128" fill="none" stroke="${INK}" stroke-width="16"/><polygon points="150,75 122,52 122,98" fill="${INK}"/>`, true);
     case 'prohibido-girar-en-u':
       return ring(`<path d="M125 150 V85 A25 25 0 0 0 75 85 V120" fill="none" stroke="${INK}" stroke-width="16"/><polygon points="75,145 52,115 98,115" fill="${INK}"/>`, true);
+    case 'prohibido-motos':
+      // Moto de lado: ruedas, cuerpo con tanque y asiento, manubrio y conductor
+      return ring(`<g fill="none" stroke="${INK}" stroke-width="8"><circle cx="62" cy="128" r="19"/><circle cx="140" cy="128" r="19"/></g>
+<path d="M62 128 L84 100 H122 L140 128 Z" fill="${INK}"/><path d="M84 100 L78 90 H104 L112 100 Z" fill="${INK}"/>
+<path d="M122 100 L132 78 M126 80 H142" stroke="${INK}" stroke-width="7" stroke-linecap="round" fill="none"/>
+<circle cx="100" cy="60" r="10" fill="${INK}"/><path d="M98 70 L92 92 M98 74 L120 84" stroke="${INK}" stroke-width="9" stroke-linecap="round" fill="none"/>`, true);
     case 'semaforo-adelante':
       return diamond(`<rect x="80" y="50" width="40" height="100" rx="10" fill="${INK}"/>
 <circle cx="100" cy="70" r="11" fill="#E53935"/><circle cx="100" cy="100" r="11" fill="#FFB300"/><circle cx="100" cy="130" r="11" fill="#43A047"/>`);
