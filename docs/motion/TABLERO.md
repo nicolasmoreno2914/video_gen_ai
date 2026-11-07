@@ -94,3 +94,9 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] Duración: 122 ppm reales y dos intentos de ajuste (salían videos de 10+ min con 1.300+ palabras)
 - [x] MOTION_MAX_SCENES subido de 4 a 6 en el servidor (PR #19 desplegado 2026-11-07)
 - No agregado: señales azules de obligación (no está confirmado cómo son en el manual colombiano vigente)
+
+## Guion: empezar a enseñar antes (PR #20, desplegado 2026-11-07)
+- [x] Apertura + contexto en máximo 2 escenas (≤ 25 %); prohibidas escenas de temario ("preguntas clave", "lo que veremos")
+- [x] `script-checks.ts`: escenas de temario en el primer 35 % y cifras que no están en el capítulo → una pasada de corrección
+- Motivo: la primera pregunta del video interactivo de Cursia caía en una escena que solo anunciaba preguntas
+- [ ] Cursia: escribir cada pregunta del video interactivo solo con lo ya explicado antes de esa pausa
