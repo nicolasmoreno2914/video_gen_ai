@@ -92,5 +92,5 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - [x] Señal "prohibida la circulación de motocicletas", línea central continua/doble/discontinua y paso de cebra
 - [x] Líneas guía revisadas también contra su propio texto
 - [x] Duración: 122 ppm reales y dos intentos de ajuste (salían videos de 10+ min con 1.300+ palabras)
-- [ ] Subir MOTION_MAX_SCENES de 4 a 6 en el servidor (con el despliegue)
+- [x] MOTION_MAX_SCENES subido de 4 a 6 en el servidor (PR #19 desplegado 2026-11-07)
 - No agregado: señales azules de obligación (no está confirmado cómo son en el manual colombiano vigente)
