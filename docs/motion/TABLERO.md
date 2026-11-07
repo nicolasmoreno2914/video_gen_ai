@@ -84,3 +84,13 @@ fin de la fase 2 (los videos de prueba requieren costo aprobado) · algo que cam
 - La voz de los videos terminados se borra: para rehacer una escena hay que regenerar el audio (centavos).
 - Costo de animaciones: ~US$0,20–0,30 por video (lista de ilustraciones + revisión visual + reintentos).
 - Fluent 3D: PNG 256 px; nítido en tamaño l, se amplía un poco en xl.
+
+## Revisión de videos reales (2026-11-07, 5 de 14 videos, notas 6–7,5/10)
+- [x] "Así no / así sí" solo cuando una opción es incorrecta (ABS vs CBS salió como si el ABS estuviera mal)
+- [x] Beats al final de la escena se adelantan (las piezas quedaban tenues casi toda la escena)
+- [x] Moto y bicicleta más grandes; moto vista desde arriba reconocible
+- [x] Señal "prohibida la circulación de motocicletas", línea central continua/doble/discontinua y paso de cebra
+- [x] Líneas guía revisadas también contra su propio texto
+- [x] Duración: 122 ppm reales y dos intentos de ajuste (salían videos de 10+ min con 1.300+ palabras)
+- [ ] Subir MOTION_MAX_SCENES de 4 a 6 en el servidor (con el despliegue)
+- No agregado: señales azules de obligación (no está confirmado cómo son en el manual colombiano vigente)

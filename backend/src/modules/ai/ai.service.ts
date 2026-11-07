@@ -92,8 +92,9 @@ function numberedParagraphs(content: string): string {
 
 // Duración según el contenido, con tope de 9 min (decisión de producto 2026-11-01; antes 7)
 export const MAX_VIDEO_SECONDS = 540;
-// Velocidad real medida con la voz cedar + pausas (≈130 ppm efectivas, no 140)
-const WORDS_PER_MINUTE = 130;
+// Velocidad real medida con la voz cedar + pausas: ≈122 ppm efectivas (14 videos, 2026-11-07; con 130
+// los videos salían de 10 min)
+const WORDS_PER_MINUTE = 122;
 const MAX_NARRATION_WORDS = Math.round((MAX_VIDEO_SECONDS / 60) * WORDS_PER_MINUTE * 0.95);
 
 const SYSTEM_PROMPT = `Eres un experto mundial en storytelling educativo, instructional design, guionización pedagógica, microlearning y creación de videos educativos tipo NotebookLM Video Overview.
@@ -868,36 +869,47 @@ Responde SOLO con el JSON completo corregido.`;
    */
   private async enforceLength(job: VideoJob, script: GeneratedScript, reviewer: string): Promise<void> {
     const words = (s: GeneratedScene): number => (s.narration ?? '').replace(/\[PAUSA\]/g, ' ').split(/\s+/).filter(Boolean).length;
-    const total = script.scenes.reduce((a, s) => a + words(s), 0);
+    const totalOf = (sc: GeneratedScript): number => sc.scenes.reduce((a, s) => a + words(s), 0);
+    const total = totalOf(script);
     const long = script.scenes.filter((s) => words(s) > 120);
     if (!long.length && total <= MAX_NARRATION_WORDS) return;
     this.logger.warn(
       `[AiService] [${job.id}] Longitud: ${total} palabras; escenas largas: ${long.map((s) => `${s.scene_order} (${words(s)})`).join(', ') || 'ninguna'} — ajustando`,
     );
-    try {
-      const fixed = await this.callGptWithRetry(job.id, [
-        { role: 'system', content: reviewer },
-        { role: 'user', content: `AJUSTA LA LONGITUD: el total debe quedar entre ${MAX_NARRATION_WORDS - 120} y ${MAX_NARRATION_WORDS} palabras ` +
-          `de narración y NINGUNA escena puede superar 110 palabras. ` +
-          (long.length ? `Divide en dos o acorta las escenas ${long.map((s) => s.scene_order).join(', ')} (la historia se resume; ` +
-            `lo práctico se conserva). ` : '') +
-          `Recorta primero lo que no sea práctico. Mantén source_paragraphs actualizados y no elimines la cobertura de ningún párrafo.\n` +
-          // Un presupuesto por escena se cumple mucho mejor que un total abstracto
-          `PRESUPUESTO DE PALABRAS POR ESCENA (no lo superes): ` +
-          script.scenes.map((s) => `escena ${s.scene_order}: ${Math.max(35, Math.min(110, Math.floor(words(s) * (MAX_NARRATION_WORDS - 40) / total)))}`).join('; ') +
-          `\n\nCAPÍTULO (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
-      ], 'length_fix', job.institution_id);
-      const before = this.missingParagraphs(job.content_txt, script).length;
-      const after = this.missingParagraphs(job.content_txt, fixed).length;
-      const newTotal = fixed.scenes.reduce((a, s) => a + words(s), 0);
-      if (after <= before && newTotal <= total) {
-        Object.assign(script, fixed);
-        this.logger.log(`[AiService] [${job.id}] Longitud ajustada: ${newTotal} palabras, ${fixed.scenes.length} escenas`);
-      } else {
-        this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud descartado (cobertura ${before}→${after}, ${total}→${newTotal} palabras)`);
+    const before = this.missingParagraphs(job.content_txt, script).length;
+    // Dos intentos: el tope de duración es un compromiso con el cliente, así que si el primero no
+    // baja del tope se pide de nuevo (más estricto) antes de rendirse
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const current = totalOf(script);
+        const fixed = await this.callGptWithRetry(job.id, [
+          { role: 'system', content: reviewer },
+          { role: 'user', content: `AJUSTA LA LONGITUD: el total debe quedar entre ${MAX_NARRATION_WORDS - 120} y ${MAX_NARRATION_WORDS} palabras ` +
+            `de narración y NINGUNA escena puede superar 110 palabras. ` +
+            (attempt === 2 ? `El intento anterior NO bajó del tope: recorta de verdad, condensa ejemplos y quita repeticiones. ` : '') +
+            (long.length ? `Divide en dos o acorta las escenas ${long.map((s) => s.scene_order).join(', ')} (la historia se resume; ` +
+              `lo práctico se conserva). ` : '') +
+            `Recorta primero lo que no sea práctico. Mantén source_paragraphs actualizados y no elimines la cobertura de ningún párrafo.\n` +
+            // Un presupuesto por escena se cumple mucho mejor que un total abstracto
+            `PRESUPUESTO DE PALABRAS POR ESCENA (no lo superes): ` +
+            script.scenes.map((s) => `escena ${s.scene_order}: ${Math.max(35, Math.min(110, Math.floor(words(s) * (MAX_NARRATION_WORDS - 60) / current)))}`).join('; ') +
+            `\n\nCAPÍTULO (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
+        ], 'length_fix', job.institution_id);
+        const after = this.missingParagraphs(job.content_txt, fixed).length;
+        const newTotal = totalOf(fixed);
+        // Bajo el tope se acepta aunque pierda un párrafo menor; si no baja, solo si no empeora la cobertura
+        const fits = newTotal <= MAX_NARRATION_WORDS + 30;
+        if ((fits && after <= before + 1) || (after <= before && newTotal < current)) {
+          Object.assign(script, fixed);
+          this.logger.log(`[AiService] [${job.id}] Longitud ajustada: ${newTotal} palabras, ${fixed.scenes.length} escenas (cobertura ${before}→${after})`);
+          if (fits) return;
+        } else {
+          this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud descartado (cobertura ${before}→${after}, ${current}→${newTotal} palabras)`);
+        }
+      } catch (err: unknown) {
+        this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud omitido: ${err instanceof Error ? err.message : String(err)}`);
+        return;
       }
-    } catch (err: unknown) {
-      this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud omitido: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

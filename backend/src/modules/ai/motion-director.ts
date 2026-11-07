@@ -58,7 +58,9 @@ ESCENARIOS:
 - "diagram": una pieza central grande (xl) y textos cortos alrededor con "points_to" hacia ella.
 - "versus": dos paneles: izquierdo columnas A–F, derecho G–L; la fila 1 es el encabezado (no pongas piezas ahí).
   Requiere "panels": {"left": {"title": "Así no", "tone": "incorrect"}, "right": {"title": "Así sí", "tone": "correct"}}
-  (tone: correct | incorrect | neutral).
+  (tone: correct | incorrect | neutral). "incorrect"/"correct" SOLO cuando la narración dice que una opción está MAL
+  (conducta riesgosa, mito falso). Si compara dos opciones válidas (ABS y CBS, dos sistemas, dos tipos), los dos
+  paneles van con "neutral" y su nombre como título (p. ej. "ABS" y "CBS"), sin marcas de correcto/incorrecto.
 
 ELEMENTOS (todos con "id" único y "type"):
 - illustration: {"asset": nombre en INGLÉS de la ilustración, "at", "size": s|m|l|xl, "label"?: máx. 28 caracteres}
@@ -70,7 +72,10 @@ ELEMENTOS (todos con "id" único y "type"):
 - text: {"text": máx. 90 caracteres, "at", "width": columnas 2–12, "style": title|body|caption, "points_to"?: id}
 - number: {"value": número inicial, "prefix"?: "$", "suffix"?: " %", "decimals"?: 0–2, "at", "size", "label"?}
 - zone: {"at": celda SUPERIOR IZQUIERDA, "span": [columnas, filas], "shape": box|circle, "color"?, "label"?}
-- road (solo map): {"path": [celdas], "lanes": 1|2}
+- road (solo map): {"path": [celdas], "lanes": 1|2, "center"?: "dashed" (línea discontinua: se puede adelantar) |
+  "solid" (línea continua amarilla: prohibido adelantar) | "double" (doble línea amarilla)}
+- crosswalk (solo map): paso de cebra sobre una vía {"at": celda de la vía, "direction": "h" si la vía va de
+  izquierda a derecha, "v" si va de arriba abajo}
 - roundabout (solo map): {"at", "size": l|xl}
 Colores: primary, secondary, success, danger, warning, neutral, blue, red, yellow, green, orange, white, gray, black.
 
@@ -190,7 +195,8 @@ para "tiempo". Sé tolerante con eso.
 Marca como problema SOLO lo que claramente confundiría al estudiante:
 - una pieza que muestra algo DISTINTO u OPUESTO a su etiqueta (un escudo de seguridad como "Riesgo", una persona CON
   casco etiquetada "Sin casco", un banco como "Alcancía");
-- texto encimado con otra pieza o cortado por el borde.
+- texto encimado con otra pieza o cortado por el borde;
+- una comparación que presenta como incorrecta ("Así no", marca roja) una opción que la narración considera válida.
 NO reportes ortografía, estilo, colores, posiciones aproximadas ni detalles que falten. Las señales de tránsito
 de la lista son las oficiales de Colombia dibujadas con símbolos simplificados: no las reportes por su dibujo.
 Responde SOLO JSON: {"ok": true|false, "problems": ["problema concreto, en una frase", ...]}.
