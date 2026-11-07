@@ -20,7 +20,9 @@ export const CELL_H = STAGE_H / GRID_ROWS;
 const BOX: Record<Size, number> = { s: 110, m: 170, l: 260, xl: 380 };
 const NUMBER_FONT: Record<Size, number> = { s: 64, m: 96, l: 140, xl: 180 };
 const VEHICLE_LEN: Record<Size, number> = { s: 90, m: 130, l: 180, xl: 240 };
-const VEHICLE_RATIO = { car: 0.5, bus: 0.36, truck: 0.42, motorcycle: 0.32, bicycle: 0.3 } as const;
+/** Las motos y bicicletas son angostas: a su largo real casi no se ven en un celular. */
+const NARROW_VEHICLE_SCALE = 1.35;
+const VEHICLE_RATIO = { car: 0.5, bus: 0.36, truck: 0.42, motorcycle: 0.4, bicycle: 0.3 } as const;
 const TEXT_FONT = { title: 46, body: 34, caption: 27 } as const;
 const HEADING_DEG = { E: 0, S: 90, W: 180, N: 270 } as const;
 
@@ -99,10 +101,13 @@ function vehicleSvg(kind: keyof typeof VEHICLE_RATIO, color: string): string {
 <rect x="90" y="5" width="28" height="40" rx="9" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="2"/>
 <rect x="105" y="10" width="9" height="30" rx="3" fill="${glass}" opacity="0.85"/></svg>`;
     case 'motorcycle':
-      return `<svg viewBox="0 0 100 32" width="100%" height="100%">
-<rect x="4" y="12" width="92" height="8" rx="4" fill="#374151"/>
-<rect x="22" y="6" width="50" height="20" rx="10" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="2"/>
-<circle cx="44" cy="16" r="10" fill="#1F2937"/><circle cx="44" cy="16" r="6" fill="#9CA3AF"/></svg>`;
+      // Vista desde arriba: ruedas delante y detrás, cuerpo, manubrio ancho y casco del conductor
+      return `<svg viewBox="0 0 100 40" width="100%" height="100%">
+<rect x="2" y="16" width="20" height="8" rx="4" fill="#1F2937"/><rect x="78" y="16" width="20" height="8" rx="4" fill="#1F2937"/>
+<rect x="16" y="11" width="62" height="18" rx="9" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="2"/>
+<rect x="68" y="1" width="6" height="38" rx="3" fill="#374151"/>
+<circle cx="50" cy="20" r="10" fill="#111827"/><circle cx="52" cy="20" r="5" fill="#6B7280"/>
+<rect x="94" y="17" width="5" height="6" rx="2" fill="#FEF3C7"/></svg>`;
     case 'bicycle':
       return `<svg viewBox="0 0 100 30" width="100%" height="100%">
 <rect x="4" y="13" width="92" height="4" rx="2" fill="#374151"/>
@@ -129,7 +134,7 @@ export function geometry(el: MotionElement): Geometry | null {
     case 'icon':
       return { x: cx(el.at), y: cy(el.at), w: BOX[el.size], h: BOX[el.size], round: el.type === 'icon' };
     case 'vehicle': {
-      const len = VEHICLE_LEN[el.size];
+      const len = VEHICLE_LEN[el.size] * (el.vehicle === 'motorcycle' || el.vehicle === 'bicycle' ? NARROW_VEHICLE_SCALE : 1);
       return { x: cx(el.at), y: cy(el.at), w: len, h: len * VEHICLE_RATIO[el.vehicle], round: false };
     }
     case 'text':
@@ -152,6 +157,7 @@ export function geometry(el: MotionElement): Geometry | null {
     case 'sign':
       return { x: cx(el.at), y: cy(el.at), w: BOX[el.size], h: BOX[el.size], round: false };
     case 'road':
+    case 'crosswalk':
       return null;
   }
 }
@@ -218,6 +224,14 @@ function inLane(x: number, y: number, deg: number, roads: Array<[number, number,
   if (!roads.some((r) => onSegment(x, y, r))) return [x, y];
   const a = (deg * Math.PI) / 180;
   return [x - Math.sin(a) * LANE_OFFSET, y + Math.cos(a) * LANE_OFFSET];
+}
+
+/** Línea central de una vía de 2 carriles: discontinua (blanca), continua o doble (amarillas, no adelantar). */
+function centerLine(pts: string, kind: 'dashed' | 'solid' | 'double'): string {
+  if (kind === 'dashed') return `<polyline points="${pts}" fill="none" stroke="#F8FAFC" stroke-width="5" stroke-dasharray="26 20" stroke-linejoin="round"/>`;
+  if (kind === 'solid') return `<polyline points="${pts}" fill="none" stroke="#FACC15" stroke-width="6" stroke-linejoin="round"/>`;
+  return `<polyline points="${pts}" fill="none" stroke="#FACC15" stroke-width="16" stroke-linejoin="round"/>
+<polyline points="${pts}" fill="none" stroke="#4B5563" stroke-width="5" stroke-linejoin="round"/>`;
 }
 
 // ─── Glorietas ───────────────────────────────────────────────────────────────
@@ -368,7 +382,7 @@ export function compileMotion(
   const hidden = initiallyHidden(spec);
   // Si al empezar no se vería ninguna pieza, las que aparecen después se ven tenues desde el inicio
   // (como los diagramas de siempre): la pantalla nunca queda vacía mientras la voz introduce el tema
-  const visibleAtStart = spec.elements.some((e) => e.type !== 'road' && e.type !== 'zone' && !hidden.has(e.id));
+  const visibleAtStart = spec.elements.some((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'crosswalk' && !hidden.has(e.id));
   const startOpacity = visibleAtStart ? 0 : 0.16;
   const geo = new Map<string, Geometry>();
   const byId = new Map(spec.elements.map((e) => [e.id, e]));
@@ -404,12 +418,24 @@ export function compileMotion(
     const id = domId(el.id);
     const color = colorOf(el.color, brand, el.type === 'zone' ? '#F59E0B' : brand.primaryColor);
 
+    if (el.type === 'crosswalk') {
+      // Franjas blancas a lo ancho de la vía (vía de 2 carriles: 118 px de ancho)
+      const [x, y] = [cx(el.at), cy(el.at)];
+      // Las franjas van paralelas al tránsito: en una vía horizontal son barras horizontales apiladas
+      const stripes = Array.from({ length: 6 }, (_, k) => el.direction === 'h'
+        ? `<rect x="${(x - 34).toFixed(1)}" y="${(y - 52 + k * 18.5).toFixed(1)}" width="68" height="11" rx="2" fill="#F8FAFC"/>`
+        : `<rect x="${(x - 52 + k * 18.5).toFixed(1)}" y="${(y - 34).toFixed(1)}" width="11" height="68" rx="2" fill="#F8FAFC"/>`).join('');
+      under.push(`<g id="${id}">${stripes}</g>`);
+      tb.init(id, 'opacity', hidden.has(el.id) ? 0 : 1);
+      continue;
+    }
+
     if (el.type === 'road') {
       const pts = el.path.map((c) => `${cx(c).toFixed(1)},${cy(c).toFixed(1)}`).join(' ');
       const width = el.lanes === 2 ? 118 : 84;
       under.push(`<g id="${id}"><polyline points="${pts}" fill="none" stroke="#C7CDD4" stroke-width="${width + 14}" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="${pts}" fill="none" stroke="#4B5563" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>
-${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" stroke-width="5" stroke-dasharray="26 20" stroke-linejoin="round"/>` : ''}</g>`);
+${el.lanes === 2 ? centerLine(pts, el.center) : ''}</g>`);
       tb.init(id, 'opacity', hidden.has(el.id) ? 0 : 1);
       continue;
     }
@@ -481,8 +507,9 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     const r0 = rectExit(a, b.x - a.x, b.y - a.y) + 10;
     const r1 = Math.max(b.w, b.h) / 2 * 0.8;
     // La línea no debe cruzar otros textos ni piezas: se prueba la curva hacia un lado, hacia el otro y recta
+    // (incluido su propio texto: una línea que sale por un costado no debe volver a cruzarlo)
     const others = spec.elements
-      .filter((o) => o.id !== el.id && o.id !== el.pointsTo && o.type !== 'road' && o.type !== 'zone' && o.type !== 'roundabout')
+      .filter((o) => o.id !== el.pointsTo && o.type !== 'road' && o.type !== 'zone' && o.type !== 'roundabout' && o.type !== 'crosswalk')
       .map((o) => geo.get(o.id)).filter((g): g is Geometry => !!g);
     const bends = [0.12, -0.12, 0, 0.25, -0.25];
     const fromCenter = bends.map((bend) => arrowPath(a.x, a.y, b.x, b.y, r0, r1 + 8, bend));
@@ -508,8 +535,17 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
 
   const checkpoints: number[] = [];
   let connectN = 0;
+  // Un beat que llega en los últimos segundos dejaría sus piezas tenues casi toda la escena y visibles
+  // solo un instante: se adelanta para que se vean al menos LATE_MARGIN segundos (sin desordenar los beats)
+  const LATE_MARGIN = 2.5;
+  const times: number[] = [];
+  spec.beats.forEach((_, i) => {
+    const raw = Math.max(0, beatTimes[i] ?? 0.6 + i * 2);
+    const room = (spec.beats.length - i) * 0.6;
+    times.push(Math.max(i ? times[i - 1]! + 0.4 : 0, Math.min(raw, end - LATE_MARGIN - room + 0.6)));
+  });
   spec.beats.forEach((beat, i) => {
-    const t = Math.max(0, beatTimes[i] ?? 0.6 + i * 2);
+    const t = times[i]!;
     let appearN = 0;
     let beatEnd = t + 0.6;
     for (const a of beat.actions) {
@@ -657,7 +693,7 @@ ${el.lanes === 2 ? `<polyline points="${pts}" fill="none" stroke="#F8FAFC" strok
     const id = domId(el.id);
     const tag = `${id}-tag`;
     const g = geo.get(el.id)!;
-    const off = Math.max(g.w, g.h) / 2 - 8;
+    const off = Math.max(g.w, g.h) / 2 - (el.vehicle === 'motorcycle' || el.vehicle === 'bicycle' ? 26 : 8);
     pieces.push(`<div class="mo-el mo-tag" id="${tag}" style="width:0;height:0;z-index:4"><div class="mo-label">${escape(el.label)}</div></div>`);
     tags.push(tag);
     for (const [prop, v] of Object.entries(tb.initial[id]!)) {
@@ -682,7 +718,7 @@ ${pieces.join('\n')}
     tracks: tb.tracks,
     initial: tb.initial,
     numbers,
-    pieces: [...spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout').map((e) => domId(e.id)), ...tags],
+    pieces: [...spec.elements.filter((e) => e.type !== 'road' && e.type !== 'zone' && e.type !== 'roundabout' && e.type !== 'crosswalk').map((e) => domId(e.id)), ...tags],
     vehicles: spec.elements.filter((e) => e.type === 'vehicle').map((e) => domId(e.id)),
     movers: [...new Set(spec.beats.flatMap((b) => b.actions.filter((a) => a.do === 'move').map((a) => domId((a as { target: string }).target))))],
     checkpoints,

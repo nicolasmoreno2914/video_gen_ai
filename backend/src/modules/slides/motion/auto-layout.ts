@@ -85,7 +85,7 @@ export function autoLayout(spec: MotionSpec): string[] {
 
   // 1. Lo que se sale del escenario entra a la celda más cercana donde cabe
   for (const el of spec.elements) {
-    if (!hasAt(el) || el.type === 'zone' || el.type === 'roundabout') continue;
+    if (!hasAt(el) || el.type === 'zone' || el.type === 'roundabout' || el.type === 'crosswalk') continue;
     const b = boxAt(el, el.at);
     if (b && !inside(b, spec.scenario === 'versus')) {
       const cell = findCell(spec, el, el.at, [], false);
@@ -105,7 +105,7 @@ export function autoLayout(spec: MotionSpec): string[] {
   // 2. Lo que se mueve y los vehículos conservan su lugar: ocupan todas sus posiciones de reposo
   const occupied: Box[] = [];
   for (const el of spec.elements) {
-    if (!hasAt(el) || el.type === 'zone' || el.type === 'roundabout') continue;
+    if (!hasAt(el) || el.type === 'zone' || el.type === 'roundabout' || el.type === 'crosswalk') continue;
     if (!movers.has(el.id) && el.type !== 'vehicle') continue;
     // Un destino tras el que la pieza desaparece (la moneda entra a la alcancía) no ocupa lugar
     const rests = [el.at, ...spec.beats.flatMap((beat, i) => beat.actions
@@ -120,7 +120,7 @@ export function autoLayout(spec: MotionSpec): string[] {
 
   // 3. Piezas fijas, las más grandes primero (la pieza central no se mueve; lo chico se acomoda alrededor)
   const fixed = spec.elements.filter((e): e is Placed =>
-    hasAt(e) && !movers.has(e.id) && e.type !== 'vehicle' && e.type !== 'zone' && e.type !== 'roundabout');
+    hasAt(e) && !movers.has(e.id) && e.type !== 'vehicle' && e.type !== 'zone' && e.type !== 'roundabout' && e.type !== 'crosswalk');
   const areaOf = (e: Placed): number => { const b = boxAt(e, e.at)?.[0]; return b ? (b.r - b.l) * (b.b - b.t) : 0; };
   const order = [...fixed].sort((a, b) => Number(a.type === 'text') - Number(b.type === 'text') || areaOf(b) - areaOf(a));
   for (const el of order) {
