@@ -11,6 +11,7 @@ import { ICON_NAMES, isValidIcon } from '../slides/templates/icons';
 import { resolveUiDemo } from '../slides/software/ui-demo';
 import { describePack, UI_PACKS, UiApp } from '../slides/software/ui-packs';
 import { directMotionScenes } from './motion-director';
+import { structureIssues, unsupportedNumbers } from './script-checks';
 
 const VALID_LAYOUTS = new Set<LayoutType>([
   'cover', 'guiding_question', 'big_stat', 'content_split', 'hierarchy_diagram', 'process_steps', 'comparison',
@@ -119,16 +120,20 @@ SECUENCIA PEDAGÓGICA OBLIGATORIA
 ════════════════════════════════════
 El video DEBE seguir este orden de tipos de escena:
 
-BLOQUE 1 — APERTURA (1–2 escenas)
+APERTURA + CONTEXTO: MÁXIMO 2 ESCENAS EN TOTAL (≤ 25 % de la narración). La escena 3, a más tardar,
+ya ENSEÑA la primera regla, concepto o paso con su explicación. Prohibido anunciar el temario: nada de
+escenas de "preguntas clave", "lo que veremos" o resúmenes anticipados; esas preguntas se responden
+explicando, no enumerándolas al inicio.
+
+BLOQUE 1 — APERTURA (1 escena)
   → hook (escena 1, obligatoria)
      • El hook DEBE ser variado según el contenido. NO usar siempre el mismo tipo.
      • Elige el hook_type más adecuado al tema (ver sección HOOK_TYPE más abajo).
      • Crea curiosidad genuina, conecta emocionalmente con el estudiante.
      • NO usar hook_stat por defecto. Solo cuando el dato sea verdaderamente impactante.
      • NO empezar siempre con pregunta ni siempre con portada. Varía entre capítulos.
-  → hook (escena 2, opcional si el tema lo amerita y refuerza el gancho inicial)
 
-BLOQUE 2 — CONTEXTO (1–2 escenas)
+BLOQUE 2 — CONTEXTO (0–1 escena)
   → context
      • Explica por qué el tema importa.
      • El contexto NO siempre es un dato numérico. Elige según el contenido:
@@ -812,6 +817,8 @@ Devuelve el MISMO JSON (mismos campos, mismo número y orden de escenas, mismos 
 10. Cada palabra con contenido del texto en pantalla debe decirse en la narración de esa escena.
 11. Sin cuantificadores que la fuente no use ("la mayoría", "siempre", "estudios" si es uno solo).
 12. No alargues el guion: la narración total no puede superar ${MAX_NARRATION_WORDS} palabras.
+14. Apertura (gancho + contexto) en máximo 2 escenas; elimina escenas que solo anuncian el temario o enumeran
+    preguntas que se responden después: el video empieza a enseñar a más tardar en la escena 3.
 Responde SOLO con el JSON completo corregido.`;
     try {
       const reviewed = await this.callGptWithRetry(job.id, [
@@ -836,6 +843,7 @@ Responde SOLO con el JSON completo corregido.`;
         if (still.length) this.logger.warn(`[AiService] [${job.id}] Siguen sin cubrir: ${still.map((m) => m + 1).join(', ')}`);
       }
       await this.enforceLength(job, reviewed, reviewer);
+      await this.enforceStructure(job, reviewed, reviewer);
       this.logCoverage(job.id, reviewed);
       this.stripUnsupportedYears(job, reviewed);
       this.logger.log(`[AiService] [${job.id}] Revisión crítica aplicada (${reviewed.scenes.length} escenas)`);
@@ -910,6 +918,45 @@ Responde SOLO con el JSON completo corregido.`;
         this.logger.warn(`[AiService] [${job.id}] Ajuste de longitud omitido: ${err instanceof Error ? err.message : String(err)}`);
         return;
       }
+    }
+  }
+
+  /**
+   * Revisiones determinísticas del guion ya ajustado: cifras que no están en el capítulo y escenas de
+   * temario al comienzo (las preguntas del video interactivo caen ahí y preguntan algo aún no
+   * explicado). Si hay problemas, una pasada dirigida los corrige; se acepta solo si reduce los
+   * problemas sin empeorar la cobertura ni pasar el tope de palabras.
+   */
+  private async enforceStructure(job: VideoJob, script: GeneratedScript, reviewer: string): Promise<void> {
+    const problems = (sc: GeneratedScript): string[] => [
+      ...structureIssues(sc),
+      ...unsupportedNumbers(sc, job.content_txt).map((n) =>
+        `la cifra ${n.value.toLocaleString('es-CO')} de la escena ${n.scene} no está en el capítulo: si se presenta como dato o ` +
+        'norma, cámbiala por la de la fuente o quítala (un cálculo hecho con cifras de la fuente o el valor de un ejercicio puede quedar)'),
+    ];
+    const found = problems(script);
+    if (!found.length) return;
+    this.logger.warn(`[AiService] [${job.id}] Estructura/cifras: ${found.join(' | ')} — corrigiendo`);
+    const words = (sc: GeneratedScript): number =>
+      sc.scenes.reduce((a, s) => a + (s.narration ?? '').replace(/\[PAUSA\]/g, ' ').split(/\s+/).filter(Boolean).length, 0);
+    try {
+      const before = this.missingParagraphs(job.content_txt, script).length;
+      const fixed = await this.callGptWithRetry(job.id, [
+        { role: 'system', content: reviewer },
+        { role: 'user', content: `CORRIGE estos problemas del guion (puedes eliminar o fusionar escenas; reasigna source_paragraphs ` +
+          `para no perder cobertura y no pases de ${MAX_NARRATION_WORDS} palabras):\n- ${found.join('\n- ')}` +
+          `\n\nCAPÍTULO (párrafos numerados):\n${numberedParagraphs(job.content_txt)}\n\nGUION:\n${JSON.stringify(script)}` },
+      ], 'structure_fix', job.institution_id);
+      const after = this.missingParagraphs(job.content_txt, fixed).length;
+      const left = problems(fixed);
+      if (left.length < found.length && after <= before && words(fixed) <= MAX_NARRATION_WORDS + 30) {
+        Object.assign(script, fixed);
+        this.logger.log(`[AiService] [${job.id}] Estructura corregida: ${found.length}→${left.length} problemas, ${fixed.scenes.length} escenas`);
+      } else {
+        this.logger.warn(`[AiService] [${job.id}] Corrección de estructura descartada (${found.length}→${left.length} problemas, cobertura ${before}→${after})`);
+      }
+    } catch (err: unknown) {
+      this.logger.warn(`[AiService] [${job.id}] Corrección de estructura omitida: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
